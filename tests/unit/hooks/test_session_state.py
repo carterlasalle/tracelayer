@@ -93,7 +93,13 @@ def test_atomic_writes_leave_no_temp_files(state):
     leftovers = list(state.session_dir.glob("*.tmp"))
     assert leftovers == []
     payload = json.loads((state.session_dir / "s1.json").read_text(encoding="utf-8"))
-    assert payload == {"contexts_loaded": [], "blocked": [], "dirty": []}
+    assert payload == {
+        "contexts_loaded": [],
+        "blocked": [],
+        "dirty": [],
+        "active_work": None,
+        "active_requirement": None,
+    }
 
 
 def test_corrupt_state_file_degrades_to_empty(project, state):

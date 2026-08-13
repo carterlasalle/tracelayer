@@ -54,6 +54,38 @@ def test_requirement_edit_flags_stale_downstream(tmp_path):
     assert "Downstream artifacts marked stale" in out["output"]
 
 
+def test_prompt_records_active_work_and_attaches_it(tmp_path):
+    repo = make_git_repo(
+        tmp_path,
+        {
+            "req.md": "## REQ-AUTH-017 - Rotation\n\n<!-- trace:v1 id=REQ-AUTH-017 type=requirement -->\n",
+            "src/old.py": "def old():\n    return 1\n",
+        },
+    )
+    run_trace(repo, "index", "--all")
+    env = {"TRACE_SESSION": "sess-attach"}
+    r = run_trace(
+        repo, "hook", "prompt-context", "--format", "json",
+        env=env,
+        input=json.dumps({"prompt": "Implement WORK-AUTH-237 per REQ-AUTH-017"}),
+    )
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout)
+    assert out["active_work"] == "WORK-AUTH-237"
+    assert out["active_requirement"] == "REQ-AUTH-017"
+    # New file created after the prompt: guidance carries the work item.
+    (repo / "src" / "fresh.py").write_text("def fresh():\n    return 2\n", encoding="utf-8")
+    r = run_trace(
+        repo, "hook", "post-mutation", "--format", "json",
+        env=env,
+        input=json.dumps({"path": "src/fresh.py"}),
+    )
+    out = json.loads(r.stdout)
+    assert "Active work item: WORK-AUTH-237" in out["output"]
+    assert "work=WORK-AUTH-237" in out["output"]
+    assert "satisfies=REQ-AUTH-017" in out["output"]
+
+
 def test_deleted_traced_symbol_with_references_blocks(tmp_path):
     repo = make_git_repo(
         tmp_path,

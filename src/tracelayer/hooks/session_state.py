@@ -95,6 +95,37 @@ class SessionState:
     def dirty(self, session_id: str) -> set[str]:
         return set(self._read(session_id).get("dirty", []))
 
+    def set_active_work(self, session_id: str, work_id: str | None) -> None:
+        """Record the work item the session is operating under (spec 22.4)."""
+        if work_id is None:
+            return
+        data = self._read(session_id)
+        data["active_work"] = work_id
+        self._write(session_id, data)
+
+    def active_work(self, session_id: str) -> str | None:
+        return self._read(session_id).get("active_work")
+
+    def set_active_requirement(self, session_id: str, req_id: str | None) -> None:
+        """Record the requirement the session is operating under (spec 22.4)."""
+        if req_id is None:
+            return
+        data = self._read(session_id)
+        data["active_requirement"] = req_id
+        self._write(session_id, data)
+
+    def active_requirement(self, session_id: str) -> str | None:
+        return self._read(session_id).get("active_requirement")
+
     def clear(self, session_id: str) -> None:
         """Reset the session to a clean slate (empty file, not deleted)."""
-        self._write(session_id, {"contexts_loaded": [], "blocked": [], "dirty": []})
+        self._write(
+            session_id,
+            {
+                "contexts_loaded": [],
+                "blocked": [],
+                "dirty": [],
+                "active_work": None,
+                "active_requirement": None,
+            },
+        )

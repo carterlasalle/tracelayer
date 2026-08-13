@@ -418,9 +418,18 @@ def _guidance(
         lines.append("Review downstream relationships before completion.")
         blocks.append("\n".join(lines))
     if untraced:
+        work = ctx.state.active_work(ctx.session_id) if ctx.state else None
+        req = ctx.state.active_requirement(ctx.session_id) if ctx.state else None
+        work_attr = f" work={work}" if work else ""
+        req_attr = f" satisfies={req}" if req else ""
+        example = f"# trace:v1 id=impl.<slug>{work_attr}{req_attr}"
         if is_new_file:
             lines = ["NEW ARTIFACT CREATED", ""]
-            lines.append("This file has no trace marker yet. Candidates:")
+            if work:
+                lines.append(f"Active work item: {work}")
+            if req:
+                lines.append(f"Active requirement: {req}")
+            lines.append("Candidates:")
             lines += [f"- {name}" for name in untraced]
             lines += [
                 "",
@@ -428,7 +437,7 @@ def _guidance(
                 "API, business rule, security boundary, persistence/migration,",
                 "verification test, ...), create or reuse a trace ID and link it",
                 "semantically, e.g.:",
-                "  # trace:v1 id=impl.<slug> work=<WORK-ID> satisfies=<REQ-ID>",
+                f"  {example}",
                 "Do not trace imports, boilerplate, generated code, or trivial",
                 "helpers.",
             ]
@@ -436,7 +445,7 @@ def _guidance(
             lines = ["NEW UNTRACED BEHAVIOR", ""]
             for name in untraced:
                 lines.append(f"Add a trace marker above `{name}` (e.g. for python):")
-                lines.append("  # trace:v1 id=impl.<slug> work=<WORK-ID> satisfies=<REQ-ID>")
+                lines.append(f"  {example}")
             lines.append("See the traceability skill for valid fields and formats.")
         blocks.append("\n".join(lines))
     return fit("\n\n".join(blocks), ctx.project.config.hooks.max_context_chars)
