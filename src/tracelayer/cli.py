@@ -532,7 +532,9 @@ def update(
 def web(
     ctx: typer.Context,
     root: Path | None = _root_opt(),
-    host: str = typer.Option("127.0.0.1", "--host", help="Bind address (localhost only by default)"),
+    host: str = typer.Option(
+        "127.0.0.1", "--host", help="Bind address (localhost only by default)"
+    ),
     port: int = typer.Option(8765, "--port", help="Port for the web UI"),
     open_browser: bool = typer.Option(
         True, "--open/--no-open", help="Open the browser automatically"

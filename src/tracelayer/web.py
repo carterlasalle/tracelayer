@@ -59,9 +59,7 @@ def graph_payload(engine: Engine) -> dict:
         dst = by_uid.get(edge.to_uid)
         if src is None or dst is None:
             continue  # unresolved targets are diagnostics, not visuals
-        edges.append(
-            {"source": src.trace_id, "target": dst.trace_id, "predicate": edge.predicate}
-        )
+        edges.append({"source": src.trace_id, "target": dst.trace_id, "predicate": edge.predicate})
     return {"nodes": nodes, "edges": edges, "counts": {"nodes": len(nodes), "edges": len(edges)}}
 
 
