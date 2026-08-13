@@ -20,6 +20,8 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    environment: pypi   # create in Settings -> Environments; matches the
+                         # "Environment name" field in the PyPI publisher form
     permissions:
       id-token: write      # PyPI trusted publishing (OIDC)
       contents: write      # GitHub Release
