@@ -1,0 +1,20 @@
+# TraceLayer × Hermes — shell hooks config snippet.
+# Merge the `hooks:` block into ~/.hermes/config.yaml (or profile config),
+# install the wrapper, then run `hermes hooks doctor`.
+hooks:
+  pre_tool_call:
+    - matcher: "Bash"
+      command: "~/.hermes/hooks/trace-hook.sh pre-mutation hermes"
+      timeout: 30
+      hooks_auto_accept: false
+    - matcher: "Write(*.*)|Edit(*.*)"
+      command: "~/.hermes/hooks/trace-hook.sh pre-mutation hermes"
+      timeout: 30
+      hooks_auto_accept: false
+  post_tool_call:
+    - matcher: "Write(*.*)|Edit(*.*)"
+      command: "~/.hermes/hooks/trace-hook.sh post-mutation hermes"
+      timeout: 30
+    - matcher: "Bash"
+      command: "~/.hermes/hooks/trace-hook.sh post-mutation hermes"
+      timeout: 30

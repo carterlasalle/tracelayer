@@ -196,3 +196,13 @@ Hook text is system-generated from templates and sanitized trace metadata
   `{event, payload, session_id}`, stdout `{decision, output}`.
 - [OpenCode](../adapters/opencode/README.md) — template config mapping the
   same commands.
+- [Pi](../adapters/pi/README.md) — Claude-Code-compatible command hooks
+  (PreToolUse deny/allow contract) for the Pi coding agent.
+- [Oh My Pi](../adapters/oh-my-pi/README.md) — YAML hooks template
+  (`pi-yaml-hooks`) plus a native TypeScript gate for the block-once
+  pre-mutation guard and fail-closed stop gate.
+- [Codex CLI](../adapters/codex/README.md) — `hooks.json` with `codex_hooks`
+  enabled; PreToolUse deny-only and PostToolUse observe-only (Codex upstream
+  limitations documented).
+- [Hermes](../adapters/hermes/README.md) — shell hooks
+  (`pre_tool_call`/`post_tool_call`) with exit-2 blocking and consent model.

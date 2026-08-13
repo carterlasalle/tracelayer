@@ -1,0 +1,68 @@
+{
+  "SessionStart": [
+    {
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": ".codex/hooks/trace-hook.sh session-start codex",
+          "statusMessage": "TraceLayer: session health",
+          "additionalContextLimit": 1000
+        }
+      ]
+    }
+  ],
+  "UserPromptSubmit": [
+    {
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": ".codex/hooks/trace-hook.sh prompt-context codex",
+          "statusMessage": "TraceLayer: prompt context",
+          "additionalContextLimit": 1500
+        }
+      ]
+    }
+  ],
+  "PreToolUse": [
+    {
+      "matcher": "^Bash$",
+      "hooks": [
+        {
+          "type": "command",
+          "command": ".codex/hooks/trace-hook.sh pre-mutation codex",
+          "statusMessage": "TraceLayer: pre-mutation guard",
+          "timeout": 30
+        }
+      ]
+    }
+  ],
+  "PostToolUse": [
+    {
+      "matcher": "^Bash$",
+      "hooks": [
+        {
+          "type": "command",
+          "command": ".codex/hooks/trace-hook.sh post-mutation codex",
+          "statusMessage": "TraceLayer: post-mutation guidance",
+          "additionalContextLimit": 1500,
+          "timeout": 30
+        }
+      ]
+    }
+  ],
+  "Stop": [
+    {
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": ".codex/hooks/trace-hook.sh stop codex",
+          "statusMessage": "TraceLayer: stop gate",
+          "timeout": 60
+        }
+      ]
+    }
+  ]
+}
