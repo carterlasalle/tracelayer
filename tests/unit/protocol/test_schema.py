@@ -64,7 +64,7 @@ def test_markdown_docs_keys() -> None:
     assert set(docs) == {
         "docs/marker-protocol.md",
         "docs/relationships.md",
-        "skills/traceability/marker-protocol.md",
+        "skills/traceability/references/marker-protocol.md",
     }
 
 

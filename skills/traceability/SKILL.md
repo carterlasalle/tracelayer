@@ -1,13 +1,32 @@
+---
+name: traceability
+description: >-
+  Repository traceability for TraceLayer (trace:v1 markers, .trace/ config,
+  trace CLI). Use when implementing a spec, requirement, issue, work item, or
+  plan; modifying code or config containing trace:v1 markers; changing a
+  requirement, PRD, ADR, or plan that has downstream traces; creating,
+  deleting, or refactoring traced symbols; adding or removing verification
+  tests; changing deployment/config/runbook behavior tied to requirements;
+  reviewing a PR with trace diagnostics; or fixing a trace verify failure. Do
+  not use for repositories without trace markers or .trace/ config, or for
+  prose/documentation edits unrelated to traced artifacts.
+---
+
 # Traceability Skill
 
 Use this skill whenever you work in a repository that uses TraceLayer
 (`trace:v1` markers, `.trace/` config, or `trace` CLI). It keeps your changes
 traceable, your verification honest, and your completion claims verifiable.
 
-The generated marker syntax reference lives in
-[marker-protocol.md](marker-protocol.md); edge semantics live in
-[relationship-guide.md](relationship-guide.md); worked examples are in
-[examples.md](examples.md).
+Reference material (read on demand, linked directly):
+
+- [Marker protocol](references/marker-protocol.md) — generated normative
+  `trace:v1` syntax, placement, and value encoding.
+- [Relationship guide](references/relationship-guide.md) — edge semantics:
+  `satisfies`, `verifies`, `exercises`, `addresses`, `supersedes`, and the
+  declared/structural/observed distinction.
+- [Examples](references/examples.md) — worked markers for requirements,
+  decisions, plans, implementations, tests, operations, and runbooks.
 
 ## When to use this skill (trigger conditions)
 
@@ -21,6 +40,9 @@ Use this skill when:
 - changing deployment/config/runbook behavior tied to requirements;
 - reviewing a PR with trace diagnostics;
 - fixing a `trace verify` failure.
+
+Do not use it for untraced repositories, or for edits that touch no traced
+artifacts.
 
 ## Mental model
 

@@ -20,6 +20,6 @@ uv run trace --help
 ```
 
 Generated docs (`docs/marker-protocol.md`, `docs/relationships.md`,
-`skills/traceability/marker-protocol.md`) are produced from the protocol
-registries; run `uv run trace docs generate` after changing the protocol and
-never edit them by hand.
+`skills/traceability/references/marker-protocol.md`) are produced from the
+protocol registries; run `uv run trace docs generate` after changing the
+protocol and never edit them by hand.

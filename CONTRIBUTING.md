@@ -29,7 +29,7 @@ uv run trace docs generate --check
 ## Repository rules
 
 - **Deterministic before semantic.** If a fact can be proven by parsing, Git, file existence, tests, or coverage, the engine must prove it. Never spend an LLM on it, and never hand an LLM the job of the deterministic engine.
-- **One canonical schema.** The marker grammar, ontology, and TL-rule registries in `src/tracelayer/protocol/` and `src/tracelayer/diagnostics.py` are the single source of truth. `docs/marker-protocol.md`, `docs/relationships.md`, and `skills/traceability/marker-protocol.md` are generated — run `uv run trace docs generate` after changing the protocol and never edit them by hand.
+- **One canonical schema.** The marker grammar, ontology, and TL-rule registries in `src/tracelayer/protocol/` and `src/tracelayer/diagnostics.py` are the single source of truth. `docs/marker-protocol.md`, `docs/relationships.md`, and `skills/traceability/references/marker-protocol.md` are generated — run `uv run trace docs generate` after changing the protocol and never edit them by hand.
 - **Every failure is explainable.** Diagnostics come from the rule registry (`tracelayer.diagnostics.make`) with severity and remediation. Recoverable input problems are diagnostics, never exceptions.
 - **Trace integrity is part of the Definition of Done.** Before completing implementation work, `trace verify --changed` must pass under the active policy.
 - **Derived facts are never declared.** Paths, line numbers, commit SHAs, test results, and structural/observed edges must not appear in markers.

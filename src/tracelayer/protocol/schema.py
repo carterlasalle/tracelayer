@@ -179,5 +179,5 @@ def markdown_docs() -> dict[str, str]:
     return {
         "docs/marker-protocol.md": marker_protocol_markdown(),
         "docs/relationships.md": relationships_markdown(),
-        "skills/traceability/marker-protocol.md": marker_protocol_markdown(),
+        "skills/traceability/references/marker-protocol.md": marker_protocol_markdown(),
     }
