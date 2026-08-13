@@ -65,7 +65,11 @@ def test_prompt_records_active_work_and_attaches_it(tmp_path):
     run_trace(repo, "index", "--all")
     env = {"TRACE_SESSION": "sess-attach"}
     r = run_trace(
-        repo, "hook", "prompt-context", "--format", "json",
+        repo,
+        "hook",
+        "prompt-context",
+        "--format",
+        "json",
         env=env,
         input=json.dumps({"prompt": "Implement WORK-AUTH-237 per REQ-AUTH-017"}),
     )
@@ -76,7 +80,11 @@ def test_prompt_records_active_work_and_attaches_it(tmp_path):
     # New file created after the prompt: guidance carries the work item.
     (repo / "src" / "fresh.py").write_text("def fresh():\n    return 2\n", encoding="utf-8")
     r = run_trace(
-        repo, "hook", "post-mutation", "--format", "json",
+        repo,
+        "hook",
+        "post-mutation",
+        "--format",
+        "json",
         env=env,
         input=json.dumps({"path": "src/fresh.py"}),
     )
