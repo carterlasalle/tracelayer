@@ -1,0 +1,48 @@
+# Release: build + publish to PyPI (trusted publishing, no tokens) + GitHub Release.
+#
+# One-time PyPI setup (required before the first run):
+#   1. Create the "tracelayer" project on PyPI (or TestPyPI first).
+#   2. PyPI -> Publishing -> Add a pending publisher:
+#        owner: carterlasalle, repository: tracelayer,
+#        workflow filename: release.yml
+#   3. Push a version tag:
+#        git tag v0.1.0 && git push origin v0.1.0
+#
+# Until the trusted publisher is registered, the publish job fails with a
+# clear "no matching trusted publisher" error from PyPI — that is expected.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write      # PyPI trusted publishing (OIDC)
+      contents: write      # GitHub Release
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Build wheel and sdist
+        run: uv build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

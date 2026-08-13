@@ -72,6 +72,19 @@ next steps: `trace init` to enable traceability in the current repo, or
 `trace install` to install the skill and hooks into your agent harnesses
 globally. Set `TRACE_NO_HINT=1` to silence that message (e.g. in CI).
 
+### Publishing
+
+`tracelayer` is published to PyPI on version tags via trusted publishing
+(no tokens stored in CI). Publish a release with:
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+Manual publish from a checkout: `uv build && uv publish`. See
+`.github/workflows/release.yml` for the one-time PyPI trusted-publisher
+setup.
+
 ### Prerequisites
 
 - Python `3.12+`
