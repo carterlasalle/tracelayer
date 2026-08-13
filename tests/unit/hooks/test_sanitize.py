@@ -25,7 +25,7 @@ def test_sanitize_bounds_length():
     long_text = "x" * 500
     out = sanitize_text(long_text, max_chars=50)
     assert out.startswith(_PREFIX)
-    data = out[len(_PREFIX):]
+    data = out[len(_PREFIX) :]
     assert len(data) == 50
     assert data.endswith("\u2026")
     assert _CONTROL.search(out) is None

@@ -238,7 +238,9 @@ def test_edges_crud_and_status(tmp_path: Path) -> None:
             [
                 _edge(a, "satisfies", b),
                 _edge(a, "work", c, source_kind="declared", source_path="src/x.py", source_line=1),
-                _edge(b, "calls", c, source_kind="structural", source_path="src/x.py", source_line=9),
+                _edge(
+                    b, "calls", c, source_kind="structural", source_path="src/x.py", source_line=9
+                ),
             ],
         )
         assert len(store.all_edges()) == 3
@@ -296,7 +298,9 @@ def test_diagnostics_roundtrip(tmp_path: Path) -> None:
         assert [d.rule_id for d in store.get_diagnostics(rule_id="TL002")] == ["TL002"]
         assert [d.rule_id for d in store.get_diagnostics(severity="WARNING")] == ["TL003"]
         # d1 is TL002 + ERROR, so it matches the combined filter.
-        assert [d.rule_id for d in store.get_diagnostics(severity="ERROR", rule_id="TL002")] == ["TL002"]
+        assert [d.rule_id for d in store.get_diagnostics(severity="ERROR", rule_id="TL002")] == [
+            "TL002"
+        ]
         assert store.get_diagnostics(severity="ERROR", rule_id="TL003") == []
     finally:
         store.close()
@@ -374,12 +378,39 @@ def test_artifact_versions_ordering(tmp_path: Path) -> None:
 def test_evidence_runs_and_ordering(tmp_path: Path) -> None:
     store = GraphStore.open(tmp_path / "s.sqlite3")
     try:
-        store.add_evidence_run("run-1", "abc", "pytest", "ci", "2024-01-01T00:00:00Z",
-                               "2024-01-01T00:01:00Z", "pass", "junit.xml", {"k": "v"})
-        store.add_evidence_run("run-2", "abc", "pytest", "ci", "2024-01-02T00:00:00Z",
-                               "2024-01-02T00:01:00Z", "fail", "junit.xml", {})
-        store.add_evidence_run("run-3", "def", "pytest", "ci", "2024-01-03T00:00:00Z",
-                               "2024-01-03T00:01:00Z", "pass", "junit.xml", {})
+        store.add_evidence_run(
+            "run-1",
+            "abc",
+            "pytest",
+            "ci",
+            "2024-01-01T00:00:00Z",
+            "2024-01-01T00:01:00Z",
+            "pass",
+            "junit.xml",
+            {"k": "v"},
+        )
+        store.add_evidence_run(
+            "run-2",
+            "abc",
+            "pytest",
+            "ci",
+            "2024-01-02T00:00:00Z",
+            "2024-01-02T00:01:00Z",
+            "fail",
+            "junit.xml",
+            {},
+        )
+        store.add_evidence_run(
+            "run-3",
+            "def",
+            "pytest",
+            "ci",
+            "2024-01-03T00:00:00Z",
+            "2024-01-03T00:01:00Z",
+            "pass",
+            "junit.xml",
+            {},
+        )
         latest = store.latest_evidence_run()
         assert latest is not None and latest["run_id"] == "run-3"
         latest_abc = store.latest_evidence_run(revision="abc")
@@ -399,10 +430,12 @@ def test_evidence_runs_and_ordering(tmp_path: Path) -> None:
 def test_test_results_and_latest_outcome(tmp_path: Path) -> None:
     store = GraphStore.open(tmp_path / "s.sqlite3")
     try:
-        store.add_evidence_run("run-1", "r1", None, None, "2024-01-01T00:00:00Z",
-                               None, "pass", None, {})
-        store.add_evidence_run("run-2", "r2", None, None, "2024-01-02T00:00:00Z",
-                               None, "pass", None, {})
+        store.add_evidence_run(
+            "run-1", "r1", None, None, "2024-01-01T00:00:00Z", None, "pass", None, {}
+        )
+        store.add_evidence_run(
+            "run-2", "r2", None, None, "2024-01-02T00:00:00Z", None, "pass", None, {}
+        )
         store.add_test_results(
             "run-1",
             [
@@ -410,7 +443,9 @@ def test_test_results_and_latest_outcome(tmp_path: Path) -> None:
                 em.TestOutcome(framework_id="t.b", outcome="fail", test_uid="n_t2"),
             ],
         )
-        store.add_test_results("run-2", [em.TestOutcome(framework_id="t.a", outcome="fail", test_uid="n_t1")])
+        store.add_test_results(
+            "run-2", [em.TestOutcome(framework_id="t.a", outcome="fail", test_uid="n_t1")]
+        )
         outcomes = store.outcomes_for_run("run-1")
         assert [o.framework_id for o in outcomes] == ["t.a", "t.b"]
         assert outcomes[0].test_uid == "n_t1"
@@ -537,17 +572,24 @@ def test_stats_counts_and_changed_artifacts(tmp_path: Path) -> None:
             [
                 _node("REQ-1"),
                 _node("IMPL-1", node_type="implementation", metadata={"changed": True}),
-                _node("IMPL-2", node_type="implementation", metadata={"status": "stale_review_required"}),
+                _node(
+                    "IMPL-2",
+                    node_type="implementation",
+                    metadata={"status": "stale_review_required"},
+                ),
             ],
             [
                 _edge(entity_uid("REQ-1"), "satisfies", entity_uid("IMPL-1")),
                 _edge(entity_uid("REQ-1"), "calls", entity_uid("IMPL-2"), source_kind="structural"),
-                _edge(entity_uid("REQ-1"), "exercises", entity_uid("IMPL-2"), source_kind="observed"),
+                _edge(
+                    entity_uid("REQ-1"), "exercises", entity_uid("IMPL-2"), source_kind="observed"
+                ),
             ],
         )
         store.insert_diagnostics([make("TL002", message="m")])
-        store.add_evidence_run("run-1", "r1", None, None, "2024-01-01T00:00:00Z",
-                               None, "pass", None, {})
+        store.add_evidence_run(
+            "run-1", "r1", None, None, "2024-01-01T00:00:00Z", None, "pass", None, {}
+        )
         stats = store.stats()
         assert stats["nodes"] == 3
         assert stats["declared_edges"] == 1

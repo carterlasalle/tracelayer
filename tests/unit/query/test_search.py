@@ -10,8 +10,9 @@ def _seed_search_store(store, make_node):
     store.replace_all(
         [
             make_node("REQ-1", "requirement", title="User login requires MFA"),
-            make_node("impl.auth", "implementation", title="Login handler",
-                      symbol="src.auth.login"),
+            make_node(
+                "impl.auth", "implementation", title="Login handler", symbol="src.auth.login"
+            ),
             make_node("WORK-2", "work", meta={"work_label": "login flow"}),
             make_node("NFR-3", "nfr", meta={"summary": "performance requirement excerpt"}),
             make_node("doc.guide", "document", title="Deployment guide"),
@@ -77,7 +78,9 @@ def test_search_like_fallback_without_fts(tmp_path, make_node, make_edge):
         _seed_search_store(store, make_node)
         assert {n.trace_id for n in store.search("REQ-1")} == {"REQ-1"}
         assert {n.trace_id for n in store.search("login")} == {
-            "REQ-1", "impl.auth", "WORK-2",
+            "REQ-1",
+            "impl.auth",
+            "WORK-2",
         }
         assert store.search("zzz-nomatch") == []
     finally:

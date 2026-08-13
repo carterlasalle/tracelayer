@@ -41,7 +41,9 @@ def file_history(repo: GitRepo, path: str, max_count: int = 200) -> list[CommitI
         parts = line.split("\x1f")
         if len(parts) < 4:
             continue
-        out.append(CommitInfo(sha=parts[0], author=parts[1], date=parts[2], summary="\x1f".join(parts[3:])))
+        out.append(
+            CommitInfo(sha=parts[0], author=parts[1], date=parts[2], summary="\x1f".join(parts[3:]))
+        )
     return out
 
 

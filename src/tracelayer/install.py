@@ -95,10 +95,7 @@ def detect_agents() -> list[str]:
 
 
 def _on_path(binary: str) -> bool:
-    return any(
-        (Path(p) / binary).is_file() for p in os.environ.get("PATH", "").split(":")
-        if p
-    )
+    return any((Path(p) / binary).is_file() for p in os.environ.get("PATH", "").split(":") if p)
 
 
 def skill_installed(agent: str, root: Path | None = None) -> Path | None:
@@ -141,23 +138,74 @@ def install_skill(
 # Hook config (JSON-merge based): claude-code settings.json, codex hooks.json
 # --------------------------------------------------------------------------
 
+
 def claude_hook_settings() -> dict:
     """Claude Code settings hooks block (mirrors adapters/claude-code)."""
     return {
         "$schema": "https://json.schemastore.org/claude-code-settings.json",
         "hooks": {
-            "SessionStart": [{"matcher": "", "hooks": [
-                {"type": "command", "command": "uv run trace hook session-start --format claude"}]}],
-            "UserPromptSubmit": [{"matcher": "", "hooks": [
-                {"type": "command", "command": "uv run trace hook prompt-context --format claude"}]}],
-            "PreToolUse": [{"matcher": "Write|Edit", "hooks": [
-                {"type": "command", "command": "uv run trace hook pre-mutation --format claude"}]}],
-            "PostToolUse": [{"matcher": "Write|Edit", "hooks": [
-                {"type": "command", "command": "uv run trace hook post-mutation --format claude"}]}],
-            "PostToolBatch": [{"hooks": [
-                {"type": "command", "command": "uv run trace hook post-batch --format claude"}]}],
-            "Stop": [{"matcher": "", "hooks": [
-                {"type": "command", "command": "uv run trace hook stop --format claude"}]}],
+            "SessionStart": [
+                {
+                    "matcher": "",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": "uv run trace hook session-start --format claude",
+                        }
+                    ],
+                }
+            ],
+            "UserPromptSubmit": [
+                {
+                    "matcher": "",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": "uv run trace hook prompt-context --format claude",
+                        }
+                    ],
+                }
+            ],
+            "PreToolUse": [
+                {
+                    "matcher": "Write|Edit",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": "uv run trace hook pre-mutation --format claude",
+                        }
+                    ],
+                }
+            ],
+            "PostToolUse": [
+                {
+                    "matcher": "Write|Edit",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": "uv run trace hook post-mutation --format claude",
+                        }
+                    ],
+                }
+            ],
+            "PostToolBatch": [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": "uv run trace hook post-batch --format claude",
+                        }
+                    ]
+                }
+            ],
+            "Stop": [
+                {
+                    "matcher": "",
+                    "hooks": [
+                        {"type": "command", "command": "uv run trace hook stop --format claude"}
+                    ],
+                }
+            ],
         },
     }
 
@@ -165,22 +213,72 @@ def claude_hook_settings() -> dict:
 def codex_hooks_config() -> dict:
     """Codex hooks.json (requires `[features] codex_hooks = true` in config.toml)."""
     return {
-        "SessionStart": [{"matcher": "", "hooks": [
-            {"type": "command", "command": "uv run trace hook session-start --format codex",
-             "statusMessage": "TraceLayer: session health", "additionalContextLimit": 1000}]}],
-        "UserPromptSubmit": [{"matcher": "", "hooks": [
-            {"type": "command", "command": "uv run trace hook prompt-context --format codex",
-             "statusMessage": "TraceLayer: prompt context", "additionalContextLimit": 1500}]}],
-        "PreToolUse": [{"matcher": "^Bash$", "hooks": [
-            {"type": "command", "command": "uv run trace hook pre-mutation --format codex",
-             "statusMessage": "TraceLayer: pre-mutation guard", "timeout": 30}]}],
-        "PostToolUse": [{"matcher": "^Bash$", "hooks": [
-            {"type": "command", "command": "uv run trace hook post-mutation --format codex",
-             "statusMessage": "TraceLayer: post-mutation guidance",
-             "additionalContextLimit": 1500, "timeout": 30}]}],
-        "Stop": [{"matcher": "", "hooks": [
-            {"type": "command", "command": "uv run trace hook stop --format codex",
-             "statusMessage": "TraceLayer: stop gate", "timeout": 60}]}],
+        "SessionStart": [
+            {
+                "matcher": "",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "uv run trace hook session-start --format codex",
+                        "statusMessage": "TraceLayer: session health",
+                        "additionalContextLimit": 1000,
+                    }
+                ],
+            }
+        ],
+        "UserPromptSubmit": [
+            {
+                "matcher": "",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "uv run trace hook prompt-context --format codex",
+                        "statusMessage": "TraceLayer: prompt context",
+                        "additionalContextLimit": 1500,
+                    }
+                ],
+            }
+        ],
+        "PreToolUse": [
+            {
+                "matcher": "^Bash$",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "uv run trace hook pre-mutation --format codex",
+                        "statusMessage": "TraceLayer: pre-mutation guard",
+                        "timeout": 30,
+                    }
+                ],
+            }
+        ],
+        "PostToolUse": [
+            {
+                "matcher": "^Bash$",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "uv run trace hook post-mutation --format codex",
+                        "statusMessage": "TraceLayer: post-mutation guidance",
+                        "additionalContextLimit": 1500,
+                        "timeout": 30,
+                    }
+                ],
+            }
+        ],
+        "Stop": [
+            {
+                "matcher": "",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "uv run trace hook stop --format codex",
+                        "statusMessage": "TraceLayer: stop gate",
+                        "timeout": 60,
+                    }
+                ],
+            }
+        ],
     }
 
 
@@ -229,6 +327,7 @@ def merge_json_file(path: Path, config: dict) -> tuple[str, Path]:
 # --------------------------------------------------------------------------
 # Repository invariant (AGENTS.md / CLAUDE.md) — append-only
 # --------------------------------------------------------------------------
+
 
 def note_present(text: str) -> bool:
     """True when the repository invariant already appears in the file."""

@@ -29,9 +29,9 @@ _TYPE_POSITION = {t: i for i, t in enumerate(_PREFERRED_TYPES)}
 _TYPE_PRESENCE = {"work": 100, "requirement": 90, "decision": 80, "plan": 70}
 
 # Hard bounds: every query terminates and returns at most max_paths paths.
-_MAX_DEPTH = 8          # maximum hops per path
-_MAX_EXPANSIONS = 200   # maximum nodes explored per query
-_CANDIDATE_FACTOR = 4   # collect max_paths * factor candidates before ranking
+_MAX_DEPTH = 8  # maximum hops per path
+_MAX_EXPANSIONS = 200  # maximum nodes explored per query
+_CANDIDATE_FACTOR = 4  # collect max_paths * factor candidates before ranking
 
 
 def _predecessors(store: GraphStore, uid: str) -> list[tuple[Edge, str]]:
@@ -48,8 +48,9 @@ def _predecessors(store: GraphStore, uid: str) -> list[tuple[Edge, str]]:
     return preds
 
 
-def _paths_from(store: GraphStore, node: Node, on_stack: set[str],
-                expansions: list[int], cap: int) -> list[list[tuple[Edge, Node]]]:
+def _paths_from(
+    store: GraphStore, node: Node, on_stack: set[str], expansions: list[int], cap: int
+) -> list[list[tuple[Edge, Node]]]:
     """Hop lists from ``node`` down to a causal root, bounded.
 
     Each returned list is in arrival order (closest to the target first);
@@ -96,8 +97,9 @@ def _score(path: list[tuple[Edge, Node]], target: Node) -> tuple[int, int, str]:
     return (-score, len(path), chain)
 
 
-def why_paths(store: GraphStore, trace_id: str, *,
-              max_paths: int = 5) -> list[list[tuple[Edge, Node]]]:
+def why_paths(
+    store: GraphStore, trace_id: str, *, max_paths: int = 5
+) -> list[list[tuple[Edge, Node]]]:
     """Return up to ``max_paths`` causal paths ending at ``trace_id``.
 
     Unknown ids and nodes with no causal predecessors yield [].  Paths are

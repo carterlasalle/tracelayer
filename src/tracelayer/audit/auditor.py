@@ -24,8 +24,7 @@ MAX_STDERR_CHARS = 500
 _RESULT_STATUSES = frozenset({"pass", "fail", "uncertain"})
 _FINDING_SEVERITIES = frozenset({"high", "medium", "low"})
 
-_AUDITOR_INSTRUCTIONS = (
-    """You are an independent semantic auditor for a software traceability graph.
+_AUDITOR_INSTRUCTIONS = """You are an independent semantic auditor for a software traceability graph.
 
 Your job is to challenge meaning, not repeat deterministic checks. File
 existence, syntax, ID resolution, and test-result parsing are already handled
@@ -42,7 +41,6 @@ You may make the overall gate stricter, but you cannot declare a broken
 reference valid or fabricate missing evidence.
 
 Respond with ONLY a JSON object conforming to the schema shown below."""
-)
 
 
 def build_auditor_prompt(package: dict) -> str:
@@ -81,9 +79,7 @@ def run_auditor(
     payload = json.dumps(package, ensure_ascii=False, sort_keys=True)
     diags: list[Diagnostic] = []
     try:
-        proc = subprocess.run(
-            argv, input=payload, capture_output=True, text=True, timeout=timeout
-        )
+        proc = subprocess.run(argv, input=payload, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
         diags.append(
             make(
@@ -133,10 +129,7 @@ def run_auditor(
                 "TL060",
                 severity=SEVERITY_ERROR,
                 message=f"Semantic auditor output is not a valid audit result: {reason}",
-                remediation=(
-                    "Ask the auditor to emit JSON matching "
-                    "tracelayer-audit-result/v1."
-                ),
+                remediation=("Ask the auditor to emit JSON matching tracelayer-audit-result/v1."),
                 metadata={"command": command},
             )
         )
@@ -182,10 +175,7 @@ def integrate_audit_result(result: dict) -> list[Diagnostic]:
             make(
                 "TL060",
                 severity=SEVERITY_INFO,
-                message=(
-                    "Semantic auditor reported status 'fail' with "
-                    "high-severity findings."
-                ),
+                message=("Semantic auditor reported status 'fail' with high-severity findings."),
                 metadata={"audit_status": "fail", "tl060_eligible": True},
             )
         )
@@ -195,6 +185,7 @@ def integrate_audit_result(result: dict) -> list[Diagnostic]:
 # --------------------------------------------------------------------------
 # Result parsing/validation
 # --------------------------------------------------------------------------
+
 
 def _parse_result(stdout: str) -> tuple[dict | None, str]:
     """Parse auditor stdout into a validated result dict, else (None, reason).

@@ -48,6 +48,7 @@ app = typer.Typer(
 # Shared plumbing
 # --------------------------------------------------------------------------
 
+
 def _root_opt() -> Any:
     """Fresh per-command ``--root/-C`` option (default: resolved below)."""
     return typer.Option(None, "--root", "-C", help="Project root (default: current directory)")
@@ -160,9 +161,7 @@ def _render_graph_tree(start_uid: str, sub: Subgraph) -> str:
         for e in sorted(out_edges.get(uid, []), key=lambda e: (e.predicate, e.edge_uid)):
             target = e.to_uid
             mark = " (visited)" if target in visited else ""
-            lines.append(
-                "  " * (depth + 1) + f"{e.predicate}: {labels.get(target, target)}{mark}"
-            )
+            lines.append("  " * (depth + 1) + f"{e.predicate}: {labels.get(target, target)}{mark}")
             if target not in visited:
                 visited.add(target)
                 walk(target, depth + 1)
@@ -290,20 +289,27 @@ def _read_payload() -> dict[str, Any]:
 # Commands
 # --------------------------------------------------------------------------
 
+
 @app.command()
 def init(
     ctx: typer.Context,
     root: Path | None = _root_opt(),
     observe: bool = typer.Option(False, "--observe", help="Initialize without a policy file"),
-    skill: bool = typer.Option(False, "--skill", help="Copy the traceability skill into .agents/skills/"),
-    claude: bool = typer.Option(False, "--claude", help="Merge TraceLayer hooks into .claude/settings.json"),
-    agents_note: bool = typer.Option(True, "--agents-note/--no-agents-note",
-                                     help="Append the trace invariant to AGENTS.md/CLAUDE.md"),
+    skill: bool = typer.Option(
+        False, "--skill", help="Copy the traceability skill into .agents/skills/"
+    ),
+    claude: bool = typer.Option(
+        False, "--claude", help="Merge TraceLayer hooks into .claude/settings.json"
+    ),
+    agents_note: bool = typer.Option(
+        True,
+        "--agents-note/--no-agents-note",
+        help="Append the trace invariant to AGENTS.md/CLAUDE.md",
+    ),
 ) -> None:
     """Initialize .trace config, policy, .gitignore, and agent files (spec 28.1)."""
     root = _resolve_root(ctx, root)
-    written = _run_init(root, observe=observe, skill=skill, claude=claude,
-                        agents_note=agents_note)
+    written = _run_init(root, observe=observe, skill=skill, claude=claude, agents_note=agents_note)
     if written:
         for p in written:
             typer.echo(f"wrote {p.relative_to(root)}")
@@ -311,8 +317,9 @@ def init(
         typer.echo("nothing to do; files already present")
 
 
-def _run_init(root: Path, *, observe: bool, skill: bool, claude: bool,
-              agents_note: bool = True) -> list[Path]:
+def _run_init(
+    root: Path, *, observe: bool, skill: bool, claude: bool, agents_note: bool = True
+) -> list[Path]:
     root = root.resolve()
     dot = root / ".trace"
     dot.mkdir(parents=True, exist_ok=True)
@@ -354,13 +361,21 @@ def _run_init(root: Path, *, observe: bool, skill: bool, claude: bool,
 def install(
     ctx: typer.Context,
     agent: list[str] | None = typer.Option(
-        None, "--agent", "-a",
+        None,
+        "--agent",
+        "-a",
         help="Target agent(s), repeatable: claude-code, codex, pi, omp, hermes-agent, opencode, cursor, generic",
     ),
-    global_install: bool = typer.Option(False, "--global", "-g", help="Install to user-wide agent dirs"),
+    global_install: bool = typer.Option(
+        False, "--global", "-g", help="Install to user-wide agent dirs"
+    ),
     link: bool = typer.Option(False, "--link", help="Symlink the skill instead of copying"),
-    yes: bool = typer.Option(False, "--yes", "-y", help="Skip prompts; install to all detected agents"),
-    list_only: bool = typer.Option(False, "--list", "-l", help="List detected agents and install state"),
+    yes: bool = typer.Option(
+        False, "--yes", "-y", help="Skip prompts; install to all detected agents"
+    ),
+    list_only: bool = typer.Option(
+        False, "--list", "-l", help="List detected agents and install state"
+    ),
 ) -> None:
     """Install the traceability skill (and hooks) into agent harnesses.
 
@@ -396,15 +411,18 @@ def install(
             targets = keep
     for name in targets:
         if name not in INSTALL_AGENTS:
-            typer.echo(f"unknown agent {name!r}; valid: {', '.join(sorted(INSTALL_AGENTS))}",
-                       err=True)
+            typer.echo(
+                f"unknown agent {name!r}; valid: {', '.join(sorted(INSTALL_AGENTS))}", err=True
+            )
             raise typer.Exit(2)
         status, path = install_skill(name, None if global_install else root, link=link)
         typer.echo(f"{name}: {status} -> {path}")
         hooks = hook_config_for(name, None if global_install else root)
         if hooks is not None:
             if global_install:
-                typer.echo("  hooks: skipped for --global (use `trace init --claude` per repository)")
+                typer.echo(
+                    "  hooks: skipped for --global (use `trace init --claude` per repository)"
+                )
             else:
                 file, config = hooks
                 hstatus, hpath = merge_json_file(file, config)
@@ -430,16 +448,19 @@ def index(
             report = engine.index_all(clean=clean)
     finally:
         engine.close()
-    _emit_debug(ctx, {
-        "command": "index",
-        "changed": bool(changed and not all_),
-        "nodes": report.nodes,
-        "edges": report.edges,
-        "markers": report.markers,
-        "changed_files": report.changed_files,
-        "duration_ms": report.duration_ms,
-        "per_stage": report.per_stage,
-    })
+    _emit_debug(
+        ctx,
+        {
+            "command": "index",
+            "changed": bool(changed and not all_),
+            "nodes": report.nodes,
+            "edges": report.edges,
+            "markers": report.markers,
+            "changed_files": report.changed_files,
+            "duration_ms": report.duration_ms,
+            "per_stage": report.per_stage,
+        },
+    )
     if json_out:
         typer.echo(
             json.dumps(
@@ -618,10 +639,7 @@ def why(
                 json.dumps(
                     {
                         "trace_id": trace_id,
-                        "paths": [
-                            [hop[1].trace_id for hop in path] + [trace_id]
-                            for path in paths
-                        ],
+                        "paths": [[hop[1].trace_id for hop in path] + [trace_id] for path in paths],
                     },
                     indent=2,
                     sort_keys=True,
@@ -643,7 +661,9 @@ def impact(
     trace_id: str = typer.Argument(..., help="Trace id"),
     root: Path | None = _root_opt(),
     semantic_only: bool = typer.Option(False, "--semantic-only", help="Declared edges only"),
-    include_structural: bool = typer.Option(False, "--include-structural", help="Include structural downstream"),
+    include_structural: bool = typer.Option(
+        False, "--include-structural", help="Include structural downstream"
+    ),
     include_tests: bool = typer.Option(True, "--include-tests/--no-tests", help="Include tests"),
     include_history: bool = typer.Option(False, "--include-history", help="Include commit history"),
     depth: int = typer.Option(3, "--depth", help="Traversal depth"),
@@ -672,9 +692,7 @@ def impact(
                         "semantic": [n.trace_id for n in result.semantic],
                         "structural": [n.trace_id for n in result.structural],
                         "tests": [n.trace_id for n in result.tests],
-                        "stale": [
-                            {"trace_id": n.trace_id, "status": s} for n, s in result.stale
-                        ],
+                        "stale": [{"trace_id": n.trace_id, "status": s} for n, s in result.stale],
                         "history": [
                             {"sha": c.sha, "author": c.author, "date": c.date, "summary": c.summary}
                             for c in result.history
@@ -784,9 +802,13 @@ def verify(
     root: Path | None = _root_opt(),
     changed: bool = typer.Option(False, "--changed", help="Verify changed scope"),
     all_: bool = typer.Option(False, "--all", help="Verify the whole repository"),
-    lifecycle: str | None = typer.Option(None, "--lifecycle", help="Lifecycle (draft|wip|review|merge|release)"),
+    lifecycle: str | None = typer.Option(
+        None, "--lifecycle", help="Lifecycle (draft|wip|review|merge|release)"
+    ),
     json_out: bool = typer.Option(False, "--json", help="Machine-readable output"),
-    require_evidence: bool = typer.Option(False, "--require-evidence", help="Force evidence-dependent rules"),
+    require_evidence: bool = typer.Option(
+        False, "--require-evidence", help="Force evidence-dependent rules"
+    ),
 ) -> None:
     """Policy verification (spec 28.6). Exit: 0 pass, 1 blocking, 2 config,
     3 index unavailable, 4 evidence parse failure when required."""
@@ -813,14 +835,17 @@ def verify(
         raise typer.Exit(3) from exc
     finally:
         engine.close()
-    _emit_debug(ctx, {
-        "command": "verify",
-        "scope": "all" if all_ else "changed",
-        "lifecycle": result.lifecycle,
-        "policy": result.policy,
-        "status": result.status,
-        "diagnostics": len(result.diagnostics),
-    })
+    _emit_debug(
+        ctx,
+        {
+            "command": "verify",
+            "scope": "all" if all_ else "changed",
+            "lifecycle": result.lifecycle,
+            "policy": result.policy,
+            "status": result.status,
+            "diagnostics": len(result.diagnostics),
+        },
+    )
     if evidence_fail:
         typer.echo("verify: evidence parser failure (TL051); fix the evidence file", err=True)
         raise typer.Exit(4)
@@ -922,7 +947,9 @@ def evidence_ingest(
     root: Path | None = _root_opt(),
     junit: Path | None = typer.Option(None, "--junit", help="JUnit XML report"),
     coverage: Path | None = typer.Option(None, "--coverage", help="Cobertura XML coverage"),
-    normalized: Path | None = typer.Option(None, "--normalized", help="tracelayer-evidence/v1 JSON"),
+    normalized: Path | None = typer.Option(
+        None, "--normalized", help="tracelayer-evidence/v1 JSON"
+    ),
     run_id: str | None = typer.Option(None, "--run-id", help="Evidence run id"),
     revision: str | None = typer.Option(None, "--revision", help="Git revision bound to the run"),
     provider: str | None = typer.Option(None, "--provider", help="Evidence provider"),
@@ -946,12 +973,15 @@ def evidence_ingest(
         )
     finally:
         engine.close()
-    _emit_debug(ctx, {
-        "command": "evidence-ingest",
-        "run_id": result.run_id,
-        "tests_ingested": result.tests_ingested,
-        "executions_ingested": result.executions_ingested,
-    })
+    _emit_debug(
+        ctx,
+        {
+            "command": "evidence-ingest",
+            "run_id": result.run_id,
+            "tests_ingested": result.tests_ingested,
+            "executions_ingested": result.executions_ingested,
+        },
+    )
     for d in result.diagnostics:
         _print_diag(d)
     if json_out:
@@ -1010,7 +1040,9 @@ def migrate_codeops(
     root: Path | None = _root_opt(),
     scan: bool = typer.Option(False, "--scan", help="Scan and classify codeops markers"),
     plan: Path | None = typer.Option(None, "--plan", help="Write the migration plan JSON to PATH"),
-    apply: Path | None = typer.Option(None, "--apply", help="Apply a migration plan JSON from PATH"),
+    apply: Path | None = typer.Option(
+        None, "--apply", help="Apply a migration plan JSON from PATH"
+    ),
 ) -> None:
     """CodeOps migration: scan / plan / apply (spec Section 33)."""
     root = _resolve_root(ctx, root)
@@ -1027,7 +1059,7 @@ def migrate_codeops(
                 json.dumps(_plan_to_json(mplan), indent=2, sort_keys=True), encoding="utf-8"
             )
             typer.echo(f"wrote plan to {plan}")
-        else:
+        elif scan:
             markers, diags = engine.migration_scan()
             mplan = engine.migration_plan()
             for d in diags:
@@ -1037,6 +1069,9 @@ def migrate_codeops(
             for item in mplan.items:
                 flag = "X" if item.classification in ("deterministic", "high_confidence") else " "
                 typer.echo(f"  [{flag}] {item.path}:{item.line} {item.classification}: {item.note}")
+        else:
+            typer.echo("specify --scan, --plan PATH, or --apply PATH", err=True)
+            raise typer.Exit(2)
     finally:
         engine.close()
 
@@ -1045,7 +1080,6 @@ def migrate_codeops(
 def migrate_scry(
     ctx: typer.Context,
     root: Path | None = _root_opt(),
-    scan: bool = typer.Option(True, "--scan", help="Scan for scry annotations"),
 ) -> None:
     """Detect scry annotations for manual migration review (v1 detection only)."""
     root = _resolve_root(ctx, root)
@@ -1136,8 +1170,7 @@ def docs_generate(
             stale = [
                 rel
                 for rel, content in markdown_docs().items()
-                if not (root / rel).exists()
-                or (root / rel).read_text(encoding="utf-8") != content
+                if not (root / rel).exists() or (root / rel).read_text(encoding="utf-8") != content
             ]
             typer.echo(
                 "docs out of date: " + ", ".join(stale) + " (run `trace docs generate`)",
@@ -1153,7 +1186,9 @@ def docs_generate(
 @app.command()
 def hook(
     ctx: typer.Context,
-    event: str = typer.Argument(..., help="session-start|prompt-context|pre-mutation|post-mutation|post-batch|stop"),
+    event: str = typer.Argument(
+        ..., help="session-start|prompt-context|pre-mutation|post-mutation|post-batch|stop"
+    ),
     root: Path | None = _root_opt(),
     fmt: str = typer.Option("text", "--format", help="text|claude|json"),
 ) -> None:

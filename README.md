@@ -34,8 +34,7 @@ Trace a behavior by adding one line above it:
 
 ```python
 # trace:v1 id=impl.demo satisfies=REQ-1
-def do_the_thing():
-    ...
+def do_the_thing(): ...
 ```
 
 then `trace index --all` again. Staleness, evidence, hooks, and the CI gate

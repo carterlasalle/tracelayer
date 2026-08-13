@@ -103,8 +103,7 @@ def test_block_once_disabled_allows(ctx):
 
 
 def test_no_store_allows(project, state):
-    ctx = HookContext(project=project, store=None, gitrepo=None, session_id="s1",
-                      state=state)
+    ctx = HookContext(project=project, store=None, gitrepo=None, session_id="s1", state=state)
     out = handle(ctx, {"path": "src/auth.py"})
     assert out.decision == "allow"
 

@@ -52,9 +52,7 @@ class HookOutput:
         if fmt == "json":
             return json.dumps(self.json, sort_keys=True)
         if fmt == "claude":
-            return json.dumps(
-                {"decision": self.decision, "output": self.output}, sort_keys=True
-            )
+            return json.dumps({"decision": self.decision, "output": self.output}, sort_keys=True)
         return self.output
 
 

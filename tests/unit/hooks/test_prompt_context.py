@@ -12,25 +12,39 @@ from tracelayer.hooks.prompt_context import handle
 
 def _seed_titles(store, extra_title=None):
     nodes = [
-        Node(entity_uid=entity_uid("REQ-1"), trace_id="REQ-1", node_type="requirement",
-             source_kind="declared", title="User login requires MFA",
-             canonical_path="docs/req.md", metadata={},
-             last_indexed_at="2026-01-01T00:00:00Z"),
-        Node(entity_uid=entity_uid("impl.auth"), trace_id="impl.auth",
-             node_type="implementation", source_kind="declared",
-             title="Login handler", metadata={}, last_indexed_at="2026-01-01T00:00:00Z"),
-    ]
-    if extra_title is not None:
-        nodes.append(Node(
-            entity_uid=entity_uid("impl.evil"),
-            trace_id="impl.evil",
-            node_type="implementation",
+        Node(
+            entity_uid=entity_uid("REQ-1"),
+            trace_id="REQ-1",
+            node_type="requirement",
             source_kind="declared",
-            title=extra_title,
-            canonical_path="src/evil.py",
+            title="User login requires MFA",
+            canonical_path="docs/req.md",
             metadata={},
             last_indexed_at="2026-01-01T00:00:00Z",
-        ))
+        ),
+        Node(
+            entity_uid=entity_uid("impl.auth"),
+            trace_id="impl.auth",
+            node_type="implementation",
+            source_kind="declared",
+            title="Login handler",
+            metadata={},
+            last_indexed_at="2026-01-01T00:00:00Z",
+        ),
+    ]
+    if extra_title is not None:
+        nodes.append(
+            Node(
+                entity_uid=entity_uid("impl.evil"),
+                trace_id="impl.evil",
+                node_type="implementation",
+                source_kind="declared",
+                title=extra_title,
+                canonical_path="src/evil.py",
+                metadata={},
+                last_indexed_at="2026-01-01T00:00:00Z",
+            )
+        )
     store.replace_all(nodes, [])
 
 

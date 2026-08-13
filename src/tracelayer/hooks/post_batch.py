@@ -27,9 +27,9 @@ def handle(ctx: HookContext, payload: dict) -> HookOutput:
         return render_allowed("", json_data)
     path_set = set(paths)
     nodes = {n.trace_id: n for n in ctx.store.all_nodes() if n.trace_id in dirty}
-    changed = sorted(
-        n.trace_id for n in nodes.values() if n.canonical_path in path_set
-    ) or sorted(dirty)
+    changed = sorted(n.trace_id for n in nodes.values() if n.canonical_path in path_set) or sorted(
+        dirty
+    )
     reqs = sorted(
         {
             r

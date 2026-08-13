@@ -82,5 +82,7 @@ def map_ranges_to_symbols(
 ) -> list[SymbolRef]:
     """Symbols whose [start_line, end_line] intersects any range (input order)."""
     return [
-        s for s in symbols if any(s.start_line <= end and start <= s.end_line for start, end in ranges)
+        s
+        for s in symbols
+        if any(s.start_line <= end and start <= s.end_line for start, end in ranges)
     ]

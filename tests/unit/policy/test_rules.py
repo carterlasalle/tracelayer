@@ -18,8 +18,16 @@ from tracelayer.policy.models import EvalContext
 from tracelayer.policy.rules import RULE_FUNCTIONS
 
 
-def ctx_for(project: Project, store, *, lifecycle="wip", changed_ids=None,
-            changed_paths=None, revision=None, audit_result=None) -> EvalContext:
+def ctx_for(
+    project: Project,
+    store,
+    *,
+    lifecycle="wip",
+    changed_ids=None,
+    changed_paths=None,
+    revision=None,
+    audit_result=None,
+) -> EvalContext:
     return EvalContext(
         project=project,
         store=store,
@@ -43,6 +51,7 @@ def uids(*nodes: Node) -> list[str]:
 # Re-emit rules (parse-time diagnostics surfaced from the store)
 # --------------------------------------------------------------------------
 
+
 @pytest.mark.parametrize("rule_id", ["TL001", "TL040"])
 def test_reemit_rule_surfaces_stored_diagnostics(project, store, rule_id: str):
     store.insert_diagnostics([make(rule_id, trace_id="REQ:1")])
@@ -58,6 +67,7 @@ def test_reemit_rule_absent_without_stored_diagnostics(project, store):
 # --------------------------------------------------------------------------
 # TL002 — edge target missing from the store
 # --------------------------------------------------------------------------
+
 
 def test_tl002_flags_edge_targeting_missing_node(project, store):
     req = make_node("REQ:1", "requirement", path="docs/req.md")
@@ -89,6 +99,7 @@ def test_tl002_clean_when_all_targets_resolve(project, store):
 # --------------------------------------------------------------------------
 # TL003 — detached/ambiguous markers
 # --------------------------------------------------------------------------
+
 
 def test_tl003_flags_detached_metadata_flag(project, store):
     impl = make_node("IMPL:1", "implementation", path="src/app.py", metadata={"detached": True})
@@ -124,6 +135,7 @@ def test_tl003_ok_for_generic_file_level_attachment(project, store):
 # --------------------------------------------------------------------------
 # TL010 — changed implementation lacking requirement ancestry
 # --------------------------------------------------------------------------
+
 
 def test_tl010_clean_when_implementation_has_work_edge(project, store):
     req = make_node("REQ:1", "requirement", path="docs/req.md")
@@ -170,11 +182,10 @@ def test_tl010_ignores_out_of_scope_nodes(project, store):
 # TL011 — changed requirement with a stale downstream node
 # --------------------------------------------------------------------------
 
+
 def _stale_downstream_graph(store, *, downstream_status: str):
     req = make_node("REQ:1", "requirement", path="docs/req.md")
-    impl = make_node(
-        "IMPL:1", "implementation", path="src/app.py", status=downstream_status
-    )
+    impl = make_node("IMPL:1", "implementation", path="src/app.py", status=downstream_status)
     store.replace_all([req, impl], [make_edge(impl.entity_uid, "satisfies", req.entity_uid)])
     return req
 
@@ -203,6 +214,7 @@ def test_tl011_clean_when_requirement_not_in_changed_set(project, store):
 # --------------------------------------------------------------------------
 # TL012 — changed path with no traced behavior (strict)
 # --------------------------------------------------------------------------
+
 
 def test_tl012_flags_untraced_changed_path(project, store):
     traced = make_node("IMPL:1", "implementation", path="src/app.py")
@@ -235,6 +247,7 @@ def test_tl012_whole_repo_scope_emits_nothing(project, store):
 # TL020 — requirement without an incoming verifies edge
 # --------------------------------------------------------------------------
 
+
 def test_tl020_flags_requirement_without_verifies_edge(project, store):
     req = make_node("REQ:1", "requirement", path="docs/req.md")
     store.replace_all([req], [])
@@ -263,12 +276,12 @@ def test_tl020_ignores_non_requirement_node_types(project, store):
 # TL021 — linked test's latest outcome is not pass or missing
 # --------------------------------------------------------------------------
 
+
 def _req_with_test(store, *, outcome, revision="abc123", framework_id=None, bind_uid=True):
     from tracelayer.evidence.models import TestOutcome
 
     req = make_node("REQ:1", "requirement", path="docs/req.md")
-    test = make_node("TEST:1", "test", path="tests/test_app.py",
-                     framework_test_id=framework_id)
+    test = make_node("TEST:1", "test", path="tests/test_app.py", framework_test_id=framework_id)
     store.replace_all([req, test], [make_edge(test.entity_uid, "verifies", req.entity_uid)])
     outcomes = [
         TestOutcome(
@@ -307,6 +320,7 @@ def test_tl021_flags_missing_outcome(project, store):
 # --------------------------------------------------------------------------
 # TL022 — exercises edge without required execution evidence
 # --------------------------------------------------------------------------
+
 
 def _req_impl_test(store):
     req = make_node("REQ:1", "requirement", path="docs/req.md")
@@ -383,6 +397,7 @@ def test_tl022_out_of_scope_implementation_not_checked(project, store):
 # TL030 — inactive node with active incoming semantic edge
 # --------------------------------------------------------------------------
 
+
 def test_tl030_flags_inactive_node_with_active_incoming_edge(project, store):
     req = make_node("REQ:1", "requirement", path="docs/req.md")
     impl = make_node("IMPL:1", "implementation", path="src/app.py", active=False)
@@ -417,6 +432,7 @@ def test_tl030_clean_for_active_node(project, store):
 # TL050 — evidence run bound to a different revision
 # --------------------------------------------------------------------------
 
+
 def test_tl050_flags_revision_mismatch(project, store):
     store.add_evidence_run("run-1", "rev-old", "pytest", None, None, None, "pass", None, {})
     c = ctx_for(project, store, revision="rev-new")
@@ -440,6 +456,7 @@ def test_tl050_silent_without_evaluated_revision(project, store):
 # --------------------------------------------------------------------------
 # TL061 — expired waivers
 # --------------------------------------------------------------------------
+
 
 def test_tl061_flags_expired_waiver(project, store):
     from datetime import date
@@ -476,9 +493,9 @@ def test_tl061_clean_without_policy(project, store):
 # TL110 — stale nodes block merge/release
 # --------------------------------------------------------------------------
 
+
 def test_tl110_flags_stale_node_at_merge(project, store):
-    stale = make_node("IMPL:1", "implementation", path="src/app.py",
-                      status="stale_review_required")
+    stale = make_node("IMPL:1", "implementation", path="src/app.py", status="stale_review_required")
     store.replace_all([stale], [])
     c = ctx_for(project, store, lifecycle="merge", changed_ids={"IMPL:1"})
     diags = rule("TL110", c)
@@ -487,8 +504,7 @@ def test_tl110_flags_stale_node_at_merge(project, store):
 
 
 def test_tl110_silent_before_merge(project, store):
-    stale = make_node("IMPL:1", "implementation", path="src/app.py",
-                      status="stale_review_required")
+    stale = make_node("IMPL:1", "implementation", path="src/app.py", status="stale_review_required")
     store.replace_all([stale], [])
     c = ctx_for(project, store, lifecycle="wip", changed_ids={"IMPL:1"})
     assert rule("TL110", c) == []
@@ -502,8 +518,7 @@ def test_tl110_clean_for_current_nodes(project, store):
 
 
 def test_tl110_whole_repo_scope(project, store):
-    stale = make_node("IMPL:1", "implementation", path="src/app.py",
-                      status="stale_review_required")
+    stale = make_node("IMPL:1", "implementation", path="src/app.py", status="stale_review_required")
     store.replace_all([stale], [])
     c = ctx_for(project, store, lifecycle="merge")
     assert [d.rule_id for d in rule("TL110", c)] == ["TL110"]

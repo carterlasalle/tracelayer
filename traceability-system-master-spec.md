@@ -53,8 +53,7 @@ Example test marker:
 
 ```python
 # trace:v1 id=test.auth.refresh-reuse verifies=REQ-AUTH-017 exercises=impl.auth.refresh
-def test_reused_refresh_token_is_rejected():
-    ...
+def test_reused_refresh_token_is_rejected(): ...
 ```
 
 From those declarations plus AST, Git, CI, and coverage data, TraceLayer can answer:
@@ -3546,8 +3545,7 @@ Persist token-family rotation and rejection of reuse.
 
 ```python
 # trace:v1 id=impl.auth.refresh work=WORK-AUTH-237 satisfies=REQ-AUTH-017 implements=ADR-0042,PLAN-AUTH-237/P3
-def rotate_refresh_token(token: str) -> TokenPair:
-    ...
+def rotate_refresh_token(token: str) -> TokenPair: ...
 ```
 
 The engine derives:
@@ -4393,8 +4391,7 @@ export async function POST(req: Request) {
 
 ```python
 # trace:v1 id=test.payments.capture-idempotent verifies=REQ-PAY-010 exercises=impl.payments.capture
-def test_capture_is_idempotent():
-    ...
+def test_capture_is_idempotent(): ...
 ```
 
 ### YAML operation

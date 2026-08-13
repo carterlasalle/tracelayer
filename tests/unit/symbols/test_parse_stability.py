@@ -22,9 +22,7 @@ from tracelayer.symbols.registry import get_parser
 
 
 def _large_python_source(lines: int = 1200) -> str:
-    body = "\n".join(
-        f"def fn_{i}(x):\n    return x + {i}\n\n" for i in range(lines)
-    )
+    body = "\n".join(f"def fn_{i}(x):\n    return x + {i}\n\n" for i in range(lines))
     return "import os\n\n" + body
 
 

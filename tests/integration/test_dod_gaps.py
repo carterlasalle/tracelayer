@@ -24,7 +24,9 @@ from tests.integration._fixtures import chain_files, shapes_files
 
 
 def _expect_ok(proc) -> None:
-    assert proc.returncode == 0, f"rc={proc.returncode}\nstdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+    assert proc.returncode == 0, (
+        f"rc={proc.returncode}\nstdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+    )
 
 
 def _graph_json(root: Path, trace_id: str) -> dict:
@@ -50,6 +52,7 @@ def _write(root: Path, rel: str, content: str) -> Path:
 # ---------------------------------------------------------------------------
 # 1. index --changed vs index --all --clean equivalence
 # ---------------------------------------------------------------------------
+
 
 def test_clean_and_incremental_index_are_equivalent(tmp_path):
     """A changed implementation plus a new marker file, then a changed
@@ -93,7 +96,9 @@ def test_clean_and_incremental_index_are_equivalent(tmp_path):
     req = root / "docs" / "req.md"
     req_text = req.read_text(encoding="utf-8")
     assert "must be traced" in req_text
-    req.write_text(req_text.replace("must be traced", "must be traced and documented"), encoding="utf-8")
+    req.write_text(
+        req_text.replace("must be traced", "must be traced and documented"), encoding="utf-8"
+    )
 
     _expect_ok(run_trace(root, "index", "--changed"))
     stale_incremental = _graph_json(root, "impl.chain.run")
@@ -110,6 +115,7 @@ def test_clean_and_incremental_index_are_equivalent(tmp_path):
 # 2. verify --changed flags enforcement config changes (TL063, non-blocking)
 # ---------------------------------------------------------------------------
 
+
 def test_verify_flags_enforcement_file_changes(tmp_path):
     """A modified .trace/policy.toml is a TL063 WARNING with the policy path;
     WARNING is non-blocking so verify exits 0."""
@@ -118,13 +124,14 @@ def test_verify_flags_enforcement_file_changes(tmp_path):
 
     policy = root / ".trace" / "policy.toml"
     policy.write_text(
-        policy.read_text(encoding="utf-8")
-        + "\n# enforcement scope unchanged; reviewed by owner\n",
+        policy.read_text(encoding="utf-8") + "\n# enforcement scope unchanged; reviewed by owner\n",
         encoding="utf-8",
     )
 
     proc = run_trace(root, "verify", "--changed", "--json")
-    assert proc.returncode == 0, f"rc={proc.returncode}\nstdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+    assert proc.returncode == 0, (
+        f"rc={proc.returncode}\nstdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+    )
     payload = json.loads(proc.stdout)
     assert payload["status"] == "pass"
     assert all(d["severity"] != "ERROR" for d in payload["diagnostics"])
@@ -138,6 +145,7 @@ def test_verify_flags_enforcement_file_changes(tmp_path):
 # ---------------------------------------------------------------------------
 # 3. trace graph --format jsonl
 # ---------------------------------------------------------------------------
+
 
 def test_graph_jsonl_format(tmp_path):
     """trace graph --format jsonl: one JSON object per line, node lines carry
@@ -180,6 +188,7 @@ def test_graph_jsonl_format(tmp_path):
 # 4. derived contains edge provenance (structural, tracelayer-symbols)
 # ---------------------------------------------------------------------------
 
+
 def test_contains_structural_edges_derived(tmp_path):
     """The derived contains edge is exposed by trace graph --format json with
     source_kind structural; its extractor (tracelayer-symbols) lives on the
@@ -195,9 +204,7 @@ def test_contains_structural_edges_derived(tmp_path):
     matches = [
         e
         for e in graph["edges"]
-        if e["predicate"] == "contains"
-        and e["from"] == class_uid
-        and e["to"] == method_uid
+        if e["predicate"] == "contains" and e["from"] == class_uid and e["to"] == method_uid
     ]
     assert matches, "expected a contains edge from the class node to the method node"
     assert matches[0]["source_kind"] == "structural"

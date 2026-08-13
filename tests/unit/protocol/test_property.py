@@ -61,8 +61,13 @@ def test_round_trip_arbitrary_valid_marker(fields: dict) -> None:
             assume(ids.is_valid_id(target))
 
     marker = ParsedMarker(
-        path="<prop>", line=1, column=1, raw="",
-        trace_id=trace_id, node_type=node_type, title=title,
+        path="<prop>",
+        line=1,
+        column=1,
+        raw="",
+        trace_id=trace_id,
+        node_type=node_type,
+        title=title,
         properties={"policy": policy},
         edges=dict(edges),
     )
@@ -90,9 +95,15 @@ def test_render_is_idempotent(fields: dict) -> None:
             assume(ids.is_valid_id(target))
 
     marker = ParsedMarker(
-        path="<prop>", line=1, column=1, raw="",
-        trace_id=trace_id, node_type=fields["node_type"], title=title,
-        properties={"policy": policy}, edges=dict(edges),
+        path="<prop>",
+        line=1,
+        column=1,
+        raw="",
+        trace_id=trace_id,
+        node_type=fields["node_type"],
+        title=title,
+        properties={"policy": policy},
+        edges=dict(edges),
     )
     first = render_marker(marker)
     reparsed = parse_marker_line(first, path="<prop>")
@@ -119,8 +130,13 @@ def test_arbitrary_lines_parse_then_render_never_crashes(line: str) -> None:
 @given(title=st.text(), policy=st.text(), targets=st.lists(st.text(), max_size=4))
 def test_render_marker_never_crashes(title: str, policy: str, targets: list[str]) -> None:
     marker = ParsedMarker(
-        path="<p>", line=1, column=1, raw="",
-        trace_id="REQ-1", node_type="requirement", title=title,
+        path="<p>",
+        line=1,
+        column=1,
+        raw="",
+        trace_id="REQ-1",
+        node_type="requirement",
+        title=title,
         properties={"policy": policy},
         edges={"satisfies": [t for t in targets if ids.is_valid_id(t)]},
     )
@@ -130,9 +146,7 @@ def test_render_marker_never_crashes(title: str, policy: str, targets: list[str]
 @given(value=st.text())
 def test_quote_value_round_trip(value: str) -> None:
     quoted = grammar.quote_value(value)
-    tokens, diags = grammar.tokenize_fields(
-        f"trace:v1 k={quoted}", path="<s>", line=1
-    )
+    tokens, diags = grammar.tokenize_fields(f"trace:v1 k={quoted}", path="<s>", line=1)
     assert diags == []
     assert len(tokens) == 1
     assert tokens[0].value == value

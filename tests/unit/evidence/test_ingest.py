@@ -22,10 +22,8 @@ def write_file(root, name: str, content: str):
 
 def impl_graph(store):
     """Two implementation nodes with disjoint line ranges in the same file."""
-    impl_a = make_node("IMPL:A", "implementation", path="src/app.py",
-                       start=10, end=20)
-    impl_b = make_node("IMPL:B", "implementation", path="src/app.py",
-                       start=30, end=40)
+    impl_a = make_node("IMPL:A", "implementation", path="src/app.py", start=10, end=20)
+    impl_b = make_node("IMPL:B", "implementation", path="src/app.py", start=30, end=40)
     store.replace_all([impl_a, impl_b], [])
     return impl_a, impl_b
 
@@ -33,6 +31,7 @@ def impl_graph(store):
 # --------------------------------------------------------------------------
 # framework_id_of
 # --------------------------------------------------------------------------
+
 
 def test_framework_id_of_pytest_convention():
     symbol = SymbolRef(
@@ -64,13 +63,18 @@ def test_framework_id_of_preserves_class_nesting():
 # Suite-level execution edges
 # --------------------------------------------------------------------------
 
+
 def test_ingest_junit_binds_outcomes_via_test_id_map(project, store):
     junit = write_file(
-        project.root, "reports/junit.xml",
+        project.root,
+        "reports/junit.xml",
         "<testsuite><testcase name='test_a' classname='tests.app'/></testsuite>",
     )
     result = ingest(
-        project, store, junit=junit, revision="abc123",
+        project,
+        store,
+        junit=junit,
+        revision="abc123",
         test_id_map={"tests.app.test_a": "TEST:A"},
     )
     assert result.tests_ingested == 1
@@ -82,7 +86,8 @@ def test_ingest_junit_binds_outcomes_via_test_id_map(project, store):
 
 def test_ingest_unmapped_framework_id_stays_unbound(project, store):
     junit = write_file(
-        project.root, "junit.xml",
+        project.root,
+        "junit.xml",
         "<testsuite><testcase name='test_a' classname='tests.app'/></testsuite>",
     )
     result = ingest(project, store, junit=junit, revision="abc123", test_id_map={})
@@ -92,7 +97,8 @@ def test_ingest_unmapped_framework_id_stays_unbound(project, store):
 def test_ingest_suite_execution_edges_from_cobertura_intersection(project, store):
     impl_a, _impl_b = impl_graph(store)
     coverage = write_file(
-        project.root, "coverage.xml",
+        project.root,
+        "coverage.xml",
         "<coverage><packages><classes>"
         "<class filename='src/app.py'><lines>"
         "<line number='12' hits='1'/><line number='15' hits='3'/>"
@@ -101,7 +107,10 @@ def test_ingest_suite_execution_edges_from_cobertura_intersection(project, store
         "</classes></packages></coverage>",
     )
     result = ingest(
-        project, store, coverage=coverage, revision="abc123",
+        project,
+        store,
+        coverage=coverage,
+        revision="abc123",
         impl_symbols={"src/app.py": (10, 20)},
     )
     assert result.executions_ingested == 1
@@ -115,13 +124,17 @@ def test_ingest_suite_execution_edges_from_cobertura_intersection(project, store
 def test_ingest_no_edge_when_coverage_misses_implementation_range(project, store):
     _impl_a, _impl_b = impl_graph(store)
     coverage = write_file(
-        project.root, "coverage.xml",
+        project.root,
+        "coverage.xml",
         "<coverage><packages><classes>"
         "<class filename='src/app.py'><lines><line number='1' hits='1'/>"
         "</lines></class></classes></packages></coverage>",
     )
     result = ingest(
-        project, store, coverage=coverage, revision="abc123",
+        project,
+        store,
+        coverage=coverage,
+        revision="abc123",
         impl_symbols={"src/app.py": (10, 20)},
     )
     assert result.executions_ingested == 0
@@ -130,13 +143,17 @@ def test_ingest_no_edge_when_coverage_misses_implementation_range(project, store
 def test_ingest_resolves_real_node_uid_over_synthetic(project, store):
     impl_a, _impl_b = impl_graph(store)
     coverage = write_file(
-        project.root, "coverage.xml",
+        project.root,
+        "coverage.xml",
         "<coverage><packages><classes>"
         "<class filename='src/app.py'><lines><line number='12' hits='1'/>"
         "</lines></class></classes></packages></coverage>",
     )
     ingest(
-        project, store, coverage=coverage, revision="abc123",
+        project,
+        store,
+        coverage=coverage,
+        revision="abc123",
         impl_symbols={"src/app.py": (10, 20)},
     )
     # the edge binds to the indexed node's uid, not the synthetic scheme
@@ -146,7 +163,8 @@ def test_ingest_resolves_real_node_uid_over_synthetic(project, store):
 
 def test_ingest_per_test_edges_from_normalized_file(project, store):
     norm = write_file(
-        project.root, "evidence.json",
+        project.root,
+        "evidence.json",
         json.dumps(
             {
                 "schema": "tracelayer-evidence/v1",
@@ -194,7 +212,8 @@ def test_ingest_requires_at_least_one_source(project, store):
 
 def test_ingest_combined_status_fail_when_any_test_fails(project, store):
     junit = write_file(
-        project.root, "junit.xml",
+        project.root,
+        "junit.xml",
         "<testsuite>"
         "<testcase name='ok' classname='a'/>"
         "<testcase name='ko' classname='a'><failure/></testcase>"
@@ -208,7 +227,8 @@ def test_ingest_run_metadata_records_sources_and_require_revision(project, store
     import json as _json
 
     junit = write_file(
-        project.root, "junit.xml",
+        project.root,
+        "junit.xml",
         "<testsuite><testcase name='ok' classname='a'/></testsuite>",
     )
     ingest(project, store, junit=junit, revision="abc123")

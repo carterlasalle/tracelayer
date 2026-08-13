@@ -60,8 +60,9 @@ class JavaParser:
     def ast_normalized(self, source: str) -> str:
         return _ast_normalized(source, self.parser)
 
-    def _walk(self, root, module: str, data: bytes, out: list[SymbolRef],
-              enclosing: tuple[str, ...]) -> None:
+    def _walk(
+        self, root, module: str, data: bytes, out: list[SymbolRef], enclosing: tuple[str, ...]
+    ) -> None:
         """Iterative DFS: deep source files cannot overflow the interpreter stack."""
         pending: list[tuple[Any, tuple[str, ...]]] = [(root, enclosing)]
         while pending:
@@ -72,20 +73,26 @@ class JavaParser:
                 if name_node is not None:
                     name = name_node.text.decode("utf-8")
                     out.append(
-                        self._ref(node, data, _KIND_BY_TYPE[ntype], name,
-                                  self._qname(module, enc, name))
+                        self._ref(
+                            node, data, _KIND_BY_TYPE[ntype], name, self._qname(module, enc, name)
+                        )
                     )
-                    pending.extend(
-                        (c, enc + (name,)) for c in reversed(node.children)
-                    )
+                    pending.extend((c, enc + (name,)) for c in reversed(node.children))
                 continue
             if ntype in ("method_declaration", "constructor_declaration"):
                 self._member(node, module, data, out, enc, ntype)
                 continue
             pending.extend((c, enc) for c in reversed(node.children))
 
-    def _member(self, node, module: str, data: bytes, out: list[SymbolRef],
-                enclosing: tuple[str, ...], ntype: str) -> None:
+    def _member(
+        self,
+        node,
+        module: str,
+        data: bytes,
+        out: list[SymbolRef],
+        enclosing: tuple[str, ...],
+        ntype: str,
+    ) -> None:
         name_node = node.child_by_field_name("name")
         if name_node is None:
             return
@@ -100,7 +107,10 @@ class JavaParser:
     @staticmethod
     def _ref(node, data: bytes, kind: str, name: str, qname: str) -> SymbolRef:
         return SymbolRef(
-            "java", kind, name, qname,
+            "java",
+            kind,
+            name,
+            qname,
             *symbol_lines(line_starts(data), node.start_byte, node.end_byte),
-            data[node.start_byte:node.end_byte].decode("utf-8", "replace"),
+            data[node.start_byte : node.end_byte].decode("utf-8", "replace"),
         )

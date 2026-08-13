@@ -7,9 +7,13 @@ diagnostic.  Parsing uses only the stdlib ``xml.etree.ElementTree``.
 
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # nosec B405 -- stdlib ET does not resolve
+
+# external entities/DTDs; input is size-capped (MAX_EVIDENCE_BYTES) and
+# malformed content becomes a TL051 diagnostic via JUnitParseError.
 from pathlib import Path
 
+from tracelayer.evidence import MAX_EVIDENCE_BYTES
 from tracelayer.evidence.models import (
     OUTCOME_ERROR,
     OUTCOME_FAIL,
@@ -34,11 +38,13 @@ def parse_junit(path: Path) -> list[TestOutcome]:
     ``framework_id_of``; otherwise it is the bare test name.
     """
     try:
+        if path.stat().st_size > MAX_EVIDENCE_BYTES:
+            raise JUnitParseError(f"{path}: evidence file exceeds {MAX_EVIDENCE_BYTES} bytes")
         text = path.read_text(encoding="utf-8")
     except OSError as exc:
         raise JUnitParseError(f"cannot read {path}: {exc}") from exc
     try:
-        root = ET.fromstring(text)
+        root = ET.fromstring(text)  # nosec B314
     except ET.ParseError as exc:
         raise JUnitParseError(f"malformed XML in {path}: {exc}") from exc
     if root.tag not in ("testsuite", "testsuites"):

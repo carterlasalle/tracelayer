@@ -90,7 +90,9 @@ def _parser_for(language: str) -> Any:
 @dataclass
 class SymbolRef:
     language: str
-    kind: str  # function|method|class|module|struct|enum|interface|trait|impl|type_alias|declaration
+    kind: (
+        str  # function|method|class|module|struct|enum|interface|trait|impl|type_alias|declaration
+    )
     name: str  # unqualified
     qualified_name: str  # module path (dots) + class nesting + name
     start_line: int  # 1-based inclusive
@@ -137,7 +139,7 @@ def ast_normalized(source: str, parser: Any) -> str:
             children = node.children
             if not children:
                 parts.append(
-                    f'"{data[node.start_byte:node.end_byte].decode("utf-8", "replace")}"'
+                    f'"{data[node.start_byte : node.end_byte].decode("utf-8", "replace")}"'
                 )
             else:
                 stack.extend((c, False) for c in reversed(children))
@@ -185,9 +187,7 @@ def collect_symbols(
             if info is not None:
                 kind, name = info
                 qualified = ".".join(p for p in (module, *stack, name) if p)
-                start_line, end_line = symbol_lines(
-                    starts, node.start_byte, node.end_byte
-                )
+                start_line, end_line = symbol_lines(starts, node.start_byte, node.end_byte)
                 out.append(
                     SymbolRef(
                         language=language,
@@ -201,16 +201,12 @@ def collect_symbols(
                 )
                 child_stack = [*stack, name]
                 child_class = in_class or kind == "class"
-                pending.extend(
-                    (c, child_stack, child_class) for c in reversed(node.children)
-                )
+                pending.extend((c, child_stack, child_class) for c in reversed(node.children))
                 continue
             scope = scope_name(node) if scope_name is not None else None
             if scope is not None:
                 child_stack = [*stack, scope]
-                pending.extend(
-                    (c, child_stack, in_class) for c in reversed(node.children)
-                )
+                pending.extend((c, child_stack, in_class) for c in reversed(node.children))
                 continue
             pending.extend((c, stack, in_class) for c in reversed(node.children))
     return out
@@ -250,9 +246,7 @@ def attach_markers(
     attachments: list[MarkerAttachment] = []
     for hit in hits:
         eligible = [
-            s
-            for s in symbols
-            if s.start_line > hit.line and _gap_ok(hit.line, s.start_line, lines)
+            s for s in symbols if s.start_line > hit.line and _gap_ok(hit.line, s.start_line, lines)
         ]
         if not eligible:
             attachments.append(

@@ -8,15 +8,18 @@ from tracelayer.graph.store import entity_uid
 from tracelayer.hooks.common import HookContext
 from tracelayer.hooks.post_mutation import handle
 
-ORIG = 'def login():\n    # trace:v1 id=impl.one type=implementation title="Login"\n    return "v1"\n'
+ORIG = (
+    'def login():\n    # trace:v1 id=impl.one type=implementation title="Login"\n    return "v1"\n'
+)
 FP = semantic_fingerprint(normalize_block(ORIG))
 
 
 def _seed(store):
     store.replace_all(
         [
-            make_node("impl.one", "implementation", path="src/auth.py", start=1,
-                      end=3, fingerprint=FP),
+            make_node(
+                "impl.one", "implementation", path="src/auth.py", start=1, end=3, fingerprint=FP
+            ),
             make_node("REQ-1", "requirement"),
             make_node("test.one", "test"),
         ],
@@ -82,8 +85,11 @@ def test_marker_removed_marks_changed(ctx):
 
 def test_new_file_no_forced_marker(ctx):
     _seed(ctx.store)
-    _write(ctx.project.root, "src/newmod.py",
-           '# trace:v1 id=impl.new type=implementation title="New"\ndef n(): pass\n')
+    _write(
+        ctx.project.root,
+        "src/newmod.py",
+        '# trace:v1 id=impl.new type=implementation title="New"\ndef n(): pass\n',
+    )
     out = handle(ctx, {"path": "src/newmod.py"})
     assert out.decision == "allow"
     assert out.json["changed"] == []
@@ -100,8 +106,7 @@ def test_missing_file_allows(ctx):
 
 
 def test_no_store_allows(project, state):
-    ctx = HookContext(project=project, store=None, gitrepo=None, session_id="s1",
-                      state=state)
+    ctx = HookContext(project=project, store=None, gitrepo=None, session_id="s1", state=state)
     out = handle(ctx, {"path": "src/auth.py"})
     assert out.decision == "allow"
     assert out.json["changed"] == []

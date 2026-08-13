@@ -57,6 +57,7 @@ from tracelayer.protocol.marker import MarkerHit
 # Report dataclasses
 # --------------------------------------------------------------------------
 
+
 @dataclass
 class IndexReport:
     """Summary of one index run (spec 18.1, 58)."""
@@ -105,6 +106,7 @@ class StatusReport:
 # Indexing helpers
 # --------------------------------------------------------------------------
 
+
 def _now_iso() -> str:
     """UTC timestamp for observed_at / last_indexed_at columns."""
     return datetime.now(UTC).isoformat(timespec="seconds")
@@ -125,7 +127,9 @@ def _work_toml_nodes(project: Project, now: str) -> tuple[list[Node], list[Diagn
     except (tomllib.TOMLDecodeError, OSError) as exc:
         return [], [
             make(
-                "TL100", path=".trace/work.toml", severity=SEVERITY_ERROR,
+                "TL100",
+                path=".trace/work.toml",
+                severity=SEVERITY_ERROR,
                 message=f"Could not parse {path}: {exc}",
             )
         ]
@@ -137,7 +141,9 @@ def _work_toml_nodes(project: Project, now: str) -> tuple[list[Node], list[Diagn
         if not is_valid_id(key):
             diags.append(
                 make(
-                    "TL100", trace_id=key, path=".trace/work.toml",
+                    "TL100",
+                    trace_id=key,
+                    path=".trace/work.toml",
                     severity=SEVERITY_ERROR,
                     message=f"Invalid work ID {key!r} in .trace/work.toml",
                 )
@@ -163,7 +169,6 @@ def _work_toml_nodes(project: Project, now: str) -> tuple[list[Node], list[Diagn
             )
         )
     return nodes, diags
-
 
 
 def _inactive_copy(node: Node, now: str) -> Node:
@@ -388,9 +393,7 @@ def _process_file(
                     last_indexed_at=now,
                 )
             )
-            edges.extend(
-                _marker_edges(block.trace_id, block.edges, rel_path, block.line, revision)
-            )
+            edges.extend(_marker_edges(block.trace_id, block.edges, rel_path, block.line, revision))
         for hit in hits:
             if hit.line in consumed:
                 continue
@@ -400,14 +403,19 @@ def _process_file(
             # A marker within EDGE_WINDOW_LINES after a heading with the same
             # id was absorbed into the block (spec 11.4): do not re-declare it.
             if any(
-                b.line < hit.line <= b.line + EDGE_WINDOW_LINES
-                and b.trace_id == marker.trace_id
+                b.line < hit.line <= b.line + EDGE_WINDOW_LINES and b.trace_id == marker.trace_id
                 for b in blocks
             ):
                 continue
             node, e = _node_from_marker(
-                rel_path, marker, now, revision, generated=generated,
-                attachment_kind="file", parser_support="generic", scope=scope,
+                rel_path,
+                marker,
+                now,
+                revision,
+                generated=generated,
+                attachment_kind="file",
+                parser_support="generic",
+                scope=scope,
             )
             nodes.append(node)
             edges.extend(e)
@@ -429,10 +437,17 @@ def _process_file(
                 continue
             paired.add(id(hit))
             node, e = _node_from_marker(
-                rel_path, marker, now, revision, generated=generated,
-                start_line=section.start_line, end_line=section.end_line,
-                attachment_kind="section", parser_support="yaml",
-                key_path=section.key_path, scope=scope,
+                rel_path,
+                marker,
+                now,
+                revision,
+                generated=generated,
+                start_line=section.start_line,
+                end_line=section.end_line,
+                attachment_kind="section",
+                parser_support="yaml",
+                key_path=section.key_path,
+                scope=scope,
             )
             nodes.append(node)
             edges.extend(e)
@@ -443,17 +458,21 @@ def _process_file(
             if marker is None or not marker.trace_id:
                 continue
             node, e = _node_from_marker(
-                rel_path, marker, now, revision, generated=generated,
-                attachment_kind="file", parser_support="generic", scope=scope,
+                rel_path,
+                marker,
+                now,
+                revision,
+                generated=generated,
+                attachment_kind="file",
+                parser_support="generic",
+                scope=scope,
             )
             nodes.append(node)
             edges.extend(e)
         return nodes, edges, diags, markers, symbols_attached
 
     # --- Supported-language symbol attachment -----------------------------
-    if language in supported_languages() and getattr(
-        config.index.languages, language, False
-    ):
+    if language in supported_languages() and getattr(config.index.languages, language, False):
         parser = get_parser(language)
         try:
             symbols = parser.parse(text, rel_path)
@@ -469,7 +488,9 @@ def _process_file(
                 if not generated:
                     diags.append(
                         make(
-                            "TL003", trace_id=marker.trace_id, path=rel_path,
+                            "TL003",
+                            trace_id=marker.trace_id,
+                            path=rel_path,
                             line=att.hit.line,
                             message=(
                                 f"Marker for {marker.trace_id} is detached from "
@@ -483,7 +504,9 @@ def _process_file(
                 if att.ambiguity and not generated:
                     diags.append(
                         make(
-                            "TL003", trace_id=marker.trace_id, path=rel_path,
+                            "TL003",
+                            trace_id=marker.trace_id,
+                            path=rel_path,
                             line=att.hit.line,
                             message=(
                                 f"Marker for {marker.trace_id} is ambiguous "
@@ -492,9 +515,15 @@ def _process_file(
                         )
                     )
             node, e = _node_from_marker(
-                rel_path, marker, now, revision, generated=generated,
-                symbol=att.symbol, attachment_kind=meta_attach,
-                parser_support=language, scope=scope,
+                rel_path,
+                marker,
+                now,
+                revision,
+                generated=generated,
+                symbol=att.symbol,
+                attachment_kind=meta_attach,
+                parser_support=language,
+                scope=scope,
             )
             nodes.append(node)
             edges.extend(e)
@@ -506,8 +535,14 @@ def _process_file(
         if marker is None or not marker.trace_id:
             continue
         node, e = _node_from_marker(
-            rel_path, marker, now, revision, generated=generated,
-            attachment_kind="file", parser_support="generic", scope=scope,
+            rel_path,
+            marker,
+            now,
+            revision,
+            generated=generated,
+            attachment_kind="file",
+            parser_support="generic",
+            scope=scope,
         )
         nodes.append(node)
         edges.extend(e)
@@ -529,10 +564,11 @@ def _dedupe_nodes(nodes: list[Node], diags: list[Diagnostic]) -> list[Node]:
             for path, line in where:
                 diags.append(
                     make(
-                        "TL001", trace_id=tid, path=path, line=line,
-                        message=(
-                            f"Duplicate trace ID {tid} declared at {len(where)} locations"
-                        ),
+                        "TL001",
+                        trace_id=tid,
+                        path=path,
+                        line=line,
+                        message=(f"Duplicate trace ID {tid} declared at {len(where)} locations"),
                     )
                 )
     out: dict[str, Node] = {}
@@ -555,7 +591,9 @@ def _tl002_diags(nodes: list[Node], edges: list[Edge]) -> list[Diagnostic]:
             continue
         out.append(
             make(
-                "TL002", path=edge.source_path, line=edge.source_line,
+                "TL002",
+                path=edge.source_path,
+                line=edge.source_line,
                 message=(
                     f"{edge.predicate} edge targets node uid {edge.to_uid} which is "
                     f"missing or inactive (declared in {edge.source_path or 'unknown'})"
@@ -580,13 +618,14 @@ def _policy_config_diags(changed_paths: set[str]) -> list[Diagnostic]:
     """
     out: list[Diagnostic] = []
     for path in sorted(changed_paths):
-        if (
-            path in _POLICY_CONFIG_FILES
-            or any(path.startswith(prefix) for prefix in _POLICY_CONFIG_DIRS)
+        if path in _POLICY_CONFIG_FILES or any(
+            path.startswith(prefix) for prefix in _POLICY_CONFIG_DIRS
         ):
             out.append(
                 make(
-                    "TL063", path=path, severity=SEVERITY_WARNING,
+                    "TL063",
+                    path=path,
+                    severity=SEVERITY_WARNING,
                     message="enforcement configuration changed in this change set",
                 )
             )
@@ -602,8 +641,12 @@ def _edge_order_key(e: Edge) -> str:
     graph --format json`` output.
     """
     return edge_uid(
-        e.from_uid, e.predicate, e.to_uid,
-        e.source_kind, e.source_path, e.source_line,
+        e.from_uid,
+        e.predicate,
+        e.to_uid,
+        e.source_kind,
+        e.source_path,
+        e.source_line,
     )
 
 
@@ -823,16 +866,23 @@ class Engine:
         for node in nodes:
             if node.artifact_fingerprint:
                 store.record_artifact_version(
-                    node.trace_id, node.artifact_fingerprint, revision,
-                    node.canonical_path, now,
+                    node.trace_id,
+                    node.artifact_fingerprint,
+                    revision,
+                    node.canonical_path,
+                    now,
                 )
         store.replace_diagnostics(diags)
 
         active = sum(1 for n in nodes if n.active)
         duration_ms = int((time.perf_counter() - t0) * 1000)
         return IndexReport(
-            nodes=active, edges=len(edges), markers=markers, diagnostics=len(diags),
-            changed_files=parsed_files, duration_ms=duration_ms,
+            nodes=active,
+            edges=len(edges),
+            markers=markers,
+            diagnostics=len(diags),
+            changed_files=parsed_files,
+            duration_ms=duration_ms,
             per_stage={
                 "files_scanned": len(files),
                 "files_parsed": parsed_files,
@@ -861,10 +911,20 @@ class Engine:
         changed_files = gitrepo.changed_files()
         if not changed_files:
             return IndexReport(
-                nodes=0, edges=0, markers=0, diagnostics=0, changed_files=0,
+                nodes=0,
+                edges=0,
+                markers=0,
+                diagnostics=0,
+                changed_files=0,
                 duration_ms=0,
-                per_stage={"files_scanned": 0, "files_parsed": 0, "markers": 0,
-                           "symbols_attached": 0, "nodes": 0, "edges": 0},
+                per_stage={
+                    "files_scanned": 0,
+                    "files_parsed": 0,
+                    "markers": 0,
+                    "symbols_attached": 0,
+                    "nodes": 0,
+                    "edges": 0,
+                },
             )
         changed_paths = {f.path for f in changed_files}
         new_nodes: list[Node] = []
@@ -928,8 +988,7 @@ class Engine:
         # semantic closure, spec 18.2).  Structural edges are re-derived from
         # the merged node set below (their source ranges may have moved).
         kept = [
-            e for e in old_edges
-            if e.from_uid not in changed_uids and e.source_kind != "structural"
+            e for e in old_edges if e.from_uid not in changed_uids and e.source_kind != "structural"
         ]
         edges = kept + new_edges + _structural_contains_edges(nodes, revision)
 
@@ -942,16 +1001,23 @@ class Engine:
         for node in new_nodes:
             if node.artifact_fingerprint:
                 store.record_artifact_version(
-                    node.trace_id, node.artifact_fingerprint, revision,
-                    node.canonical_path, now,
+                    node.trace_id,
+                    node.artifact_fingerprint,
+                    revision,
+                    node.canonical_path,
+                    now,
                 )
         store.replace_diagnostics(old_diags + diags)
 
         active = sum(1 for n in nodes if n.active)
         duration_ms = int((time.perf_counter() - t0) * 1000)
         return IndexReport(
-            nodes=active, edges=len(edges), markers=markers, diagnostics=len(diags),
-            changed_files=parsed_files, duration_ms=duration_ms,
+            nodes=active,
+            edges=len(edges),
+            markers=markers,
+            diagnostics=len(diags),
+            changed_files=parsed_files,
+            duration_ms=duration_ms,
             per_stage={
                 "files_scanned": len(changed_files),
                 "files_parsed": parsed_files,
@@ -975,7 +1041,8 @@ class Engine:
             evidence_runs=stats["evidence_runs"],
             broken_refs=len(self.store.get_diagnostics(rule_id="TL002")),
             blocking_stale=sum(
-                1 for n in self.store.all_nodes(active_only=True)
+                1
+                for n in self.store.all_nodes(active_only=True)
                 if n.status() == "stale_review_required"
             ),
             warnings=len(self.store.get_diagnostics(severity="WARNING")),
@@ -1086,8 +1153,12 @@ class Engine:
             changed_ids, changed_paths = None, set()
         eval_project = self._forced_evidence_project(lifecycle) if require_evidence else project
         result = evaluate(
-            eval_project, self.store, lifecycle=lifecycle,
-            changed_ids=changed_ids, changed_paths=changed_paths, revision=revision,
+            eval_project,
+            self.store,
+            lifecycle=lifecycle,
+            changed_ids=changed_ids,
+            changed_paths=changed_paths,
+            revision=revision,
         )
         diags = result.diagnostics + _policy_config_diags(changed_paths)
         self.store.insert_diagnostics(diags)
@@ -1121,8 +1192,11 @@ class Engine:
                     n.source_end_line or n.source_start_line,
                 )
         result = ingest(
-            self.project, store, **kw,
-            test_id_map=test_id_map, impl_symbols=impl_symbols,
+            self.project,
+            store,
+            **kw,
+            test_id_map=test_id_map,
+            impl_symbols=impl_symbols,
         )
         store.insert_diagnostics(result.diagnostics)
         return result
@@ -1178,19 +1252,23 @@ class Engine:
                     other = e.to_uid if e.from_uid == n.entity_uid else e.from_uid
                     uids.add(other)
             scope_ids = {n.trace_id for n in nodes if n.entity_uid in uids}
-            nodes = [
-                n for n in nodes if n.trace_id in scope_ids or n.node_type == "work"
-            ]
+            nodes = [n for n in nodes if n.trace_id in scope_ids or n.node_type == "work"]
 
         works = sorted(n.trace_id for n in nodes if n.node_type == "work")
         reqs = sorted((n for n in nodes if n.node_type == "requirement"), key=lambda n: n.trace_id)
-        impls = sorted((n for n in nodes if n.node_type == "implementation"), key=lambda n: n.trace_id)
+        impls = sorted(
+            (n for n in nodes if n.node_type == "implementation"), key=lambda n: n.trace_id
+        )
         tests = sorted((n for n in nodes if n.node_type == "test"), key=lambda n: n.trace_id)
 
         broken = len(store.get_diagnostics(rule_id="TL002"))
-        stale = sum(1 for n in store.all_nodes(active_only=True) if n.status() == "stale_review_required")
+        stale = sum(
+            1 for n in store.all_nodes(active_only=True) if n.status() == "stale_review_required"
+        )
         warnings = len(store.get_diagnostics(severity="WARNING"))
-        traced_paths = {n.canonical_path for n in store.all_nodes(active_only=True) if n.canonical_path}
+        traced_paths = {
+            n.canonical_path for n in store.all_nodes(active_only=True) if n.canonical_path
+        }
         unexpected = sorted(p for p in changed_paths if p not in traced_paths)
 
         lines = ["## Trace Impact", ""]
@@ -1245,9 +1323,7 @@ class Engine:
         from tracelayer.protocol.ontology import NODE_TYPES
 
         if node_type not in NODE_TYPES:
-            raise ValueError(
-                f"unknown node type {node_type!r}; choose from {sorted(NODE_TYPES)}"
-            )
+            raise ValueError(f"unknown node type {node_type!r}; choose from {sorted(NODE_TYPES)}")
         taken = {n.trace_id for n in self.store.all_nodes(active_only=False)}
         return generate_id(node_type, name, taken=taken)
 

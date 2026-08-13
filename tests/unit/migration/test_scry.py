@@ -21,16 +21,17 @@ def make_project(root: Path) -> Project:
 def test_scan_scry_detects_inline_and_artifact_sorted(tmp_path: Path) -> None:
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "a.py").write_text("def f(): pass  # scry:inline capture\n")
-    (tmp_path / "docs.md").write_text(
-        "scry:artifact capture\n"
-        "plain line\n"
-        "scry:inline second\n"
-    )
+    (tmp_path / "docs.md").write_text("scry:artifact capture\nplain line\nscry:inline second\n")
     records, _ = scan_scry_out(tmp_path)
     assert records == [
         {"path": "docs.md", "line": 1, "raw": "scry:artifact capture", "kind": "artifact"},
         {"path": "docs.md", "line": 3, "raw": "scry:inline second", "kind": "inline"},
-        {"path": "src/a.py", "line": 1, "raw": "def f(): pass  # scry:inline capture", "kind": "inline"},
+        {
+            "path": "src/a.py",
+            "line": 1,
+            "raw": "def f(): pass  # scry:inline capture",
+            "kind": "inline",
+        },
     ]
 
 
@@ -53,9 +54,7 @@ def test_scan_scry_is_detection_only_no_apply(tmp_path: Path) -> None:
     records, _ = scan_scry_out(tmp_path)
     assert records and records[0]["kind"] == "inline"
     # v1 exposes no apply surface at all.
-    functions = {
-        name for name, _ in inspect.getmembers(scry, inspect.isfunction)
-    }
+    functions = {name for name, _ in inspect.getmembers(scry, inspect.isfunction)}
     assert not any(name.startswith("apply") for name in functions)
     # And the scan itself never rewrites files.
     assert f.read_text() == "scry:inline keep me\n"

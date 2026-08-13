@@ -209,13 +209,15 @@ def test_tokenize_key_with_underscore() -> None:
 def test_tokenize_offsets() -> None:
     tokens, diags = tokenize(f"{PREFIX} id=REQ-1 title=x")
     assert diags == []
-    assert [t.offset for t in tokens] == [3, 15]
+    assert [(t.key, t.value) for t in tokens] == [("id", "REQ-1"), ("title", "x")]
 
 
-def test_tokenize_quoted_token_offset_after_close() -> None:
+def test_tokenize_quoted_token_value() -> None:
     tokens, diags = tokenize(f'{PREFIX} title="abc"')
     assert diags == []
-    assert tokens[0].offset == len('title="abc"')
+    assert tokens[0].key == "title"
+    assert tokens[0].value == "abc"
+    assert tokens[0].quoted is True
 
 
 # ---------------------------------------------------------------------------

@@ -77,7 +77,9 @@ def test_python_decorated_definition_span() -> None:
     assert syms[0].kind == "function"
     assert syms[0].start_line == 1
     assert syms[0].end_line == 4
-    assert syms[0].source == "@deco\n@other\ndef foo():\n    pass"  # node range excludes trailing newline
+    assert (
+        syms[0].source == "@deco\n@other\ndef foo():\n    pass"
+    )  # node range excludes trailing newline
 
 
 def test_python_nested_class_method_and_multiline_signature() -> None:
@@ -240,8 +242,13 @@ def test_attach_marker_above_decorator() -> None:
     # the line above attaches with no gap.
     lines = ["# trace:v1 id=REQ-1 type=requirement", "@deco", "def foo():", "    pass"]
     sym = SymbolRef(
-        language="python", kind="function", name="foo", qualified_name="m.foo",
-        start_line=2, end_line=3, source="@deco\ndef foo():\n    pass",
+        language="python",
+        kind="function",
+        name="foo",
+        qualified_name="m.foo",
+        start_line=2,
+        end_line=3,
+        source="@deco\ndef foo():\n    pass",
     )
     attach = attach_markers([sym], _hits(lines), lines)[0]
     assert attach.attachment_kind == "symbol"
@@ -308,9 +315,7 @@ def test_attach_markers_multiple_hits_order_preserved() -> None:
         "def bar():",
         "    pass",
     ]
-    attach = attach_markers(
-        [_sym(3, 4, "foo"), _sym(7, 8, "bar")], _hits(lines), lines
-    )
+    attach = attach_markers([_sym(3, 4, "foo"), _sym(7, 8, "bar")], _hits(lines), lines)
     assert [a.symbol.qualified_name for a in attach] == ["m.foo", "m.bar"]
     assert all(a.attachment_kind == "symbol" for a in attach)
 

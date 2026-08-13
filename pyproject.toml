@@ -75,6 +75,9 @@ dev = [
     "coverage>=7.6",
     "hypothesis>=6.100",
     "ruff>=0.6",
+    "pip-audit>=2.10.1",
+    "vulture>=2.16",
+    "bandit>=1.9.4",
 ]
 
 [tool.pytest.ini_options]

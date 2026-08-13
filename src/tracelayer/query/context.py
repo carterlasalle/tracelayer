@@ -28,7 +28,7 @@ _MAX_COMMITS = 50  # bound on the provenance commit list
 @dataclass
 class VerificationStatus:
     test_trace_id: str
-    outcome: str | None          # latest recorded outcome or None
+    outcome: str | None  # latest recorded outcome or None
     proof_level: int
     current: bool
 
@@ -36,11 +36,11 @@ class VerificationStatus:
 @dataclass
 class ContextResult:
     node: Node
-    upstream: list[tuple[Edge, Node]]      # declared edges OUT (intent)
-    downstream: list[tuple[Edge, Node]]    # declared edges IN (dependents)
+    upstream: list[tuple[Edge, Node]]  # declared edges OUT (intent)
+    downstream: list[tuple[Edge, Node]]  # declared edges IN (dependents)
     verification: list[VerificationStatus]
     staleness: str
-    provenance: dict                       # first_seen/last_modified/commits; may be absent
+    provenance: dict  # first_seen/last_modified/commits; may be absent
 
 
 def _framework_id_of(test_node: Node) -> str:
@@ -53,8 +53,9 @@ def _framework_id_of(test_node: Node) -> str:
     return str(value) if value else test_node.trace_id
 
 
-def build_context(store: GraphStore, gitrepo: GitRepo | None,
-                  trace_id: str) -> ContextResult | None:
+def build_context(
+    store: GraphStore, gitrepo: GitRepo | None, trace_id: str
+) -> ContextResult | None:
     """Build the context summary for ``trace_id``, or None when unknown.
 
     Dangling declared edges (targets missing from the store, TL002) are

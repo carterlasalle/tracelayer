@@ -29,9 +29,7 @@ def test_reports_broken_refs_and_stale(ctx):
         ],
         [],
     )
-    ctx.store.insert_diagnostics(
-        [make("TL002", message="broken edge", trace_id="REQ-1")]
-    )
+    ctx.store.insert_diagnostics([make("TL002", message="broken edge", trace_id="REQ-1")])
     out = handle(ctx, {})
     assert "Health: 1 broken refs, 1 stale traces." in out.output
     assert out.json["health"]["broken_refs"] == 1

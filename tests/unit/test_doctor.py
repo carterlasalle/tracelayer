@@ -91,9 +91,7 @@ def test_run_doctor_emits_tl001_for_duplicate_ids(tmp_path: Path) -> None:
 
 def test_run_doctor_emits_tl002_for_broken_edge(tmp_path: Path) -> None:
     (tmp_path / "src").mkdir()
-    (tmp_path / "src" / "single.py").write_text(
-        "# trace:v1 id=impl.single type=implementation\n"
-    )
+    (tmp_path / "src" / "single.py").write_text("# trace:v1 id=impl.single type=implementation\n")
     real = entity_uid("impl.single")
     bogus = "n_" + "1" * 32
     out = doctor(
@@ -146,9 +144,7 @@ def test_run_doctor_emits_rename_suggestion_via_old_paths(tmp_path: Path) -> Non
 
 def test_run_doctor_emits_stale_tl110_suggestion(tmp_path: Path) -> None:
     (tmp_path / "src").mkdir()
-    (tmp_path / "src" / "stale.py").write_text(
-        "# trace:v1 id=impl.stale_x type=implementation\n"
-    )
+    (tmp_path / "src" / "stale.py").write_text("# trace:v1 id=impl.stale_x type=implementation\n")
     out = doctor(
         tmp_path,
         [make_node("impl.stale_x", "src/stale.py", metadata={"status": "stale_review_required"})],
@@ -188,7 +184,9 @@ def test_run_doctor_output_is_sorted(tmp_path: Path) -> None:
     (tmp_path / "src" / "dup_a.py").write_text("# trace:v1 id=impl.dup type=implementation\n")
     (tmp_path / "src" / "dup_b.py").write_text("# trace:v1 id=impl.dup type=implementation\n")
     (tmp_path / "src" / "stale.py").write_text("# trace:v1 id=impl.stale_x type=implementation\n")
-    (tmp_path / "src" / "new_name.py").write_text("# trace:v1 id=impl.new_name_fn type=implementation\n")
+    (tmp_path / "src" / "new_name.py").write_text(
+        "# trace:v1 id=impl.new_name_fn type=implementation\n"
+    )
     git = FakeGit({"src/new_name.py": ["src/old_name.py"]})
     out = doctor(
         tmp_path,
@@ -247,8 +245,7 @@ def test_apply_fixes_requotes_value_preserving_edges(tmp_path: Path) -> None:
     src.mkdir()
     f = src / "mod.py"
     f.write_text(
-        "# trace:v1 id=impl.x type=implementation title=hello-world! work=ABC-123\n"
-        "def x(): pass\n"
+        "# trace:v1 id=impl.x type=implementation title=hello-world! work=ABC-123\ndef x(): pass\n"
     )
     project = make_project(tmp_path)
     diags = [
@@ -274,15 +271,11 @@ def test_apply_fixes_never_alters_semantic_edges(tmp_path: Path) -> None:
     src = tmp_path / "src"
     src.mkdir()
     f = src / "mod.py"
-    f.write_text(
-        '# trace:v1 id=impl.x type=implementation title="hello-world!" work=ABC-123\n'
-    )
+    f.write_text('# trace:v1 id=impl.x type=implementation title="hello-world!" work=ABC-123\n')
     project = make_project(tmp_path)
     # A quoting fix must not touch the edge: the re-quote happens on the value
     # only, and the work=ABC-123 edge survives byte-for-byte.
-    diags = [
-        make("TL004", path="src/mod.py", line=1, message="some syntax complaint")
-    ]
+    diags = [make("TL004", path="src/mod.py", line=1, message="some syntax complaint")]
     apply_fixes(project, diags)
     assert f.read_text() == (
         '# trace:v1 id=impl.x type=implementation title="hello-world!" work=ABC-123\n'
@@ -303,7 +296,15 @@ def test_apply_fixes_skips_non_cosmetic_diagnostics(tmp_path: Path) -> None:
     f2 = src / "bad.py"
     f2.write_text("# trace:v1 title=hello\n")
     result2 = apply_fixes(
-        project, [make("TL004", path="src/bad.py", line=1, message="Node-defining markers require id=<trace-id>")]
+        project,
+        [
+            make(
+                "TL004",
+                path="src/bad.py",
+                line=1,
+                message="Node-defining markers require id=<trace-id>",
+            )
+        ],
     )
     assert result2["total_fixed"] == 0
     assert result2["files"]["src/bad.py"]["skipped"] == 1
@@ -317,10 +318,10 @@ def test_apply_fixes_skips_reorder_and_unknown_key_cases(tmp_path: Path) -> None
     # Field order that a canonical re-render would change: re-rendering would
     # move work= before title=, so the fix refuses (no guessing).
     reorder = src / "reorder.py"
-    reorder.write_text(
-        "# trace:v1 id=impl.x type=implementation work=ABC-123 title=hello-world!\n"
-    )
-    diags = [make("TL004", path="src/reorder.py", line=1, message="Invalid characters in unquoted value")]
+    reorder.write_text("# trace:v1 id=impl.x type=implementation work=ABC-123 title=hello-world!\n")
+    diags = [
+        make("TL004", path="src/reorder.py", line=1, message="Invalid characters in unquoted value")
+    ]
     result = apply_fixes(project, diags)
     assert result["files"]["src/reorder.py"]["skipped"] == 1
     assert reorder.read_text() == (
@@ -330,6 +331,16 @@ def test_apply_fixes_skips_reorder_and_unknown_key_cases(tmp_path: Path) -> None
     # also skipped.
     unknown = src / "unknown.py"
     unknown.write_text("# trace:v1 id=impl.x zzz=1 title=hello-world!\n")
-    result2 = apply_fixes(project, [make("TL004", path="src/unknown.py", line=1, message="Invalid characters in unquoted value")])
+    result2 = apply_fixes(
+        project,
+        [
+            make(
+                "TL004",
+                path="src/unknown.py",
+                line=1,
+                message="Invalid characters in unquoted value",
+            )
+        ],
+    )
     assert result2["files"]["src/unknown.py"]["skipped"] == 1
     assert unknown.read_text() == "# trace:v1 id=impl.x zzz=1 title=hello-world!\n"

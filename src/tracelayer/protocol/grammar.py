@@ -49,7 +49,6 @@ class FieldToken:
     key: str
     value: str  # unescaped
     quoted: bool
-    offset: int
 
 
 def tokenize_fields(
@@ -71,8 +70,10 @@ def tokenize_fields(
         if not km:
             diags.append(
                 make(
-                    "TL004", path=path, line=line,
-                    message=f"Expected key=value, found {rest[pos:pos + 20]!r}",
+                    "TL004",
+                    path=path,
+                    line=line,
+                    message=f"Expected key=value, found {rest[pos : pos + 20]!r}",
                 )
             )
             break
@@ -92,7 +93,7 @@ def tokenize_fields(
             value, pos, err = _parse_quoted(rest, pos, path, line)
             if err is not None:
                 diags.append(err)
-            tokens.append(FieldToken(key, value, True, pos))
+            tokens.append(FieldToken(key, value, True))
         else:
             start = pos
             while pos < n and rest[pos] not in " \t":
@@ -101,22 +102,22 @@ def tokenize_fields(
             if not UNQUOTED_VALUE_RE.match(value):
                 diags.append(
                     make(
-                        "TL004", path=path, line=line,
+                        "TL004",
+                        path=path,
+                        line=line,
                         message=(
                             f"Invalid characters in unquoted value {value!r}; "
                             "quote the value or use only [A-Za-z0-9._:/#@,+-]"
                         ),
                     )
                 )
-            tokens.append(FieldToken(key, value, False, start))
+            tokens.append(FieldToken(key, value, False))
         while pos < n and rest[pos] in " \t":
             pos += 1
     return tokens, diags
 
 
-def _parse_quoted(
-    s: str, pos: int, path: str, line: int
-) -> tuple[str, int, Diagnostic | None]:
+def _parse_quoted(s: str, pos: int, path: str, line: int) -> tuple[str, int, Diagnostic | None]:
     """Parse a double-quoted value starting at s[pos] == '"'.
 
     Returns (value, index after closing quote, error-or-None).
@@ -128,13 +129,17 @@ def _parse_quoted(
         c = s[i]
         if c == "\\":
             if i + 1 >= n:
-                return "".join(out), i + 1, make(
-                    "TL004", path=path, line=line, message="Unterminated escape sequence"
+                return (
+                    "".join(out),
+                    i + 1,
+                    make("TL004", path=path, line=line, message="Unterminated escape sequence"),
                 )
             e = s[i + 1]
             if e not in _ESCAPE_MAP:
-                return "".join(out), i + 2, make(
-                    "TL004", path=path, line=line, message=f"Unknown escape \\{e}"
+                return (
+                    "".join(out),
+                    i + 2,
+                    make("TL004", path=path, line=line, message=f"Unknown escape \\{e}"),
                 )
             out.append(_ESCAPE_MAP[e])
             i += 2
@@ -143,9 +148,7 @@ def _parse_quoted(
             return "".join(out), i + 1, None
         out.append(c)
         i += 1
-    return "".join(out), i, make(
-        "TL004", path=path, line=line, message="Unterminated quoted value"
-    )
+    return "".join(out), i, make("TL004", path=path, line=line, message="Unterminated quoted value")
 
 
 def quote_value(value: str) -> str:

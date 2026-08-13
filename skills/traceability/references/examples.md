@@ -102,8 +102,7 @@ Persist token-family rotation and rejection of reuse.
 
 ```python
 # trace:v1 id=impl.auth.refresh work=WORK-AUTH-237 satisfies=REQ-AUTH-017 implements=ADR-0042,PLAN-AUTH-237/P3
-def rotate_refresh_token(token: str) -> TokenPair:
-    ...
+def rotate_refresh_token(token: str) -> TokenPair: ...
 ```
 
 The engine derives `path=src/auth/tokens.py`,

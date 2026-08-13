@@ -1,0 +1,15 @@
+# Bandit security lint config.
+#
+# Skipped with justification:
+#   B404/B603/B607 - subprocess is invoked exclusively via argv arrays with no
+#     shell=True anywhere (spec 15.3, threat T2); executables resolve via PATH.
+#     This discipline is enforced in review.
+#   B110 - try/except-pass is the documented "malformed source returns what we
+#     parsed" pattern in the tree-sitter parsers.
+#   B105 - "pass"/"True" are legitimate data values (test outcomes, flags).
+skips:
+  - B404
+  - B603
+  - B607
+  - B110
+  - B105

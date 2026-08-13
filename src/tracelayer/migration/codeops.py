@@ -52,17 +52,48 @@ FIELD_KEY_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
 
 # Documented CodeOps fields (spec 33.1) plus the accepted undocumented
 # variants (spec 33.2: ops=, incident=).
-KNOWN_FIELDS = frozenset({
-    "work_item", "spec", "plan", "test", "doc", "ops", "prompt", "incident",
-    "commit", "jira_ref", "github_ref", "notion_ref", "evidence",
-})
+KNOWN_FIELDS = frozenset(
+    {
+        "work_item",
+        "spec",
+        "plan",
+        "test",
+        "doc",
+        "ops",
+        "prompt",
+        "incident",
+        "commit",
+        "jira_ref",
+        "github_ref",
+        "notion_ref",
+        "evidence",
+    }
+)
 NONCANONICAL_FIELDS = frozenset({"ops", "incident"})
 
-_SOURCE_SUFFIXES = frozenset({
-    ".py", ".pyw", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs",
-    ".go", ".rs", ".java", ".kt", ".c", ".cc", ".cpp", ".cxx", ".h", ".hh",
-    ".hpp",
-})
+_SOURCE_SUFFIXES = frozenset(
+    {
+        ".py",
+        ".pyw",
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs",
+        ".go",
+        ".rs",
+        ".java",
+        ".kt",
+        ".c",
+        ".cc",
+        ".cpp",
+        ".cxx",
+        ".h",
+        ".hh",
+        ".hpp",
+    }
+)
 
 # Classification priority: higher wins for the marker.
 _CLASS_PRIORITY = {
@@ -144,9 +175,7 @@ def _iter_text_files(root: Path, config: TraceConfig) -> Iterator[Path]:
         yield path
 
 
-def _parse_fields(
-    payload: str, path: str, line: int
-) -> tuple[dict[str, str], list[Diagnostic]]:
+def _parse_fields(payload: str, path: str, line: int) -> tuple[dict[str, str], list[Diagnostic]]:
     """Permissively parse the fields after ``codeops:trace``.
 
     ``key=value`` tokens split on whitespace (first ``=``); blank values are
@@ -159,37 +188,62 @@ def _parse_fields(
     diags: list[Diagnostic] = []
     for tok in payload.split():
         if "=" not in tok:
-            diags.append(make(
-                "TL040", severity=SEVERITY_INFO, path=path, line=line,
-                message=f"Malformed codeops field token {tok!r} ignored",
-            ))
+            diags.append(
+                make(
+                    "TL040",
+                    severity=SEVERITY_INFO,
+                    path=path,
+                    line=line,
+                    message=f"Malformed codeops field token {tok!r} ignored",
+                )
+            )
             continue
         key, value = tok.split("=", 1)
         if not FIELD_KEY_RE.match(key):
-            diags.append(make(
-                "TL040", severity=SEVERITY_INFO, path=path, line=line,
-                message=f"Malformed codeops field key {key!r} ignored",
-            ))
+            diags.append(
+                make(
+                    "TL040",
+                    severity=SEVERITY_INFO,
+                    path=path,
+                    line=line,
+                    message=f"Malformed codeops field key {key!r} ignored",
+                )
+            )
             continue
         if key in fields:
-            diags.append(make(
-                "TL040", severity=SEVERITY_INFO, path=path, line=line,
-                message=f"Duplicate codeops field {key!r}; first value kept",
-            ))
+            diags.append(
+                make(
+                    "TL040",
+                    severity=SEVERITY_INFO,
+                    path=path,
+                    line=line,
+                    message=f"Duplicate codeops field {key!r}; first value kept",
+                )
+            )
             continue
         if key not in KNOWN_FIELDS:
-            diags.append(make(
-                "TL040", severity=SEVERITY_INFO, path=path, line=line,
-                message=f"Unknown codeops field {key}={value} preserved for review",
-            ))
+            diags.append(
+                make(
+                    "TL040",
+                    severity=SEVERITY_INFO,
+                    path=path,
+                    line=line,
+                    message=f"Unknown codeops field {key}={value} preserved for review",
+                )
+            )
         elif key in NONCANONICAL_FIELDS:
-            diags.append(make(
-                "TL040", severity=SEVERITY_INFO, path=path, line=line,
-                message=(
-                    f"Undocumented codeops field {key}={value} accepted "
-                    "permissively; mapped to requires_review"
-                ),
-            ))
+            diags.append(
+                make(
+                    "TL040",
+                    severity=SEVERITY_INFO,
+                    path=path,
+                    line=line,
+                    message=(
+                        f"Undocumented codeops field {key}={value} accepted "
+                        "permissively; mapped to requires_review"
+                    ),
+                )
+            )
         fields[key] = value
     return fields, diags
 
@@ -214,7 +268,7 @@ def scan_codeops(root: Path, config: TraceConfig) -> tuple[list[CodeOpsMarker], 
             if CODEOPS_PREFIX not in line:
                 continue
             idx = line.index(CODEOPS_PREFIX)
-            payload = line[idx + len(CODEOPS_PREFIX):]
+            payload = line[idx + len(CODEOPS_PREFIX) :]
             # Block-comment closers that share the line (mirrors the trace:v1
             # grammar); a value containing `-->` cannot be represented.
             payload = payload.split("-->", 1)[0].split("*/", 1)[0]
@@ -267,7 +321,10 @@ def _resolve_spec(value: str) -> str | None:
     fragment = value.rsplit("#", 1)[-1] if "#" in value else value
     fragment = fragment.strip()
     if is_valid_id(fragment) and infer_node_type(fragment) in (
-        "requirement", "nfr", "goal", "prd",
+        "requirement",
+        "nfr",
+        "goal",
+        "prd",
     ):
         return fragment
     return None
@@ -284,7 +341,7 @@ def _split_line(raw: str) -> tuple[str, str]:
         return "", ""
     idx = raw.index(CODEOPS_PREFIX)
     prefix = raw[:idx]
-    tail = raw[idx + len(CODEOPS_PREFIX):]
+    tail = raw[idx + len(CODEOPS_PREFIX) :]
     consumed = 0
     last_field_end = 0
     for tok in tail.split():
@@ -312,9 +369,7 @@ def _field_classification(
     if key == "spec":
         req = _resolve_spec(value)
         if req is None:
-            return "requires_review", (
-                f"{key}={value} cannot be resolved to a requirement ID"
-            )
+            return "requires_review", (f"{key}={value} cannot be resolved to a requirement ID")
         if test_file:
             return "high_confidence", f"{key}={value} -> verifies={req} (test attachment)"
         if source_file:
@@ -389,25 +444,27 @@ def build_plan(markers: list[CodeOpsMarker], project: Project) -> MigrationPlan:
             # Spec 33.4: classify over edge-contributing fields only; note-only
             # fields (test/doc/ops/…/commit/unknown, unresolvable spec) never
             # demote a marker that has at least one real edge.
-            classification = max(
-                edge_classes, key=lambda c: _CLASS_PRIORITY[c]
-            )
+            classification = max(edge_classes, key=lambda c: _CLASS_PRIORITY[c])
         else:
             # No edge-contributing field: fall back to the worst non-dropped
             # field so all-requires_review markers stay reviewable and a
             # commit-only marker becomes derived.
             remaining = [c for c in classes if c != "dropped"]
             classification = (
-                max(remaining, key=lambda c: _CLASS_PRIORITY[c])
-                if remaining else "dropped"
+                max(remaining, key=lambda c: _CLASS_PRIORITY[c]) if remaining else "dropped"
             )
         item_diags: list[Diagnostic] = []
         for key, value in m.fields.items():
             if key == "spec" and value and _resolve_spec(value) is None:
-                item_diags.append(make(
-                    "TL002", severity=SEVERITY_INFO, path=m.path, line=m.line,
-                    message=f"spec={value} has no resolvable requirement ID; review required",
-                ))
+                item_diags.append(
+                    make(
+                        "TL002",
+                        severity=SEVERITY_INFO,
+                        path=m.path,
+                        line=m.line,
+                        message=f"spec={value} has no resolvable requirement ID; review required",
+                    )
+                )
         new_marker: str | None = None
         if classification != "dropped" and name_source and edges:
             node_type = _node_type_for(m.path)
@@ -415,18 +472,28 @@ def build_plan(markers: list[CodeOpsMarker], project: Project) -> MigrationPlan:
             taken.add(trace_id)
             prefix, suffix = _split_line(m.raw)
             marker = ParsedMarker(
-                path=m.path, line=m.line, column=1, raw=m.raw,
-                trace_id=trace_id, node_type=node_type, edges=edges,
+                path=m.path,
+                line=m.line,
+                column=1,
+                raw=m.raw,
+                trace_id=trace_id,
+                node_type=node_type,
+                edges=edges,
             )
             new_marker = prefix + render_marker(marker) + suffix
         note = "; ".join(notes) if notes else "no mappable fields"
-        items.append(MigrationItem(
-            path=m.path, line=m.line, classification=classification,
-            new_marker=new_marker, note=note, diagnostics=item_diags, raw=m.raw,
-        ))
-    summary = {
-        c: sum(1 for it in items if it.classification == c) for c in CLASSIFICATIONS
-    }
+        items.append(
+            MigrationItem(
+                path=m.path,
+                line=m.line,
+                classification=classification,
+                new_marker=new_marker,
+                note=note,
+                diagnostics=item_diags,
+                raw=m.raw,
+            )
+        )
+    summary = {c: sum(1 for it in items if it.classification == c) for c in CLASSIFICATIONS}
     return MigrationPlan(schema="tracelayer-migration/v1", items=items, summary=summary)
 
 
@@ -444,9 +511,7 @@ def apply_plan(
     by_path: dict[str, list[tuple[int, str]]] = {}
     file_counts: dict[str, dict[str, int]] = {}
     for item in plan.items:
-        counts = file_counts.setdefault(item.path, {
-            c: 0 for c in CLASSIFICATIONS
-        })
+        counts = file_counts.setdefault(item.path, {c: 0 for c in CLASSIFICATIONS})
         counts[item.classification] += 1
         if item.classification not in ("deterministic", "high_confidence"):
             continue
@@ -480,5 +545,9 @@ def apply_plan(
         tmp.write_text(new_text, encoding="utf-8")
         os.replace(tmp, full)
         changed_files += 1
-    return {"dry_run": False, "applied": applied, "changed_files": changed_files,
-            "files": file_counts}
+    return {
+        "dry_run": False,
+        "applied": applied,
+        "changed_files": changed_files,
+        "files": file_counts,
+    }

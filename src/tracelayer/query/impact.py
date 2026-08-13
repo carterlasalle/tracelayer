@@ -26,17 +26,24 @@ _MAX_HISTORY = 200
 
 @dataclass
 class ImpactResult:
-    semantic: list[Node]           # declared downstream dependents
-    structural: list[Node]         # structural downstream (calls/imports)
-    tests: list[Node]              # test dependents
+    semantic: list[Node]  # declared downstream dependents
+    structural: list[Node]  # structural downstream (calls/imports)
+    tests: list[Node]  # test dependents
     stale: list[tuple[Node, str]]  # affected nodes with non-current status
-    history: list                  # list[CommitInfo] when include_history
+    history: list  # list[CommitInfo] when include_history
 
 
-def impact(store: GraphStore, gitrepo: GitRepo | None, trace_id: str, *,
-           semantic_only: bool = False, include_structural: bool = False,
-           include_tests: bool = True, include_history: bool = False,
-           depth: int = 3) -> ImpactResult:
+def impact(
+    store: GraphStore,
+    gitrepo: GitRepo | None,
+    trace_id: str,
+    *,
+    semantic_only: bool = False,
+    include_structural: bool = False,
+    include_tests: bool = True,
+    include_history: bool = False,
+    depth: int = 3,
+) -> ImpactResult:
     """Impact summary for ``trace_id``; empty lists for unknown ids.
 
     ``semantic_only`` suppresses structural, test, and history output
@@ -55,23 +62,35 @@ def impact(store: GraphStore, gitrepo: GitRepo | None, trace_id: str, *,
         include_tests = False
         include_history = False
 
-    walk = bounded_walk(store, uid, direction="in", predicates=sorted(SEMANTIC_EDGES),
-                        depth=depth, max_nodes=_MAX_WALK_NODES)
-    semantic = sorted((n for n in walk.nodes.values() if n.entity_uid != uid),
-                      key=lambda n: n.trace_id)
+    walk = bounded_walk(
+        store,
+        uid,
+        direction="in",
+        predicates=sorted(SEMANTIC_EDGES),
+        depth=depth,
+        max_nodes=_MAX_WALK_NODES,
+    )
+    semantic = sorted(
+        (n for n in walk.nodes.values() if n.entity_uid != uid), key=lambda n: n.trace_id
+    )
 
     tests: list[Node] = []
     if include_tests:
-        tests = sorted((n for n in semantic if n.node_type == "test"),
-                       key=lambda n: n.trace_id)
+        tests = sorted((n for n in semantic if n.node_type == "test"), key=lambda n: n.trace_id)
 
     structural: list[Node] = []
     if include_structural:
-        swalk = bounded_walk(store, uid, direction="in",
-                             predicates=sorted(STRUCTURAL_EDGES),
-                             depth=depth, max_nodes=_MAX_WALK_NODES)
-        structural = sorted((n for n in swalk.nodes.values() if n.entity_uid != uid),
-                            key=lambda n: n.trace_id)
+        swalk = bounded_walk(
+            store,
+            uid,
+            direction="in",
+            predicates=sorted(STRUCTURAL_EDGES),
+            depth=depth,
+            max_nodes=_MAX_WALK_NODES,
+        )
+        structural = sorted(
+            (n for n in swalk.nodes.values() if n.entity_uid != uid), key=lambda n: n.trace_id
+        )
 
     stale: list[tuple[Node, str]] = []
     seen: set[str] = set()

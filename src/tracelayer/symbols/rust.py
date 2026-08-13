@@ -67,8 +67,9 @@ class RustParser:
     def ast_normalized(self, source: str) -> str:
         return _ast_normalized(source, self.parser)
 
-    def _walk(self, root, module: str, data: bytes, out: list[SymbolRef],
-              enclosing: tuple[str, ...]) -> None:
+    def _walk(
+        self, root, module: str, data: bytes, out: list[SymbolRef], enclosing: tuple[str, ...]
+    ) -> None:
         """Iterative DFS: deep source files cannot overflow the interpreter stack."""
         pending: list[tuple[Any, tuple[str, ...]]] = [(root, enclosing)]
         while pending:
@@ -96,8 +97,9 @@ class RustParser:
                 continue
             pending.extend((c, enc) for c in reversed(node.children))
 
-    def _function(self, node, module: str, data: bytes, out: list[SymbolRef],
-                  enclosing: tuple[str, ...]) -> None:
+    def _function(
+        self, node, module: str, data: bytes, out: list[SymbolRef], enclosing: tuple[str, ...]
+    ) -> None:
         name_node = node.child_by_field_name("name")
         if name_node is None:
             return
@@ -112,7 +114,10 @@ class RustParser:
     @staticmethod
     def _ref(node, data: bytes, kind: str, name: str, qname: str) -> SymbolRef:
         return SymbolRef(
-            "rust", kind, name, qname,
+            "rust",
+            kind,
+            name,
+            qname,
             *symbol_lines(line_starts(data), node.start_byte, node.end_byte),
-            data[node.start_byte:node.end_byte].decode("utf-8", "replace"),
+            data[node.start_byte : node.end_byte].decode("utf-8", "replace"),
         )

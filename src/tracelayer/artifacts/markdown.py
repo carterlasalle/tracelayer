@@ -121,9 +121,7 @@ def _comment_body(raw: str) -> str:
     return body.strip()
 
 
-def extract_markdown_blocks(
-    path: str, text: str, config: TraceConfig
-) -> list[MarkdownBlock]:
+def extract_markdown_blocks(path: str, text: str, config: TraceConfig) -> list[MarkdownBlock]:
     """Extract artifact blocks from markdown headings and comment markers.
 
     See the module docstring for exact semantics. Blocks are returned in line

@@ -41,11 +41,7 @@ def _scope_nodes(ctx: EvalContext) -> list[Node]:
     """
     if ctx.changed_ids is None:
         return ctx.store.all_nodes(active_only=True)
-    return [
-        n
-        for n in ctx.store.all_nodes(active_only=True)
-        if n.trace_id in ctx.changed_ids
-    ]
+    return [n for n in ctx.store.all_nodes(active_only=True) if n.trace_id in ctx.changed_ids]
 
 
 def _stored(ctx: EvalContext, rule_id: str) -> list[Diagnostic]:
@@ -70,6 +66,7 @@ def _has_incoming(ctx: EvalContext, node: Node, predicates: frozenset[str]) -> b
 # --------------------------------------------------------------------------
 # TL001-TL007: marker hygiene
 # --------------------------------------------------------------------------
+
 
 def rule_tl001(ctx: EvalContext) -> list[Diagnostic]:
     """Duplicate trace IDs — parse-time detection, re-emitted from the store.
@@ -119,9 +116,7 @@ def rule_tl003(ctx: EvalContext) -> list[Diagnostic]:
         attach = meta.get("structural_attachment")
         parser = meta.get("parser_support")
         detached = meta.get("detached") in (True, "true")
-        if detached or (
-            attach in ("file", "ambiguous") and parser not in (None, "generic")
-        ):
+        if detached or (attach in ("file", "ambiguous") and parser not in (None, "generic")):
             diags.append(
                 make(
                     "TL003",
@@ -160,6 +155,7 @@ def rule_tl007(ctx: EvalContext) -> list[Diagnostic]:
 # --------------------------------------------------------------------------
 # TL010-TL012: changed behavior tracing
 # --------------------------------------------------------------------------
+
 
 def rule_tl010(ctx: EvalContext) -> list[Diagnostic]:
     """Changed implementation lacking work/satisfies ancestry.
@@ -231,11 +227,7 @@ def rule_tl012(ctx: EvalContext) -> list[Diagnostic]:
     if not ctx.changed_paths:
         return diags
     excluded = ctx.project.policy.exclusions.paths if ctx.project.policy else []
-    traced = {
-        n.canonical_path
-        for n in ctx.store.all_nodes(active_only=True)
-        if n.canonical_path
-    }
+    traced = {n.canonical_path for n in ctx.store.all_nodes(active_only=True) if n.canonical_path}
     for path in sorted(ctx.changed_paths):
         if any(fnmatch(path, pat) for pat in excluded):
             continue
@@ -257,6 +249,7 @@ def rule_tl012(ctx: EvalContext) -> list[Diagnostic]:
 # --------------------------------------------------------------------------
 # TL020-TL022: verification and execution evidence
 # --------------------------------------------------------------------------
+
 
 def rule_tl020(ctx: EvalContext) -> list[Diagnostic]:
     """Requirement without any incoming verifies edge.
@@ -356,11 +349,7 @@ def rule_tl022(ctx: EvalContext) -> list[Diagnostic]:
     """
     from tracelayer.evidence.freshness import proof_level
 
-    impl_uids = {
-        n.entity_uid
-        for n in _scope_nodes(ctx)
-        if n.node_type == "implementation"
-    }
+    impl_uids = {n.entity_uid for n in _scope_nodes(ctx) if n.node_type == "implementation"}
     preferred = ctx.project.config.evidence.preferred_coverage_proof
     required = 2 if preferred == "per_test" else 1
     current = True
@@ -400,15 +389,14 @@ def rule_tl022(ctx: EvalContext) -> list[Diagnostic]:
 # TL030: deletion hygiene
 # --------------------------------------------------------------------------
 
+
 def rule_tl030(ctx: EvalContext) -> list[Diagnostic]:
     """Inactive node with an active incoming semantic edge.
 
     One diagnostic per node (first offending edge).  Observed edges
     (executed/passed/...) are historical records and never unresolved.
     """
-    inactive = [
-        n for n in ctx.store.all_nodes(active_only=False) if not n.active
-    ]
+    inactive = [n for n in ctx.store.all_nodes(active_only=False) if not n.active]
     if ctx.changed_ids is not None:
         inactive = [n for n in inactive if n.trace_id in ctx.changed_ids]
     diags: list[Diagnostic] = []
@@ -437,6 +425,7 @@ def rule_tl030(ctx: EvalContext) -> list[Diagnostic]:
 # --------------------------------------------------------------------------
 # TL040-TL100: stored diagnostics and configuration
 # --------------------------------------------------------------------------
+
 
 def rule_tl040(ctx: EvalContext) -> list[Diagnostic]:
     """Unknown marker keys — re-emitted from the last index."""
@@ -502,8 +491,7 @@ def rule_tl061(ctx: EvalContext) -> list[Diagnostic]:
                     lifecycle=ctx.lifecycle,
                     metadata={"owner": waiver.owner, "reason": waiver.reason},
                     message=(
-                        f"Waiver for {waiver.rule} expired {waiver.expires} "
-                        f"(owner={waiver.owner})"
+                        f"Waiver for {waiver.rule} expired {waiver.expires} (owner={waiver.owner})"
                     ),
                 )
             )
@@ -521,10 +509,7 @@ def rule_tl062(ctx: EvalContext) -> list[Diagnostic]:
                 make(
                     "TL062",
                     lifecycle=ctx.lifecycle,
-                    message=(
-                        f"Evidence run {run.get('run_id')} is not bound to an "
-                        f"exact revision"
-                    ),
+                    message=(f"Evidence run {run.get('run_id')} is not bound to an exact revision"),
                 )
             )
     return diags

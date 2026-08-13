@@ -131,6 +131,7 @@ def build_audit_package(
 # Helpers
 # --------------------------------------------------------------------------
 
+
 def _nodes_of(all_nodes: list[Node], section: str) -> list[Node]:
     kinds = _NODE_TYPES_BY_SECTION[section]
     return [n for n in all_nodes if n.node_type in kinds]
@@ -159,11 +160,7 @@ def _changed_nodes(
     """Trace IDs of changed nodes, sorted; bounded to max_items."""
     if changed_ids is not None:
         return sorted(t for t in changed_ids if store.trace_id_exists(t))[:max_items]
-    traced = {
-        n.canonical_path: n.trace_id
-        for n in all_nodes
-        if n.canonical_path is not None
-    }
+    traced = {n.canonical_path: n.trace_id for n in all_nodes if n.canonical_path is not None}
     changed: list[str] = []
     if gitrepo is not None:
         try:
@@ -182,9 +179,7 @@ def _changed_nodes(
     return changed[:max_items]
 
 
-def _relevant_uids(
-    store: GraphStore, work_uid: str | None, changed: list[str]
-) -> set[str]:
+def _relevant_uids(store: GraphStore, work_uid: str | None, changed: list[str]) -> set[str]:
     """Entity UIDs linked to the work item or the changed set (one hop)."""
     uids: set[str] = set()
     if work_uid is not None:
@@ -200,12 +195,8 @@ def _relevant_uids(
 
 def _prioritize(nodes: list[Node], relevant_uids: set[str]) -> list[Node]:
     """Deterministic ordering: work/changed-linked nodes first, then the rest."""
-    related = sorted(
-        (n for n in nodes if n.entity_uid in relevant_uids), key=lambda n: n.trace_id
-    )
-    rest = sorted(
-        (n for n in nodes if n.entity_uid not in relevant_uids), key=lambda n: n.trace_id
-    )
+    related = sorted((n for n in nodes if n.entity_uid in relevant_uids), key=lambda n: n.trace_id)
+    rest = sorted((n for n in nodes if n.entity_uid not in relevant_uids), key=lambda n: n.trace_id)
     return related + rest
 
 
@@ -309,9 +300,7 @@ def _unexpected_changes(store: GraphStore, gitrepo: GitRepo | None, max_items: i
     """Changed paths with no traced node, sorted; [] without git."""
     if gitrepo is None:
         return []
-    traced = {
-        n.canonical_path for n in store.all_nodes(active_only=True) if n.canonical_path
-    }
+    traced = {n.canonical_path for n in store.all_nodes(active_only=True) if n.canonical_path}
     try:
         changed = [f.path for f in gitrepo.changed_files() if f.path not in traced]
     except Exception:

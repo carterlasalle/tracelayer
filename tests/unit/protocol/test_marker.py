@@ -25,7 +25,6 @@ from tracelayer.protocol import (
 from tracelayer.protocol.marker import (
     BUILTIN_PROPERTIES,
     CONVENIENCE_EDGES,
-    NODE_DEFINING_KEYS,
     iter_marker_hits,
 )
 
@@ -152,9 +151,7 @@ def test_convenience_plan_key_aliases_implements() -> None:
 
 
 def test_comma_separated_targets() -> None:
-    result = parse_marker_line(
-        f"{PREFIX} id=impl.x satisfies=REQ-1,REQ-2 work=WORK-1,WORK-2"
-    )
+    result = parse_marker_line(f"{PREFIX} id=impl.x satisfies=REQ-1,REQ-2 work=WORK-1,WORK-2")
     assert result.marker is not None
     assert result.diagnostics == []
     assert result.marker.edges == {
@@ -270,9 +267,7 @@ def test_unknown_key_migration_mode() -> None:
 
 
 def test_unknown_quoted_key_permissive_preserves_value() -> None:
-    result = parse_marker_line(
-        f'{PREFIX} id=REQ-1 foo="bar baz"', unknown_keys="permissive"
-    )
+    result = parse_marker_line(f'{PREFIX} id=REQ-1 foo="bar baz"', unknown_keys="permissive")
     assert result.marker is not None
     assert result.migrated == {"foo": "bar baz"}
 
@@ -318,9 +313,7 @@ def test_iter_marker_hits_skips_non_comment_context() -> None:
 
 def test_parse_marker_hit_uses_hit_fields() -> None:
     raw = f"# {PREFIX} id=REQ-1"
-    hit = MarkerHit(
-        path="src/a.py", line=7, column=3, raw=raw, payload=f"{PREFIX} id=REQ-1"
-    )
+    hit = MarkerHit(path="src/a.py", line=7, column=3, raw=raw, payload=f"{PREFIX} id=REQ-1")
     result = parse_marker_hit(hit)
     assert result.marker is not None
     assert result.marker.path == "src/a.py"
@@ -338,8 +331,13 @@ def test_parse_marker_hit_uses_hit_fields() -> None:
 
 def test_render_marker_basic() -> None:
     marker = ParsedMarker(
-        path="p", line=1, column=1, raw="",
-        trace_id="REQ-1", node_type="requirement", title="My req",
+        path="p",
+        line=1,
+        column=1,
+        raw="",
+        trace_id="REQ-1",
+        node_type="requirement",
+        title="My req",
         properties={"policy": "POL-1"},
         edges={"satisfies": ["REQ-2"]},
     )
@@ -355,7 +353,11 @@ def test_render_marker_minimal() -> None:
 
 def test_render_edge_order_follows_registry() -> None:
     marker = ParsedMarker(
-        path="p", line=1, column=1, raw="", trace_id="impl.x",
+        path="p",
+        line=1,
+        column=1,
+        raw="",
+        trace_id="impl.x",
         edges={"satisfies": ["REQ-9"], "implements": ["PLAN-1"], "work": ["WORK-1"]},
     )
     assert render_marker(marker) == (
@@ -392,6 +394,6 @@ def test_render_parse_round_trip_fields(line: str) -> None:
 def test_node_defining_keys() -> None:
     assert BUILTIN_PROPERTIES == {"id", "type", "title", "policy"}
     assert CONVENIENCE_EDGES == {"work": "work", "plan": "implements"}
-    assert NODE_DEFINING_KEYS == BUILTIN_PROPERTIES | set(CONVENIENCE_EDGES) | set(
-        SEMANTIC_EDGES
-    )
+    # Every built-in property and semantic edge key is accepted by the parser;
+    # derived (structural/observed) keys are rejected (see test_derived_keys_rejected).
+    assert SEMANTIC_EDGES

@@ -81,7 +81,7 @@ def test_bounded_walk_self_loop_terminates(tmp_path: Path) -> None:
 def test_bounded_walk_depth_cap(tmp_path: Path) -> None:
     store = GraphStore.open(tmp_path / "s.sqlite3")
     try:
-        edges = [_edge(f"N{i}", "work", f"N{i+1}") for i in range(5)]
+        edges = [_edge(f"N{i}", "work", f"N{i + 1}") for i in range(5)]
         _seed(store, [f"N{i}" for i in range(6)], edges)
         sub0 = bounded_walk(store, entity_uid("N0"), depth=0)
         assert _uids(sub0) == {"N0"}
@@ -96,7 +96,7 @@ def test_bounded_walk_depth_cap(tmp_path: Path) -> None:
 def test_bounded_walk_max_nodes_cap(tmp_path: Path) -> None:
     store = GraphStore.open(tmp_path / "s.sqlite3")
     try:
-        edges = [_edge(f"N{i}", "work", f"N{i+1}") for i in range(9)]
+        edges = [_edge(f"N{i}", "work", f"N{i + 1}") for i in range(9)]
         _seed(store, [f"N{i}" for i in range(10)], edges)
         sub = bounded_walk(store, entity_uid("N0"), depth=10, max_nodes=3)
         assert len(sub.nodes) == 3

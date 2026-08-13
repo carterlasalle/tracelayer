@@ -25,9 +25,7 @@ def make_git_repo(tmp_path) -> str:
     ):
         subprocess.run(args, cwd=str(tmp_path), check=True, capture_output=True)
     (tmp_path / "README.md").write_text("trace\n", encoding="utf-8")
-    subprocess.run(
-        ["git", "add", "README.md"], cwd=str(tmp_path), check=True, capture_output=True
-    )
+    subprocess.run(["git", "add", "README.md"], cwd=str(tmp_path), check=True, capture_output=True)
     subprocess.run(
         ["git", "commit", "-q", "-m", "init"],
         cwd=str(tmp_path),
@@ -35,7 +33,10 @@ def make_git_repo(tmp_path) -> str:
         capture_output=True,
     )
     return subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=str(tmp_path), check=True, capture_output=True,
+        ["git", "rev-parse", "HEAD"],
+        cwd=str(tmp_path),
+        check=True,
+        capture_output=True,
         text=True,
     ).stdout.strip()
 
@@ -56,6 +57,7 @@ def req_impl_graph(store, *, with_ancestry: bool):
 # --------------------------------------------------------------------------
 # Requirement gating + blocking semantics
 # --------------------------------------------------------------------------
+
 
 def test_standard_merge_fails_changed_implementation_without_ancestry(project, store):
     project.policy.profile = "standard"
@@ -97,7 +99,9 @@ def test_standard_merge_passes_with_requirement_ancestry(project, store):
         ],
     )
     result = evaluate(
-        project, store, lifecycle="merge",
+        project,
+        store,
+        lifecycle="merge",
         changed_ids={"IMPL:1", "REQ:1", "TEST:1"},
         revision="abc123",
     )
@@ -115,8 +119,7 @@ def test_wip_lifecycle_does_not_gate_verification_rules(project, store):
 
 def test_requirement_gate_tl110_off_at_wip(project, store):
     project.policy.profile = "strict"
-    stale = make_node("IMPL:1", "implementation", path="src/app.py",
-                      status="stale_review_required")
+    stale = make_node("IMPL:1", "implementation", path="src/app.py", status="stale_review_required")
     store.replace_all([stale], [])
     result = evaluate(project, store, lifecycle="wip", changed_ids={"IMPL:1"})
     assert all(d.rule_id != "TL110" for d in result.diagnostics)
@@ -124,8 +127,7 @@ def test_requirement_gate_tl110_off_at_wip(project, store):
 
 def test_requirement_gate_tl110_on_at_merge(project, store):
     project.policy.profile = "strict"
-    stale = make_node("IMPL:1", "implementation", path="src/app.py",
-                      status="stale_review_required")
+    stale = make_node("IMPL:1", "implementation", path="src/app.py", status="stale_review_required")
     store.replace_all([stale], [])
     result = evaluate(project, store, lifecycle="merge", changed_ids={"IMPL:1"})
     rule_ids = [d.rule_id for d in result.diagnostics]
@@ -147,6 +149,7 @@ def test_explicit_requirements_override_profile_defaults(project, store):
 # --------------------------------------------------------------------------
 # Waiver semantics
 # --------------------------------------------------------------------------
+
 
 def test_active_waiver_downgrades_diagnostic_to_info(project, store):
     project.policy.profile = "standard"
@@ -231,6 +234,7 @@ def test_tl061_cannot_waive_itself(project, store):
 # Scope: whole-repo vs changed
 # --------------------------------------------------------------------------
 
+
 def test_whole_repo_scope_checks_all_implementations(project, store):
     project.policy.profile = "standard"
     req_impl_graph(store, with_ancestry=False)
@@ -261,11 +265,11 @@ def test_whole_repo_scope_with_changed_paths_for_tl012(project, store):
 # TL050 — evidence revision binding
 # --------------------------------------------------------------------------
 
+
 def test_tl050_blocks_when_evidence_bound_to_wrong_revision(project, store):
     project.policy.profile = "safety-critical"
     store.add_evidence_run("run-1", "old-rev", "pytest", None, None, None, "pass", None, {})
-    result = evaluate(project, store, lifecycle="wip", revision="new-rev",
-                      changed_ids=set())
+    result = evaluate(project, store, lifecycle="wip", revision="new-rev", changed_ids=set())
     assert any(d.rule_id == "TL050" for d in result.diagnostics)
     assert result.blocking is True
 
@@ -273,8 +277,7 @@ def test_tl050_blocks_when_evidence_bound_to_wrong_revision(project, store):
 def test_tl050_clean_when_evidence_matches_evaluated_revision(project, store):
     project.policy.profile = "safety-critical"
     store.add_evidence_run("run-1", "abc123", "pytest", None, None, None, "pass", None, {})
-    result = evaluate(project, store, lifecycle="wip", revision="abc123",
-                      changed_ids=set())
+    result = evaluate(project, store, lifecycle="wip", revision="abc123", changed_ids=set())
     assert all(d.rule_id != "TL050" for d in result.diagnostics)
     assert result.blocking is False
 
@@ -292,7 +295,10 @@ def test_ingest_tl050_on_revision_mismatch_against_git_head(project, store, tmp_
         encoding="utf-8",
     )
     result = ingest(
-        project, store, junit=junit, revision="deadbeef",
+        project,
+        store,
+        junit=junit,
+        revision="deadbeef",
         test_id_map={"tests.app.test_one": "TEST:1"},
     )
     assert any(d.rule_id == "TL050" for d in result.diagnostics)

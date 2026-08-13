@@ -127,10 +127,7 @@ def evaluate(
             make(
                 "TL100",
                 lifecycle=lifecycle,
-                message=(
-                    f"Unknown policy profile {profile!r}; falling back to "
-                    f"minimal rules"
-                ),
+                message=(f"Unknown policy profile {profile!r}; falling back to minimal rules"),
             )
         )
         profile = "minimal"
@@ -139,9 +136,7 @@ def evaluate(
     profile_set = profile_rules(profile, lifecycle)
     enabled = {r for r in profile_set if r not in REQUIREMENT_GATES}
     enabled.update(
-        rule_id
-        for rule_id, gate in REQUIREMENT_GATES.items()
-        if getattr(requirements, gate)
+        rule_id for rule_id, gate in REQUIREMENT_GATES.items() if getattr(requirements, gate)
     )
 
     ctx = EvalContext(

@@ -51,6 +51,6 @@ def test_golden_verify_merge_stale(tmp_path):
 
     proc = run_trace(root, "verify", "--all", "--lifecycle", "merge", "--json")
     assert proc.returncode == 1
-    assert _normalize(proc.stdout) == (
-        GOLDEN_DIR / "verify_merge_stale_json.golden"
-    ).read_text(encoding="utf-8")
+    assert _normalize(proc.stdout) == (GOLDEN_DIR / "verify_merge_stale_json.golden").read_text(
+        encoding="utf-8"
+    )

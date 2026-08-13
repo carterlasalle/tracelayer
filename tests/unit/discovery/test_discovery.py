@@ -87,7 +87,9 @@ def test_discover_exclude_globs(tmp_path: Path) -> None:
     _write(tmp_path, "src/a.py", "x")
     _write(tmp_path, "src/generated/b.py", "x")
     _write(tmp_path, "build/x.o", "x")
-    config = TraceConfig(repo_id="r", discovery=DiscoveryConfig(exclude=["src/generated/**", "build/**"]))
+    config = TraceConfig(
+        repo_id="r", discovery=DiscoveryConfig(exclude=["src/generated/**", "build/**"])
+    )
     files = discover_files(tmp_path, config)
     assert _paths(files) == ["src/a.py"]
 
@@ -191,11 +193,11 @@ def test_build_ignored_covers_exclude_and_git(tmp_path: Path) -> None:
     assert git_repo is not None
     config = TraceConfig(repo_id="r", discovery=DiscoveryConfig(exclude=["vendor/**"]))
     is_ignored = build_ignored(root, config, git_repo)
-    assert is_ignored("vendor/lib.py") is True       # config exclude
-    assert is_ignored("a.log") is True               # gitignore
+    assert is_ignored("vendor/lib.py") is True  # config exclude
+    assert is_ignored("a.log") is True  # gitignore
     assert is_ignored("a.txt") is False
-    assert is_ignored(".git/HEAD") is True           # always
-    assert is_ignored(".trace/cache/x") is True      # always
+    assert is_ignored(".git/HEAD") is True  # always
+    assert is_ignored(".trace/cache/x") is True  # always
 
 
 def test_glob_match_semantics() -> None:

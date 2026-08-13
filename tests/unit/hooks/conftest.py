@@ -22,6 +22,4 @@ def state(project):
 @pytest.fixture
 def ctx(project, store, state):
     """A HookContext bound to the shared store/session."""
-    return HookContext(
-        project=project, store=store, gitrepo=None, session_id="s1", state=state
-    )
+    return HookContext(project=project, store=store, gitrepo=None, session_id="s1", state=state)

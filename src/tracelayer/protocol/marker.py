@@ -18,10 +18,6 @@ BUILTIN_PROPERTIES = frozenset({"id", "type", "title", "policy"})
 # graph edges; `plan` is an alias for `implements`.
 CONVENIENCE_EDGES: dict[str, str] = {"work": "work", "plan": "implements"}
 
-NODE_DEFINING_KEYS = BUILTIN_PROPERTIES | set(CONVENIENCE_EDGES) | set(
-    ontology.SEMANTIC_EDGES
-)
-
 
 @dataclass
 class MarkerHit:
@@ -43,6 +39,7 @@ class ParsedMarker:
     title: str | None = None
     properties: dict[str, str] = field(default_factory=dict)
     edges: dict[str, list[str]] = field(default_factory=dict)
+
 
 @dataclass
 class MarkerParseResult:
@@ -90,8 +87,12 @@ def parse_marker_line(
 
 def parse_marker_hit(hit: MarkerHit, *, unknown_keys: str = "error") -> MarkerParseResult:
     return _parse_payload(
-        hit.payload, raw=hit.raw, path=hit.path, line=hit.line,
-        column=hit.column, unknown_keys=unknown_keys,
+        hit.payload,
+        raw=hit.raw,
+        path=hit.path,
+        line=hit.line,
+        column=hit.column,
+        unknown_keys=unknown_keys,
     )
 
 
@@ -105,29 +106,41 @@ def _parse_payload(
     for tok in tokens:
         if tok.key in seen:
             diags.append(
-                make("TL006", path=path, line=line, message=f"Duplicate key {tok.key!r} on one marker")
+                make(
+                    "TL006",
+                    path=path,
+                    line=line,
+                    message=f"Duplicate key {tok.key!r} on one marker",
+                )
             )
             continue
         seen.add(tok.key)
         if not tok.value:
             diags.append(
-                make("TL004", path=path, line=line,
-                     message=f"Empty value for key {tok.key!r}; empty values are invalid in canonical v1")
+                make(
+                    "TL004",
+                    path=path,
+                    line=line,
+                    message=f"Empty value for key {tok.key!r}; empty values are invalid in canonical v1",
+                )
             )
             continue
         if tok.key == "id":
             marker.trace_id = tok.value
             if not ids.is_valid_id(tok.value):
                 diags.append(
-                    make("TL005", path=path, line=line,
-                         message=f"Invalid trace ID {tok.value!r}")
+                    make("TL005", path=path, line=line, message=f"Invalid trace ID {tok.value!r}")
                 )
         elif tok.key == "type":
             marker.node_type = tok.value
             if tok.value not in ontology.NODE_TYPES:
                 diags.append(
-                    make("TL007", path=path, line=line,
-                         message=f"Unknown artifact type {tok.value!r}")
+                    make(
+                        "TL007",
+                        path=path,
+                        line=line,
+                        message=f"Unknown artifact type {tok.value!r}",
+                    )
                 )
         elif tok.key == "title":
             marker.title = tok.value
@@ -137,13 +150,13 @@ def _parse_payload(
             edge = CONVENIENCE_EDGES[tok.key]
             marker.edges.setdefault(edge, []).extend(_validated_targets(tok, path, line, diags))
         elif tok.key in ontology.SEMANTIC_EDGES:
-            marker.edges.setdefault(tok.key, []).extend(
-                _validated_targets(tok, path, line, diags)
-            )
+            marker.edges.setdefault(tok.key, []).extend(_validated_targets(tok, path, line, diags))
         elif tok.key in ontology.STRUCTURAL_EDGES or tok.key in ontology.OBSERVED_EDGES:
             diags.append(
                 make(
-                    "TL040", path=path, line=line,
+                    "TL040",
+                    path=path,
+                    line=line,
                     message=(
                         f"Key {tok.key!r} is a derived relationship; it is computed "
                         "by the engine and cannot be declared in a marker"
@@ -154,28 +167,40 @@ def _parse_payload(
             result.migrated[tok.key] = tok.value
             diags.append(
                 make(
-                    "TL040", severity="INFO", path=path, line=line,
+                    "TL040",
+                    severity="INFO",
+                    path=path,
+                    line=line,
                     message=f"Unknown key {tok.key!r} preserved under permissive/migration mode",
                 )
             )
         else:
             severity = "WARNING" if unknown_keys == "warning" else "ERROR"
             diags.append(
-                make("TL040", severity=severity, path=path, line=line,
-                     message=f"Unknown key {tok.key!r}")
+                make(
+                    "TL040",
+                    severity=severity,
+                    path=path,
+                    line=line,
+                    message=f"Unknown key {tok.key!r}",
+                )
             )
 
     if marker.trace_id is None:
         diags.append(
-            make("TL004", path=path, line=line,
-                 message="Node-defining markers require id=<trace-id>")
+            make(
+                "TL004", path=path, line=line, message="Node-defining markers require id=<trace-id>"
+            )
         )
     else:
         inferred = ids.infer_node_type(marker.trace_id)
         if marker.node_type is not None and inferred is not None and marker.node_type != inferred:
             diags.append(
                 make(
-                    "TL007", severity="INFO", path=path, line=line,
+                    "TL007",
+                    severity="INFO",
+                    path=path,
+                    line=line,
                     message=(
                         f"Explicit type {marker.node_type!r} differs from inferred "
                         f"type {inferred!r} for ID {marker.trace_id!r}"
@@ -198,9 +223,7 @@ def _validated_targets(
         targets = [t for t in tok.value.split(",") if t]
     for t in targets:
         if not ids.is_valid_id(t):
-            diags.append(
-                make("TL004", path=path, line=line, message=f"Invalid edge target {t!r}")
-            )
+            diags.append(make("TL004", path=path, line=line, message=f"Invalid edge target {t!r}"))
     return targets
 
 

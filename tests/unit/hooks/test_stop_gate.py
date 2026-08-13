@@ -25,19 +25,28 @@ def _seed(store):
 
 def _add_passing_evidence(store):
     store.add_evidence_run(
-        "run-1", None, "pytest", "ci",
-        "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "pass", None,
+        "run-1",
+        None,
+        "pytest",
+        "ci",
+        "2026-01-01T00:00:00Z",
+        "2026-01-01T00:01:00Z",
+        "pass",
+        None,
         {"require_revision": False},
     )
-    store.add_test_results("run-1", [
-        EvidenceOutcome(framework_id="test.one", outcome="pass",
-                        test_uid=entity_uid("test.one")),
-    ])
+    store.add_test_results(
+        "run-1",
+        [
+            EvidenceOutcome(
+                framework_id="test.one", outcome="pass", test_uid=entity_uid("test.one")
+            ),
+        ],
+    )
 
 
 def _gate(project, store, state, payload):
-    ctx = HookContext(project=project, store=store, gitrepo=None, session_id="s1",
-                      state=state)
+    ctx = HookContext(project=project, store=store, gitrepo=None, session_id="s1", state=state)
     return handle(ctx, payload)
 
 

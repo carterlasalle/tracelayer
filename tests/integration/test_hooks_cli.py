@@ -137,7 +137,11 @@ def test_stop_gate_json_envelope(tmp_path):
     lifecycle deterministically."""
     root = setup_auth_repo(tmp_path)
     proc = run_trace(
-        root, "hook", "stop", "--format", "json",
+        root,
+        "hook",
+        "stop",
+        "--format",
+        "json",
         input=json.dumps({"payload": {"lifecycle": "wip"}}),
     )
     assert proc.returncode == 0
@@ -153,7 +157,9 @@ def test_prompt_context_injects_nothing_on_no_hits(tmp_path):
     """A prompt with no trace hits injects nothing (spec 22.2)."""
     root = setup_auth_repo(tmp_path)
     proc = run_trace(
-        root, "hook", "prompt-context",
+        root,
+        "hook",
+        "prompt-context",
         input=json.dumps({"payload": {"prompt": "zzzz unrelated gibberish"}}),
     )
     assert proc.returncode == 0

@@ -45,12 +45,19 @@ uv run trace docs generate --check
 ## Development commands
 
 ```bash
-uv run pytest                      # full suite (709 tests)
+uv run pytest                      # full suite (722 tests)
 uv run pytest tests/unit/protocol -q   # scoped runs work too
 uv run ruff check .                # lint; fix with uv run ruff check --fix .
+uv run ruff format --check .       # formatting (uv run ruff format . to apply)
+uv run vulture src vulture_whitelist.py --min-confidence 80   # dead code
+uv run bandit -c bandit.yaml -r src -q                        # security lint
+uv run pip-audit                   # dependency vulnerabilities
 uv run trace --help                # CLI smoke
 uv run trace docs generate --check # protocol docs drift check
 ```
+
+The Quality workflow (`.github/workflows/quality.yml`) runs the same
+analyzers in CI — keep them green locally and they stay green on push.
 
 ## Testing conventions
 

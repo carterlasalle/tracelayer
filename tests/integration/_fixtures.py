@@ -100,7 +100,9 @@ JUNIT_PASS = """<?xml version="1.0" encoding="UTF-8"?>
 
 def cobertura_for(lines: tuple[int, int], filename: str = "src/auth/tokens.py") -> str:
     """Cobertura report covering exactly the given line range of a file."""
-    hits = "".join(f'            <line number="{n}" hits="1"/>\n' for n in range(lines[0], lines[1] + 1))
+    hits = "".join(
+        f'            <line number="{n}" hits="1"/>\n' for n in range(lines[0], lines[1] + 1)
+    )
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <coverage line-rate="1.0">
   <packages>
@@ -332,7 +334,9 @@ class Rectangle:
 
 
 def _expect_ok(proc: subprocess.CompletedProcess[str]) -> None:
-    assert proc.returncode == 0, f"rc={proc.returncode}\nstdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+    assert proc.returncode == 0, (
+        f"rc={proc.returncode}\nstdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+    )
 
 
 def parse_json(proc: subprocess.CompletedProcess[str]) -> dict:

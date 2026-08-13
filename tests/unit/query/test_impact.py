@@ -44,7 +44,11 @@ def test_impact_semantic_dependents(graph_store, make_node, make_edge):
     _seed_requirement_graph(graph_store, make_node, make_edge)
     r = impact(graph_store, None, "REQ-1")
     assert [n.trace_id for n in r.semantic] == [
-        "doc.one", "impl.one", "impl.two", "test.one", "test.two",
+        "doc.one",
+        "impl.one",
+        "impl.two",
+        "test.one",
+        "test.two",
     ]
 
 
@@ -68,7 +72,10 @@ def test_impact_depth_cap(graph_store, make_node, make_edge):
     # test.two is two hops from REQ-1 (via impl.two): excluded at depth 1.
     r = impact(graph_store, None, "REQ-1", depth=1)
     assert [n.trace_id for n in r.semantic] == [
-        "doc.one", "impl.one", "impl.two", "test.one",
+        "doc.one",
+        "impl.one",
+        "impl.two",
+        "test.one",
     ]
     r3 = impact(graph_store, None, "REQ-1", depth=3)
     assert "test.two" in [n.trace_id for n in r3.semantic]

@@ -103,6 +103,11 @@ class GoParser:
         starts = line_starts(data)
         start_line, end_line = symbol_lines(starts, node.start_byte, node.end_byte)
         return SymbolRef(
-            "go", kind, name, qname, start_line, end_line,
-            data[node.start_byte:node.end_byte].decode("utf-8", "replace"),
+            "go",
+            kind,
+            name,
+            qname,
+            start_line,
+            end_line,
+            data[node.start_byte : node.end_byte].decode("utf-8", "replace"),
         )

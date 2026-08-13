@@ -48,9 +48,7 @@ def test_parse_normalized_roundtrip(tmp_path):
 
 def test_parse_normalized_binds_test_uid_from_trace_id(tmp_path):
     data = dict(VALID)
-    data["tests"] = [
-        {"framework_id": "tests.app.test_a", "outcome": "pass", "trace_id": "TEST:A"}
-    ]
+    data["tests"] = [{"framework_id": "tests.app.test_a", "outcome": "pass", "trace_id": "TEST:A"}]
     ev = parse_normalized(__import__("pathlib").Path(write_norm(tmp_path, data)))
     from tracelayer.evidence.models import entity_uid_for
 
@@ -85,17 +83,12 @@ def test_parse_normalized_preserves_per_test_edge_metadata(tmp_path):
         lambda d: d.update({"tests": [{"framework_id": "x", "outcome": "exploded"}]}),
         lambda d: d.update({"tests": "nope"}),
         lambda d: d.update(
-            {
-                "execution_edges": [
-                    {"implementation_uid": "n_i", "coverage_kind": "per_test"}
-                ]
-            }
+            {"execution_edges": [{"implementation_uid": "n_i", "coverage_kind": "per_test"}]}
         ),  # missing test_uid
         lambda d: d.update(
             {
                 "execution_edges": [
-                    {"test_uid": "n_t", "implementation_uid": "n_i",
-                     "coverage_kind": "bogus"}
+                    {"test_uid": "n_t", "implementation_uid": "n_i", "coverage_kind": "bogus"}
                 ]
             }
         ),
@@ -126,6 +119,7 @@ def test_parse_normalized_rejects_malformed_json(tmp_path):
 # proof_level transitions 0/1/2/3
 # --------------------------------------------------------------------------
 
+
 def test_proof_level_0_declared_only(project, store):
     assert proof_level(store, "n_test", "n_impl") == 0
 
@@ -136,8 +130,11 @@ def test_proof_level_1_suite_edge(project, store):
         "run-1",
         [
             ExecutionRecord(
-                run_id="run-1", test_uid="suite",
-                implementation_uid="n_impl", coverage_kind="suite", hit_count=2,
+                run_id="run-1",
+                test_uid="suite",
+                implementation_uid="n_impl",
+                coverage_kind="suite",
+                hit_count=2,
             )
         ],
     )
@@ -151,8 +148,11 @@ def test_proof_level_2_per_test_edge(project, store):
         "run-1",
         [
             ExecutionRecord(
-                run_id="run-1", test_uid="n_test",
-                implementation_uid="n_impl", coverage_kind="per_test", hit_count=4,
+                run_id="run-1",
+                test_uid="n_test",
+                implementation_uid="n_impl",
+                coverage_kind="per_test",
+                hit_count=4,
             )
         ],
     )
@@ -165,8 +165,11 @@ def test_proof_level_3_behavioral_metadata(project, store):
         "run-1",
         [
             ExecutionRecord(
-                run_id="run-1", test_uid="n_test",
-                implementation_uid="n_impl", coverage_kind="per_test", hit_count=4,
+                run_id="run-1",
+                test_uid="n_test",
+                implementation_uid="n_impl",
+                coverage_kind="per_test",
+                hit_count=4,
                 metadata={"behavioral": True},
             )
         ],
@@ -180,8 +183,11 @@ def test_proof_level_per_test_edge_for_other_implementation_not_counted(project,
         "run-1",
         [
             ExecutionRecord(
-                run_id="run-1", test_uid="n_test",
-                implementation_uid="n_other", coverage_kind="per_test", hit_count=1,
+                run_id="run-1",
+                test_uid="n_test",
+                implementation_uid="n_other",
+                coverage_kind="per_test",
+                hit_count=1,
             )
         ],
     )
@@ -195,8 +201,11 @@ def test_proof_level_suite_does_not_satisfy_per_test_pair(project, store):
         "run-1",
         [
             ExecutionRecord(
-                run_id="run-1", test_uid="suite",
-                implementation_uid="n_impl", coverage_kind="suite", hit_count=9,
+                run_id="run-1",
+                test_uid="suite",
+                implementation_uid="n_impl",
+                coverage_kind="suite",
+                hit_count=9,
             )
         ],
     )
@@ -207,11 +216,20 @@ def test_proof_level_suite_does_not_satisfy_per_test_pair(project, store):
 # evidence_is_current — revision + fingerprint freshness
 # --------------------------------------------------------------------------
 
+
 def _run_row(store, *, revision: str | None = "abc123", metadata=None) -> dict:
     import json as _json
 
     store.add_evidence_run(
-        "run-1", revision, "pytest", None, None, None, "pass", None, metadata or {},
+        "run-1",
+        revision,
+        "pytest",
+        None,
+        None,
+        None,
+        "pass",
+        None,
+        metadata or {},
     )
     row = dict(store.latest_evidence_run())
     row["metadata"] = _json.loads(row.get("metadata_json") or "{}")
@@ -248,8 +266,7 @@ def test_missing_revision_allowed_without_require_revision(project, store):
 
 
 def test_fingerprint_mismatch_fails(project, store):
-    impl = make_node("IMPL:1", "implementation", path="src/app.py",
-                     fingerprint="fp-v2")
+    impl = make_node("IMPL:1", "implementation", path="src/app.py", fingerprint="fp-v2")
     store.replace_all([impl], [])
     row = _run_row(store)
     store.add_verification_binding("run-1", impl.entity_uid, "fp-v1", "abc123", "pass")
@@ -258,8 +275,7 @@ def test_fingerprint_mismatch_fails(project, store):
 
 
 def test_fingerprint_match_passes(project, store):
-    impl = make_node("IMPL:1", "implementation", path="src/app.py",
-                     fingerprint="fp-v2")
+    impl = make_node("IMPL:1", "implementation", path="src/app.py", fingerprint="fp-v2")
     store.replace_all([impl], [])
     row = _run_row(store)
     store.add_verification_binding("run-1", impl.entity_uid, "fp-v2", "abc123", "pass")
@@ -268,8 +284,7 @@ def test_fingerprint_match_passes(project, store):
 
 
 def test_no_binding_means_fingerprint_not_checked(project, store):
-    impl = make_node("IMPL:1", "implementation", path="src/app.py",
-                     fingerprint="fp-v2")
+    impl = make_node("IMPL:1", "implementation", path="src/app.py", fingerprint="fp-v2")
     store.replace_all([impl], [])
     row = _run_row(store)
     ok, why = evidence_is_current(store, row, "abc123", target_uid=impl.entity_uid)

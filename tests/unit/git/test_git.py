@@ -190,7 +190,9 @@ def test_first_seen_and_latest_modifying_commits(tmp_path: Path) -> None:
     _git(root, "commit", "-qm", "second")
     repo = GitRepo.open(root)
     assert repo is not None
-    first = _git(root, "log", "--diff-filter=A", "--format=%H", "--", "a.txt").stdout.splitlines()[-1]
+    first = _git(root, "log", "--diff-filter=A", "--format=%H", "--", "a.txt").stdout.splitlines()[
+        -1
+    ]
     latest = _git(root, "log", "-1", "--format=%H", "--", "a.txt").stdout.strip()
     assert repo.first_seen_commit("a.txt") == first
     assert repo.latest_modifying_commit("a.txt") == latest

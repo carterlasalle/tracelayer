@@ -2,13 +2,20 @@
 
 XML is untrusted input (spec 26.1): malformed content raises
 CoberturaParseError (a ValueError); the ingest layer converts that into a
-TL051 diagnostic.  Parsing uses only the stdlib ``xml.etree.ElementTree``.
+TL051 diagnostic. Parsing uses only the stdlib ``xml.etree.ElementTree``,
+which does not expand external entities or DTDs, and input is size-capped
+(MAX_EVIDENCE_BYTES) to bound the parsing DoS surface.  Parsing uses only the stdlib ``xml.etree.ElementTree``.
 """
 
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # nosec B405 -- stdlib ET does not resolve
+
+# external entities/DTDs; input is size-capped (MAX_EVIDENCE_BYTES) and
+# malformed content becomes a TL051 diagnostic via CoberturaParseError.
 from pathlib import Path
+
+from tracelayer.evidence import MAX_EVIDENCE_BYTES
 
 
 class CoberturaParseError(ValueError):
@@ -25,11 +32,13 @@ def parse_cobertura(path: Path) -> dict[str, list[int]]:
     yields ``{}``.
     """
     try:
+        if path.stat().st_size > MAX_EVIDENCE_BYTES:
+            raise CoberturaParseError(f"{path}: evidence file exceeds {MAX_EVIDENCE_BYTES} bytes")
         text = path.read_text(encoding="utf-8")
     except OSError as exc:
         raise CoberturaParseError(f"cannot read {path}: {exc}") from exc
     try:
-        root = ET.fromstring(text)
+        root = ET.fromstring(text)  # nosec B314
     except ET.ParseError as exc:
         raise CoberturaParseError(f"malformed XML in {path}: {exc}") from exc
     if root.tag != "coverage":

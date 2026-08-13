@@ -105,19 +105,25 @@ def test_build_context_verification_outcome_and_current(graph_store, make_node, 
     ]
     graph_store.replace_all(nodes, edges)
     graph_store.add_evidence_run(
-        "run-1", "rev1", "pytest", "ci",
-        "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "pass", None,
+        "run-1",
+        "rev1",
+        "pytest",
+        "ci",
+        "2026-01-01T00:00:00Z",
+        "2026-01-01T00:01:00Z",
+        "pass",
+        None,
         {"require_revision": False},
     )
-    graph_store.add_test_results("run-1", [
-        EvidenceOutcome(framework_id="tests::one", outcome="pass", test_uid="n_one"),
-        EvidenceOutcome(framework_id="test.two", outcome="fail", test_uid="n_two"),
-    ])
+    graph_store.add_test_results(
+        "run-1",
+        [
+            EvidenceOutcome(framework_id="tests::one", outcome="pass", test_uid="n_one"),
+            EvidenceOutcome(framework_id="test.two", outcome="fail", test_uid="n_two"),
+        ],
+    )
     ctx = _ctx(graph_store, None, "impl.one")
-    assert [
-        (v.test_trace_id, v.outcome, v.proof_level, v.current)
-        for v in ctx.verification
-    ] == [
+    assert [(v.test_trace_id, v.outcome, v.proof_level, v.current) for v in ctx.verification] == [
         ("test.one", "pass", 0, True),
         ("test.three", None, 0, False),
         ("test.two", "fail", 0, False),
@@ -133,27 +139,52 @@ def test_build_context_verification_proof_levels(graph_store, make_node, make_ed
     graph_store.replace_all(nodes, edges)
     uids = {c: graph_store.get_node_uid(f"impl.{c}") for c in "abcd"}
     graph_store.add_evidence_run(
-        "run-1", "rev1", "pytest", "ci",
-        "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "pass", None,
+        "run-1",
+        "rev1",
+        "pytest",
+        "ci",
+        "2026-01-01T00:00:00Z",
+        "2026-01-01T00:01:00Z",
+        "pass",
+        None,
         {"require_revision": False},
     )
-    graph_store.add_test_results("run-1", [
-        EvidenceOutcome(framework_id=f"test.{c}", outcome="pass", test_uid=f"n_{c}")
-        for c in "abcd"
-    ])
-    graph_store.add_execution_edges("run-1", [
-        ExecutionRecord(run_id="run-1", test_uid="suite", implementation_uid=uids["b"],
-                        coverage_kind="suite"),
-        ExecutionRecord(run_id="run-1", test_uid=graph_store.get_node_uid("test.c"),
-                        implementation_uid=uids["c"], coverage_kind="per_test"),
-        ExecutionRecord(run_id="run-1", test_uid=graph_store.get_node_uid("test.d"),
-                        implementation_uid=uids["d"], coverage_kind="per_test",
-                        metadata={"behavioral": True}),
-    ])
+    graph_store.add_test_results(
+        "run-1",
+        [
+            EvidenceOutcome(framework_id=f"test.{c}", outcome="pass", test_uid=f"n_{c}")
+            for c in "abcd"
+        ],
+    )
+    graph_store.add_execution_edges(
+        "run-1",
+        [
+            ExecutionRecord(
+                run_id="run-1",
+                test_uid="suite",
+                implementation_uid=uids["b"],
+                coverage_kind="suite",
+            ),
+            ExecutionRecord(
+                run_id="run-1",
+                test_uid=graph_store.get_node_uid("test.c"),
+                implementation_uid=uids["c"],
+                coverage_kind="per_test",
+            ),
+            ExecutionRecord(
+                run_id="run-1",
+                test_uid=graph_store.get_node_uid("test.d"),
+                implementation_uid=uids["d"],
+                coverage_kind="per_test",
+                metadata={"behavioral": True},
+            ),
+        ],
+    )
     for c, expected in (("a", 0), ("b", 1), ("c", 2), ("d", 3)):
         ctx = _ctx(graph_store, None, f"impl.{c}")
-        assert [(v.test_trace_id, v.outcome, v.proof_level, v.current)
-                for v in ctx.verification] == [
+        assert [
+            (v.test_trace_id, v.outcome, v.proof_level, v.current) for v in ctx.verification
+        ] == [
             (f"test.{c}", "pass", expected, True),
         ]
 
@@ -167,10 +198,7 @@ def test_build_context_staleness_status(graph_store, make_node, make_edge):
         [],
     )
     assert _ctx(graph_store, None, "impl.current").staleness == "current"
-    assert (
-        _ctx(graph_store, None, "impl.stale").staleness
-        == "stale_review_required"
-    )
+    assert _ctx(graph_store, None, "impl.stale").staleness == "stale_review_required"
 
 
 def test_build_context_skips_dangling_edges(graph_store, make_node, make_edge):
@@ -218,12 +246,7 @@ def test_render_context_text_empty_layout(graph_store, make_node, make_edge):
     )
     ctx = _ctx(graph_store, None, "REQ-X")
     assert render_context_text(ctx) == (
-        "REQ-X\n"
-        "docs/req.md\n"
-        "\n"
-        "Use:\n"
-        "  trace impact REQ-X\n"
-        "  trace graph REQ-X --depth 2\n"
+        "REQ-X\ndocs/req.md\n\nUse:\n  trace impact REQ-X\n  trace graph REQ-X --depth 2\n"
     )
 
 
@@ -277,9 +300,7 @@ def test_render_context_text_sections_grouped_by_header(graph_store, make_node, 
     assert text.count("Work:") == 1
 
 
-def test_render_context_text_verification_and_full_layout(
-    graph_store, make_node, make_edge
-):
+def test_render_context_text_verification_and_full_layout(graph_store, make_node, make_edge):
     nodes = [
         make_node("WORK-1", "work"),
         make_node("REQ-1", "requirement"),
@@ -297,18 +318,33 @@ def test_render_context_text_verification_and_full_layout(
     ]
     graph_store.replace_all(nodes, edges)
     graph_store.add_evidence_run(
-        "run-1", "rev1", "pytest", "ci",
-        "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "pass", None,
+        "run-1",
+        "rev1",
+        "pytest",
+        "ci",
+        "2026-01-01T00:00:00Z",
+        "2026-01-01T00:01:00Z",
+        "pass",
+        None,
         {"require_revision": False},
     )
-    graph_store.add_test_results("run-1", [
-        EvidenceOutcome(framework_id="test.two", outcome="pass", test_uid="n_two"),
-    ])
-    graph_store.add_execution_edges("run-1", [
-        ExecutionRecord(run_id="run-1", test_uid="suite",
-                        implementation_uid=graph_store.get_node_uid("impl.one"),
-                        coverage_kind="suite"),
-    ])
+    graph_store.add_test_results(
+        "run-1",
+        [
+            EvidenceOutcome(framework_id="test.two", outcome="pass", test_uid="n_two"),
+        ],
+    )
+    graph_store.add_execution_edges(
+        "run-1",
+        [
+            ExecutionRecord(
+                run_id="run-1",
+                test_uid="suite",
+                implementation_uid=graph_store.get_node_uid("impl.one"),
+                coverage_kind="suite",
+            ),
+        ],
+    )
     ctx = _ctx(graph_store, None, "impl.one")
     assert render_context_text(ctx) == (
         "impl.one\n"

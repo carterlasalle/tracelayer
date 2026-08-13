@@ -40,11 +40,16 @@ def scan_scry(root: Path, config: TraceConfig) -> tuple[list[dict], list[Diagnos
                 continue
             kind = m.group(1)
             found.append({"path": rel, "line": i, "raw": line.strip(), "kind": kind})
-            diags.append(make(
-                "TL040", severity=SEVERITY_INFO, path=rel, line=i,
-                message=(
-                    f"scry:{kind} annotation detected; manual migration "
-                    "review required (v1 detection only)"
-                ),
-            ))
+            diags.append(
+                make(
+                    "TL040",
+                    severity=SEVERITY_INFO,
+                    path=rel,
+                    line=i,
+                    message=(
+                        f"scry:{kind} annotation detected; manual migration "
+                        "review required (v1 detection only)"
+                    ),
+                )
+            )
     return found, diags

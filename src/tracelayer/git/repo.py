@@ -142,7 +142,9 @@ class GitRepo:
                 ranges = changed_line_ranges(self, path)
             else:
                 ranges = None
-            changed.append(ChangedFile(path=path, change=change, old_path=old_path, diff_ranges=ranges))
+            changed.append(
+                ChangedFile(path=path, change=change, old_path=old_path, diff_ranges=ranges)
+            )
         return changed
 
     def latest_modifying_commit(self, path: str) -> str | None:
@@ -168,9 +170,7 @@ class GitRepo:
     def commits_touching(self, path: str, max_count: int = 50) -> list[str]:
         """Newest-first SHAs of commits touching ``path``, up to ``max_count``."""
         try:
-            r = _run_git(
-                self._root, "log", f"--max-count={max_count}", "--format=%H", "--", path
-            )
+            r = _run_git(self._root, "log", f"--max-count={max_count}", "--format=%H", "--", path)
         except (OSError, subprocess.SubprocessError):
             return []
         if r.returncode != 0:

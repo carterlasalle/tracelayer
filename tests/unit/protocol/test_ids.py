@@ -158,8 +158,7 @@ def test_generate_id_unknown_type_uses_name_prefix() -> None:
 def test_generate_id_uniqueness_with_taken() -> None:
     assert ids.generate_id("requirement", "Login", taken={"REQ-login"}) == "REQ-login-2"
     assert (
-        ids.generate_id("requirement", "Login", taken={"REQ-login", "REQ-login-2"})
-        == "REQ-login-3"
+        ids.generate_id("requirement", "Login", taken={"REQ-login", "REQ-login-2"}) == "REQ-login-3"
     )
 
 

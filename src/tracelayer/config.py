@@ -23,6 +23,7 @@ CACHE_DIR = ".trace/cache"
 # Trace config (.trace/trace.toml)
 # --------------------------------------------------------------------------
 
+
 class IndexLanguages(BaseModel):
     model_config = ConfigDict(extra="forbid")
     python: bool = True
@@ -45,10 +46,16 @@ class IndexConfig(BaseModel):
 class DiscoveryConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     include: list[str] = Field(default_factory=lambda: ["**/*"])
-    exclude: list[str] = Field(default_factory=lambda: [
-        ".git/**", ".trace/cache/**", "node_modules/**", ".venv/**",
-        "dist/**", "build/**",
-    ])
+    exclude: list[str] = Field(
+        default_factory=lambda: [
+            ".git/**",
+            ".trace/cache/**",
+            "node_modules/**",
+            ".venv/**",
+            "dist/**",
+            "build/**",
+        ]
+    )
     generated: list[str] = Field(default_factory=lambda: ["src/generated/**"])
 
 
@@ -96,6 +103,7 @@ class TraceConfig(BaseModel):
 # Policy config (.trace/policy.toml)
 # --------------------------------------------------------------------------
 
+
 class RequirementsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     require_work_ancestry: bool = False
@@ -142,9 +150,7 @@ class Waiver(BaseModel):
 class PolicyConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     profile: str = "standard"  # minimal | standard | strict | safety-critical
-    lifecycle: dict[str, str] = Field(
-        default_factory=lambda: {"default": "wip", "ci": "merge"}
-    )
+    lifecycle: dict[str, str] = Field(default_factory=lambda: {"default": "wip", "ci": "merge"})
     requirements: dict[str, RequirementsConfig] = Field(default_factory=dict)
     exclusions: ExclusionsConfig = Field(default_factory=ExclusionsConfig)
     waivers: list[Waiver] = Field(default_factory=list)
@@ -160,6 +166,7 @@ class PolicyConfig(BaseModel):
 # --------------------------------------------------------------------------
 # Project wrapper and loading
 # --------------------------------------------------------------------------
+
 
 @dataclass
 class Project:
@@ -200,7 +207,8 @@ def load_project(root: Path | None = None) -> tuple[Project, list[Diagnostic]]:
         except (tomllib.TOMLDecodeError, ValidationError) as exc:
             diags.append(
                 make(
-                    "TL100", path=str(cfg_path),
+                    "TL100",
+                    path=str(cfg_path),
                     message=f"Cannot parse {cfg_path.relative_to(root)}: {_compact(exc)}",
                 )
             )
@@ -208,7 +216,8 @@ def load_project(root: Path | None = None) -> tuple[Project, list[Diagnostic]]:
     else:
         diags.append(
             make(
-                "TL100", severity="INFO",
+                "TL100",
+                severity="INFO",
                 message="No .trace/trace.toml found; using defaults (run `trace init`)",
             )
         )
@@ -230,7 +239,8 @@ def load_policy(root: Path, diags: list[Diagnostic] | None = None) -> PolicyConf
     except (tomllib.TOMLDecodeError, ValidationError) as exc:
         diags.append(
             make(
-                "TL100", path=str(path),
+                "TL100",
+                path=str(path),
                 message=f"Cannot parse {path.relative_to(root)}: {_compact(exc)}",
             )
         )
@@ -252,6 +262,7 @@ def _compact(exc: Exception) -> str:
 # --------------------------------------------------------------------------
 # Default file contents written by `trace init`
 # --------------------------------------------------------------------------
+
 
 def default_trace_toml(repo_id: str) -> str:
     return f"""# TraceLayer configuration (spec Section 49).

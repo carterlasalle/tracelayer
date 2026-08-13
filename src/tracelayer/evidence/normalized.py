@@ -93,16 +93,12 @@ def parse_normalized(path: Path) -> NormalizedEvidence:
     edges: list[ExecutionRecord] = []
     for item in data.get("execution_edges") or []:
         if not isinstance(item, dict):
-            raise EvidenceFormatError(
-                f"{path}: execution edge entry must be an object"
-            )
+            raise EvidenceFormatError(f"{path}: execution edge entry must be an object")
         test_uid = item.get("test_uid")
         impl_uid = item.get("implementation_uid")
         kind = item.get("coverage_kind")
         if not isinstance(test_uid, str) or not test_uid:
-            raise EvidenceFormatError(
-                f"{path}: execution edge requires a non-empty test_uid"
-            )
+            raise EvidenceFormatError(f"{path}: execution edge requires a non-empty test_uid")
         if not isinstance(impl_uid, str) or not impl_uid:
             raise EvidenceFormatError(
                 f"{path}: execution edge requires a non-empty implementation_uid"

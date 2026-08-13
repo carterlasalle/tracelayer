@@ -230,9 +230,7 @@ class GraphStore:
         if (uid is None) == (trace_id is None):
             raise ValueError("get_node requires exactly one of uid or trace_id")
         if uid is not None:
-            row = self._conn.execute(
-                "SELECT * FROM nodes WHERE entity_uid = ?", (uid,)
-            ).fetchone()
+            row = self._conn.execute("SELECT * FROM nodes WHERE entity_uid = ?", (uid,)).fetchone()
         else:
             row = self._conn.execute(
                 "SELECT * FROM nodes WHERE trace_id = ?", (trace_id,)
@@ -263,8 +261,9 @@ class GraphStore:
             self._conn.execute("UPDATE nodes SET active = 0")
         else:
             marks = ",".join("?" * len(active_uids))
+            # Only "?" placeholders are interpolated; values are bound params.
             self._conn.execute(
-                f"UPDATE nodes SET active = 0 WHERE entity_uid NOT IN ({marks})",
+                f"UPDATE nodes SET active = 0 WHERE entity_uid NOT IN ({marks})",  # nosec B608
                 sorted(active_uids),
             )
         self._conn.commit()
@@ -332,9 +331,7 @@ class GraphStore:
 
     def set_edge_status(self, edge_uid: str, status: str) -> None:
         """Set one edge's status."""
-        self._conn.execute(
-            "UPDATE edges SET status = ? WHERE edge_uid = ?", (status, edge_uid)
-        )
+        self._conn.execute("UPDATE edges SET status = ? WHERE edge_uid = ?", (status, edge_uid))
         self._conn.commit()
 
     def set_edge_statuses_for_node(self, uid: str, status: str) -> None:
@@ -363,9 +360,7 @@ class GraphStore:
         )
         self._conn.commit()
 
-    def previous_fingerprints(
-        self, trace_id: str, *, exclude: str | None = None
-    ) -> list[str]:
+    def previous_fingerprints(self, trace_id: str, *, exclude: str | None = None) -> list[str]:
         """Recorded fingerprints oldest first (newest last), optionally excluding one."""
         sql = "SELECT fingerprint FROM artifact_versions WHERE trace_id = ?"
         params: list[Any] = [trace_id]
@@ -513,8 +508,7 @@ class GraphStore:
     def execution_edges_for(self, implementation_uid: str) -> list[ExecutionRecord]:
         """Execution records touching an implementation, ordered by run/test."""
         rows = self._conn.execute(
-            "SELECT * FROM execution_edges WHERE implementation_uid = ? "
-            "ORDER BY run_id, test_uid",
+            "SELECT * FROM execution_edges WHERE implementation_uid = ? ORDER BY run_id, test_uid",
             (implementation_uid,),
         ).fetchall()
         out = []
@@ -527,8 +521,7 @@ class GraphStore:
     def execution_edges_for_test(self, test_uid: str) -> list[ExecutionRecord]:
         """Execution records touching a test, ordered by run/implementation."""
         rows = self._conn.execute(
-            "SELECT * FROM execution_edges WHERE test_uid = ? "
-            "ORDER BY run_id, implementation_uid",
+            "SELECT * FROM execution_edges WHERE test_uid = ? ORDER BY run_id, implementation_uid",
             (test_uid,),
         ).fetchall()
         out = []
@@ -600,19 +593,17 @@ class GraphStore:
         """Aggregate counts; ``changed_artifacts`` counts nodes flagged in
         metadata (``metadata['changed']`` truthy) or in a staleness status."""
         c = self._conn
+
         def count(sql: str) -> int:
             return c.execute(sql).fetchone()[0]
+
         return {
             "nodes": count("SELECT COUNT(*) FROM nodes"),
-            "declared_edges": count(
-                "SELECT COUNT(*) FROM edges WHERE source_kind = 'declared'"
-            ),
+            "declared_edges": count("SELECT COUNT(*) FROM edges WHERE source_kind = 'declared'"),
             "structural_edges": count(
                 "SELECT COUNT(*) FROM edges WHERE source_kind = 'structural'"
             ),
-            "observed_edges": count(
-                "SELECT COUNT(*) FROM edges WHERE source_kind = 'observed'"
-            ),
+            "observed_edges": count("SELECT COUNT(*) FROM edges WHERE source_kind = 'observed'"),
             "evidence_runs": count("SELECT COUNT(*) FROM evidence_runs"),
             "diagnostics": count("SELECT COUNT(*) FROM diagnostics"),
             "changed_artifacts": count(
@@ -701,9 +692,7 @@ class GraphStore:
     def _merged_exec_metadata(self, rec: ExecutionRecord) -> dict[str, Any]:
         """Record metadata plus the in-session overlay (level-3 proof)."""
         meta = dict(rec.metadata)
-        extra = self._exec_metadata.get(
-            (rec.run_id, rec.test_uid, rec.implementation_uid)
-        )
+        extra = self._exec_metadata.get((rec.run_id, rec.test_uid, rec.implementation_uid))
         if extra:
             meta.update(extra)
         return meta

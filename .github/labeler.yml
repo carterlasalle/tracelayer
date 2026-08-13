@@ -1,0 +1,51 @@
+# GitHub Actions labeler config (actions/labeler@v5).
+# Path-based labels applied to pull requests. Labels use the "area: X" scheme.
+"area: protocol":
+- src/tracelayer/protocol/**/*
+
+"area: graph":
+- src/tracelayer/graph/**/*
+
+"area: symbols":
+- src/tracelayer/symbols/**/*
+
+"area: evidence":
+- src/tracelayer/evidence/**/*
+
+"area: policy":
+- src/tracelayer/policy/**/*
+
+"area: query":
+- src/tracelayer/query/**/*
+
+"area: hooks":
+- src/tracelayer/hooks/**/*
+
+"area: migration":
+- src/tracelayer/migration/**/*
+- src/tracelayer/doctor.py
+
+"area: cli":
+- src/tracelayer/cli.py
+- src/tracelayer/engine.py
+- src/tracelayer/config.py
+- src/tracelayer/install.py
+
+"area: adapters":
+- adapters/**/*
+
+"area: docs":
+- docs/**/*
+- README.md
+- CONTRIBUTING.md
+- SECURITY.md
+- AGENTS.md
+- skills/**/*
+
+"area: ci":
+- .github/**/*
+- pyproject.toml
+- uv.lock
+
+"area: tests":
+- tests/**/*

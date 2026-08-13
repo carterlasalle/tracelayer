@@ -26,9 +26,7 @@ from tracelayer.hooks.common import (
 def handle(ctx: HookContext, payload: dict) -> HookOutput:
     """Block completion on blocking verify failures; else confirm pass."""
     policy = ctx.project.policy
-    lifecycle = payload.get("lifecycle") or (
-        policy.lifecycle_for(None) if policy else "wip"
-    )
+    lifecycle = payload.get("lifecycle") or (policy.lifecycle_for(None) if policy else "wip")
     result = _verify_changed(ctx, lifecycle)
     json_data = {
         "event": "stop",
@@ -62,9 +60,7 @@ def _verify_changed(ctx: HookContext, lifecycle: str) -> dict:
     try:
         from tracelayer.engine import Engine
 
-        result = Engine(ctx.project, ctx.gitrepo).verify(
-            scope="all", lifecycle=lifecycle
-        )
+        result = Engine(ctx.project, ctx.gitrepo).verify(scope="all", lifecycle=lifecycle)
         return {
             "status": result.status,
             "blocking": result.blocking,

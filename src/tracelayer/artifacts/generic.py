@@ -14,9 +14,7 @@ class FileLevelArtifact:
     markers: list[MarkerHit]
 
 
-def extract_file_level(
-    path: str, text: str, language: str | None
-) -> FileLevelArtifact:
+def extract_file_level(path: str, text: str, language: str | None) -> FileLevelArtifact:
     """Attach all markers at file level (honest degradation, NFR-007).
 
     Used for every non-markdown non-yaml file and for JSON/TOML: no section

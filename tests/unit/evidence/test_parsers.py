@@ -18,9 +18,11 @@ def write(tmp_path, name: str, content: str):
 # JUnit
 # --------------------------------------------------------------------------
 
+
 def test_junit_pass_outcome(tmp_path):
     path = write(
-        tmp_path, "junit.xml",
+        tmp_path,
+        "junit.xml",
         "<testsuite><testcase name='test_ok' classname='tests.app'/></testsuite>",
     )
     outcomes = parse_junit(path)
@@ -33,7 +35,8 @@ def test_junit_pass_outcome(tmp_path):
 
 def test_junit_fail_outcome_captures_message(tmp_path):
     path = write(
-        tmp_path, "junit.xml",
+        tmp_path,
+        "junit.xml",
         "<testsuite><testcase name='test_ko' classname='tests.app'>"
         "<failure message='boom'>assert 1 == 2</failure></testcase></testsuite>",
     )
@@ -44,7 +47,8 @@ def test_junit_fail_outcome_captures_message(tmp_path):
 
 def test_junit_error_outcome(tmp_path):
     path = write(
-        tmp_path, "junit.xml",
+        tmp_path,
+        "junit.xml",
         "<testsuite><testcase name='test_err' classname='tests.app'>"
         "<error message='exc'>TypeError</error></testcase></testsuite>",
     )
@@ -53,7 +57,8 @@ def test_junit_error_outcome(tmp_path):
 
 def test_junit_skip_outcome(tmp_path):
     path = write(
-        tmp_path, "junit.xml",
+        tmp_path,
+        "junit.xml",
         "<testsuite><testcase name='test_skip' classname='tests.app'>"
         "<skipped/></testcase></testsuite>",
     )
@@ -63,7 +68,8 @@ def test_junit_skip_outcome(tmp_path):
 def test_junit_failure_takes_precedence_over_skip(tmp_path):
     """The first of failure/error/skipped decides the outcome."""
     path = write(
-        tmp_path, "junit.xml",
+        tmp_path,
+        "junit.xml",
         "<testsuite><testcase name='test_both' classname='tests.app'>"
         "<failure/><skipped/></testcase></testsuite>",
     )
@@ -72,16 +78,17 @@ def test_junit_failure_takes_precedence_over_skip(tmp_path):
 
 def test_junit_duration_ms_converted(tmp_path):
     path = write(
-        tmp_path, "junit.xml",
-        "<testsuite><testcase name='test_slow' classname='tests.app' time='1.25'/>"
-        "</testsuite>",
+        tmp_path,
+        "junit.xml",
+        "<testsuite><testcase name='test_slow' classname='tests.app' time='1.25'/></testsuite>",
     )
     assert parse_junit(path)[0].duration_ms == 1250.0
 
 
 def test_junit_nested_testsuites(tmp_path):
     path = write(
-        tmp_path, "junit.xml",
+        tmp_path,
+        "junit.xml",
         "<testsuites><testsuite><testcase name='a' classname='pkg.mod'/></testsuite>"
         "<testsuite><testcase name='b' classname='pkg.other'/></testsuite></testsuites>",
     )
@@ -151,7 +158,8 @@ def test_cobertura_hit_lines_per_file(tmp_path):
 
 def test_cobertura_dedupes_and_sorts(tmp_path):
     path = write(
-        tmp_path, "coverage.xml",
+        tmp_path,
+        "coverage.xml",
         "<coverage><packages><classes><class filename='f.py'><lines>"
         "<line number='5' hits='2'/><line number='5' hits='1'/>"
         "<line number='2' hits='1'/>"
@@ -162,7 +170,8 @@ def test_cobertura_dedupes_and_sorts(tmp_path):
 
 def test_cobertura_empty_report_yields_empty_dict(tmp_path):
     path = write(
-        tmp_path, "coverage.xml",
+        tmp_path,
+        "coverage.xml",
         "<coverage><packages><classes></classes></packages></coverage>",
     )
     assert parse_cobertura(path) == {}

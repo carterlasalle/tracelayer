@@ -7,7 +7,6 @@ when files on disk drift from the registries.
 
 from __future__ import annotations
 
-from tracelayer.diagnostics import RULES
 from tracelayer.protocol import ids, ontology
 
 GENERATED_HEADER = (
@@ -35,9 +34,15 @@ def marker_json_schema() -> dict:
                 "enum": sorted(ontology.NODE_TYPES),
                 "description": "Optional artifact type; inferred from the ID namespace when absent.",
             },
-            "title": {"type": "string", "description": "Optional descriptive metadata; not a graph edge."},
+            "title": {
+                "type": "string",
+                "description": "Optional descriptive metadata; not a graph edge.",
+            },
             "policy": {"type": "string", "description": "Rare policy override reference."},
-            "work": {"type": "string", "description": "Convenience key; a `work` edge (comma-separated)."},
+            "work": {
+                "type": "string",
+                "description": "Convenience key; a `work` edge (comma-separated).",
+            },
             "plan": {
                 "type": "string",
                 "description": "Convenience key; alias for `implements` (comma-separated).",
@@ -80,15 +85,6 @@ def _edge_types_markdown() -> str:
     return "\n".join(lines)
 
 
-def _rules_markdown() -> str:
-    lines = ["# Deterministic Rule Registry", "", "| Rule | Summary | Severity | Remediation |",
-             "|---|---|---|---|"]
-    for rule_id in sorted(RULES):
-        r = RULES[rule_id]
-        lines.append(f"| `{r.rule_id}` | {r.summary} | {r.severity} | {r.remediation} |")
-    return "\n".join(lines)
-
-
 def marker_protocol_markdown() -> str:
     """Full content of the normative marker protocol document."""
     content = [
@@ -107,7 +103,7 @@ def marker_protocol_markdown() -> str:
         "",
         "- Unquoted values may contain `[A-Za-z0-9._:/#@,+-]`.",
         "- Values containing whitespace MUST use double quotes.",
-        "- Backslash escapes `\\`, `\"`, `\\n`, `\\t` inside quoted values.",
+        '- Backslash escapes `\\`, `"`, `\\n`, `\\t` inside quoted values.',
         "- Repeated relations use comma-separated target IDs with no semantic",
         "  ordering unless the relation specifies one.",
         "- Empty values are invalid in canonical v1.",
@@ -167,11 +163,6 @@ def marker_protocol_markdown() -> str:
 def relationships_markdown() -> str:
     """Full content of the edge semantics document."""
     return GENERATED_HEADER.rstrip() + "\n\n" + _edge_types_markdown() + "\n"
-
-
-def rules_markdown() -> str:
-    """Full content of the rule registry document."""
-    return GENERATED_HEADER.rstrip() + "\n\n" + _rules_markdown() + "\n"
 
 
 def markdown_docs() -> dict[str, str]:

@@ -30,21 +30,13 @@ def handle(ctx: HookContext, payload: dict) -> HookOutput:
     cfg = ctx.project.config.hooks
     node = node_at_path(ctx.store, path, line)
     if node is None or not is_protected(ctx.store, node):
-        return render_allowed(
-            "", {"event": "pre_mutation", "decision": "allow", "path": path}
-        )
+        return render_allowed("", {"event": "pre_mutation", "decision": "allow", "path": path})
     if not (cfg.pre_edit_require_context and cfg.pre_edit_block_once):
-        return render_allowed(
-            "", {"event": "pre_mutation", "decision": "allow", "path": path}
-        )
+        return render_allowed("", {"event": "pre_mutation", "decision": "allow", "path": path})
     if ctx.state.context_loaded(ctx.session_id, node.trace_id):
-        return render_allowed(
-            "", {"event": "pre_mutation", "decision": "allow", "path": path}
-        )
+        return render_allowed("", {"event": "pre_mutation", "decision": "allow", "path": path})
     if ctx.state.blocked_without_context(ctx.session_id, node.trace_id):
-        return render_allowed(
-            "", {"event": "pre_mutation", "decision": "allow", "path": path}
-        )
+        return render_allowed("", {"event": "pre_mutation", "decision": "allow", "path": path})
     ctx.state.record_blocked_edit(ctx.session_id, node.trace_id)
     text = _block_text(ctx, node)
     return render_blocked(

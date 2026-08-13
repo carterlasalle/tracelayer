@@ -20,15 +20,30 @@ from tracelayer.protocol.ontology import EdgeTypeDef, NodeTypeDef
 # Spec Section 12.1 — five categories, twenty node classes.
 SPEC_NODE_TYPES = [
     # intent
-    "goal", "prd", "requirement", "nfr",
+    "goal",
+    "prd",
+    "requirement",
+    "nfr",
     # decision/planning
-    "decision", "work", "plan",
+    "decision",
+    "work",
+    "plan",
     # realization
-    "implementation", "config", "operation", "data", "prompt",
+    "implementation",
+    "config",
+    "operation",
+    "data",
+    "prompt",
     # verification/documentation
-    "test", "document", "runbook", "evidence",
+    "test",
+    "document",
+    "runbook",
+    "evidence",
     # provenance
-    "commit", "pull_request", "ci_run", "external",
+    "commit",
+    "pull_request",
+    "ci_run",
+    "external",
 ]
 
 SPEC_NODE_CATEGORIES = {
@@ -42,15 +57,32 @@ SPEC_NODE_CATEGORIES = {
 # Spec 12.2 (13 edges) plus the `work` convenience edge (spec 11.3/33.1).
 SPEC_SEMANTIC = [
     "work",
-    "derived_from", "addresses", "satisfies", "implements", "verifies",
-    "exercises", "documents", "deploys", "depends_on", "supersedes",
-    "produces", "consumes", "blocks",
+    "derived_from",
+    "addresses",
+    "satisfies",
+    "implements",
+    "verifies",
+    "exercises",
+    "documents",
+    "deploys",
+    "depends_on",
+    "supersedes",
+    "produces",
+    "consumes",
+    "blocks",
 ]
 
 # Spec 12.3.
 SPEC_STRUCTURAL = [
-    "contains", "calls", "imports", "inherits", "references_symbol",
-    "reads", "writes", "changed_by", "owned_by",
+    "contains",
+    "calls",
+    "imports",
+    "inherits",
+    "references_symbol",
+    "reads",
+    "writes",
+    "changed_by",
+    "owned_by",
 ]
 
 # Spec 12.4.
