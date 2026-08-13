@@ -893,6 +893,7 @@ class Engine:
             },
         )
 
+    # trace:v1 id=impl.engine.incremental-index work=WORK-TL-001
     def index_changed(self) -> IndexReport:
         """Incremental index (spec 18.2): reparse changed files, merge into
         the existing store, mark deleted markers inactive, keep everything
@@ -907,6 +908,7 @@ class Engine:
         now = _now_iso()
 
         from tracelayer.discovery.files import read_text_safe
+        from tracelayer.discovery.ignore import build_ignored
 
         changed_files = gitrepo.changed_files()
         if not changed_files:
@@ -926,6 +928,7 @@ class Engine:
                     "edges": 0,
                 },
             )
+        is_ignored = build_ignored(project.root, project.config, gitrepo)
         changed_paths = {f.path for f in changed_files}
         new_nodes: list[Node] = []
         new_edges: list[Edge] = []
@@ -937,6 +940,8 @@ class Engine:
         for f in changed_files:
             if f.change == "deleted":
                 continue
+            if is_ignored(f.path):
+                continue  # discovery-excluded (e.g. tests/**, .trace/**)
             text = read_text_safe(project.root / f.path)
             if text is None:
                 continue

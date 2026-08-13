@@ -278,6 +278,9 @@ def chain_files() -> dict[str, str]:
 [lifecycle]
 default = "wip"
 ci = "merge"
+
+[exclusions]
+paths = ["vendor/**", "generated/**", "docs/vendor/**", ".trace/**"]
 """,
         "docs/req.md": """## REQ-CHAIN-001 - Chain feature
 

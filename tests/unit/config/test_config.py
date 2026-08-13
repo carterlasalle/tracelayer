@@ -70,7 +70,8 @@ def test_load_project_defaults_when_absent(tmp_path: Path) -> None:
     assert project.config.index.respect_gitignore is True
     assert project.config.index.languages.python is True
     assert project.config.index.languages.cpp is False
-    assert project.policy is None
+    assert project.policy is not None
+    assert project.policy.profile == "standard"
     assert len(diags) == 1
     assert diags[0].rule_id == "TL100"
     assert diags[0].severity == SEVERITY_INFO
@@ -134,8 +135,13 @@ def test_load_project_empty_repo_id_defaults_to_root_name(tmp_path: Path) -> Non
     assert project.config.index.fts is True
 
 
-def test_load_policy_absent_returns_none(tmp_path: Path) -> None:
-    assert load_policy(tmp_path) is None
+def test_load_policy_absent_uses_default(tmp_path: Path) -> None:
+    """No policy file: the default policy still governs (TL012 exclusions
+    must apply to unconfigured repositories)."""
+    policy = load_policy(tmp_path)
+    assert policy is not None
+    assert policy.profile == "standard"
+    assert ".trace/**" in policy.exclusions.paths
 
 
 def test_load_policy_parse(tmp_path: Path) -> None:
@@ -275,7 +281,12 @@ def test_default_policy_toml_roundtrip(tmp_path: Path) -> None:
     assert policy.requirements["merge"].require_work_ancestry is True
     assert policy.requirements["merge"].block_stale is True
     assert policy.requirements["release"].require_semantic_audit is True
-    assert policy.exclusions.paths == ["vendor/**", "generated/**", "docs/vendor/**"]
+    assert policy.exclusions.paths == [
+        "vendor/**",
+        "generated/**",
+        "docs/vendor/**",
+        ".trace/**",
+    ]
 
 
 def test_trace_config_constructs_defaults() -> None:

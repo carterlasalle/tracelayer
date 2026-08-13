@@ -18,4 +18,25 @@ require_coverage_confirmation = true
 require_semantic_audit = true
 
 [exclusions]
-paths = ["vendor/**", "generated/**", "docs/vendor/**"]
+paths = [
+  "vendor/**",
+  "generated/**",
+  "docs/vendor/**",
+  ".trace/**",
+  "tests/**",
+  ".github/**",
+  "docs/**",
+  "skills/**",
+  "contrib/**",
+  "scripts/**",
+  "README.md",
+  ".gitignore",
+  "pyproject.toml",
+  "uv.lock",
+  ".mcp.json",
+  ".claude/**",
+  ".pi/**",
+  ".omp/**",
+  ".agents/**",
+  "opencode.json"
+]

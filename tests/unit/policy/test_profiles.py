@@ -13,18 +13,19 @@ from tracelayer.policy.profiles import (
 
 # Base rule vocabulary shared by every profile (marker hygiene + stored parse
 # diagnostics).  standard/strict/safety-critical add semantic + verification
-# rules; strict adds TL012/TL022/TL030/TL061; safety-critical adds
-# TL050/TL060/TL062 on top of strict.
+# rules; TL012 (changed path must be traced) is standard-or-later; strict
+# adds TL022/TL030/TL061; safety-critical adds TL050/TL060/TL062.
 _BASE = {"TL001", "TL002", "TL003", "TL004", "TL005", "TL006", "TL007", "TL040"}
 _SEMANTIC = {"TL010", "TL011", "TL020", "TL021", "TL100"}
-_STRICT_EXTRA = {"TL012", "TL022", "TL030", "TL061"}
+_STANDARD_EXTRA = {"TL012"}
+_STRICT_EXTRA = {"TL022", "TL030", "TL061"}
 _SC_EXTRA = {"TL050", "TL060", "TL062"}
 
 EXPECTED_BASE = {
     "minimal": set(_BASE),
-    "standard": _BASE | _SEMANTIC,
-    "strict": _BASE | _SEMANTIC | _STRICT_EXTRA,
-    "safety-critical": _BASE | _SEMANTIC | _STRICT_EXTRA | _SC_EXTRA,
+    "standard": _BASE | _SEMANTIC | _STANDARD_EXTRA,
+    "strict": _BASE | _SEMANTIC | _STANDARD_EXTRA | _STRICT_EXTRA,
+    "safety-critical": _BASE | _SEMANTIC | _STANDARD_EXTRA | _STRICT_EXTRA | _SC_EXTRA,
 }
 
 PRE_MERGE = ("draft", "wip", "review")

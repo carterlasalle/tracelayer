@@ -20,3 +20,5 @@ node_modules/
 .claude/skills/
 .omp/skills/
 .pi/skills/
+
+.DS_Store

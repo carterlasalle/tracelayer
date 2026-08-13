@@ -469,6 +469,7 @@ def install(
     _install_agents(root, targets, global_install=global_install, link=link, update=update)
 
 
+# trace:v1 id=impl.cli.install-agents work=WORK-TL-001
 def _install_agents(
     root: Path,
     targets: list[str],
@@ -496,6 +497,9 @@ def _install_agents(
         if note:
             typer.echo(f"  hooks note: {note}")
     if not global_install:
+        status, path = append_agents_note(root)
+        if status == "appended" and path is not None:
+            typer.echo(f"invariant: appended -> {path}")
         mstatus, mpath = merge_mcp_json(root)
         typer.echo(f"mcp: {mstatus} -> {mpath}")
 

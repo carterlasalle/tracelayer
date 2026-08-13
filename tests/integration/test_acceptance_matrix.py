@@ -282,17 +282,18 @@ def test_edit_without_context_blocks_then_allows_after_context(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_untraced_helper_change_passes_standard(tmp_path):
-    """Changing an untraced helper file imposes no trace requirement under
-    the standard profile (TL012 is strict-only)."""
+def test_untraced_helper_change_blocks_standard(tmp_path):
+    """Changing an untraced helper file blocks under the standard profile:
+    TL012 is the first-marker enforcement (an untraced repo cannot silently
+    absorb behavior changes)."""
     root = setup_auth_repo(tmp_path)
     (root / "src" / "helpers.py").write_text(
         "def slugify(text: str) -> str:\n    return text.strip().lower()\n",
         encoding="utf-8",
     )
     proc = run_trace(root, "verify", "--changed", "--lifecycle", "merge")
-    assert proc.returncode == 0
-    assert "verify: pass" in proc.stdout
+    assert proc.returncode != 0
+    assert "TL012" in proc.stdout
 
 
 # ---------------------------------------------------------------------------

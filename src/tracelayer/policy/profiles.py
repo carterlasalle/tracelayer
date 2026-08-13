@@ -42,6 +42,7 @@ _BASE_RULES: dict[str, set[str]] = {
         "TL040",
         "TL010",
         "TL011",
+        "TL012",
         "TL020",
         "TL021",
         "TL100",
@@ -101,6 +102,7 @@ def _merge_plus(lifecycle: str) -> bool:
     return LIFECYCLES.index(lifecycle) >= _MERGE_INDEX
 
 
+# trace:v1 id=impl.policy.profile-rules work=WORK-TL-001
 def profile_rules(profile: str, lifecycle: str) -> set[str]:
     """Default enabled rule set for a profile at a lifecycle.
 

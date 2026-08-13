@@ -231,7 +231,9 @@ def load_project(root: Path | None = None) -> tuple[Project, list[Diagnostic]]:
 def load_policy(root: Path, diags: list[Diagnostic] | None = None) -> PolicyConfig | None:
     path = root / ".trace" / "policy.toml"
     if not path.exists():
-        return None
+        # No policy file: the default policy (standard profile) still
+        # governs, so its exclusions apply to unconfigured repositories.
+        return PolicyConfig(**tomllib.loads(default_policy_toml()))
     diags = diags if diags is not None else []
     try:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
@@ -315,6 +317,7 @@ resolve_by_default = false
 """
 
 
+# trace:v1 id=impl.config.default-policy work=WORK-TL-001
 def default_policy_toml() -> str:
     return """# TraceLayer policy (spec Section 24.4).
 profile = "standard"
@@ -336,5 +339,5 @@ require_coverage_confirmation = true
 require_semantic_audit = true
 
 [exclusions]
-paths = ["vendor/**", "generated/**", "docs/vendor/**"]
+paths = ["vendor/**", "generated/**", "docs/vendor/**", ".trace/**"]
 """

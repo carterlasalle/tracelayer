@@ -463,10 +463,13 @@ def note_present(text: str) -> bool:
     return "trace verify --changed" in text and "traceability" in text.lower()
 
 
+# trace:v1 id=impl.install.invariant work=WORK-TL-001
 def append_agents_note(root: Path) -> tuple[str, Path | None]:
-    """Append the invariant to AGENTS.md or CLAUDE.md (append-only).
+    """Ensure the invariant lives in AGENTS.md or CLAUDE.md (append-only).
 
-    Returns ("appended"|"already-present"|"no-agent-file", path).
+    Appends to an existing file; when neither exists, AGENTS.md is created
+    with the invariant so repositories never run without the standing
+    instruction. Returns ("appended"|"already-present", path).
     """
     for name in ("AGENTS.md", "CLAUDE.md"):
         path = root / name
@@ -479,4 +482,6 @@ def append_agents_note(root: Path) -> tuple[str, Path | None]:
         with path.open("a", encoding="utf-8") as fh:
             fh.write(block)
         return "appended", path
-    return "no-agent-file", None
+    path = root / "AGENTS.md"
+    path.write_text(AGENTS_MD_NOTE.rstrip() + "\n", encoding="utf-8")
+    return "appended", path

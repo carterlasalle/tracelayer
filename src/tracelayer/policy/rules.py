@@ -216,12 +216,16 @@ def rule_tl011(ctx: EvalContext) -> list[Diagnostic]:
     return diags
 
 
+# trace:v1 id=impl.policy.tl012 work=WORK-TL-001
 def rule_tl012(ctx: EvalContext) -> list[Diagnostic]:
-    """Changed path with no traced behavior (strict).
+    """Changed path with no traced behavior.
 
-    A path counts as traced when at least one active node has it as
-    canonical path.  Policy exclusion globs (``[policy] exclusions.paths``)
-    are honored.  Whole-repo scope (no changed paths) emits nothing.
+    The core first-marker enforcement: a changed path counts as traced only
+    when at least one active node has it as canonical path, so untraced
+    repositories cannot silently absorb behavior changes (the pre/post/stop
+    hooks and the CI gate all key off this).  Policy exclusion globs
+    (``[policy] exclusions.paths``) are honored.  Whole-repo scope (no
+    changed paths) emits nothing.
     """
     diags: list[Diagnostic] = []
     if not ctx.changed_paths:
