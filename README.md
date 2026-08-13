@@ -1,108 +1,144 @@
+<div align="center">
+
 # TraceLayer
 
-TraceLayer is an agent-native software traceability system. It makes the
-intent, implementation, verification, provenance, and evidence for software
-changes traversable as a deterministic graph — so coding agents and humans can
-answer "why does this exist?", "what does this change break?", and "is this
-actually proven?" without a giant prompt or a hand-maintained trace matrix.
+**Agent-native software traceability: intent, implementation, verification, provenance, and evidence as a deterministic graph.**
 
-- **Deterministic.** Parsing, indexing, and verification run offline with no
-  model calls and no daemon. Same repo + config + evidence in, same verdict
-  out (NFR-001, NFR-004).
-- **Agent-native.** A small Agent Skill plus event hooks keep agents oriented
-  and honest: block-once before editing traced behavior, dirty verification
-  after edits, and a Stop gate that refuses to declare completion while
-  blocking diagnostics remain.
-- **Honest about proof.** Three kinds of truth are kept separate: what is
-  *declared* in markers, what is *structural* in the code, and what is
-  *observed* in test/CI evidence. A passing test that never executed the
-  implementation is reported as UNPROVEN, not green.
+[![CI](https://github.com/carterlasalle/tracelayer/actions/workflows/trace.yml/badge.svg)](https://github.com/carterlasalle/tracelayer/actions/workflows/trace.yml)
+![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)
+![uv](https://img.shields.io/badge/uv-managed-884AA8?logo=python&logoColor=white)
+![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
+![Tests](https://img.shields.io/badge/tests-709%20passing-brightgreen)
 
-## The 5-minute model
+[Marker protocol](docs/marker-protocol.md) · [Relationships](docs/relationships.md) · [Concepts](docs/concepts.md) · [Policy](docs/policy.md) · [Hooks](docs/hooks.md) · [Evidence](docs/evidence.md) · [Security](docs/security.md)
 
-Every meaningful artifact is a **node** with a stable trace ID:
+</div>
 
-```text
-WORK-AUTH-237  work item
-REQ-AUTH-017   requirement
-ADR-0042       decision
-PLAN-AUTH-237/P3  plan
-impl.auth.refresh  implementation
-test.auth.refresh-reuse  test
+TraceLayer makes the **why** of software traversable. One-line `trace:v1` markers declare the semantic relationships that cannot be derived — which work item produced a behavior, which requirement it satisfies, which tests intend to verify it. The engine derives everything else: AST symbol attachment, Git provenance, revision fingerprints, staleness, and runtime evidence. The result is a continuously verified trace graph that agents and reviewers can query instead of loading the whole repository.
+
+## How it works
+
+```mermaid
+flowchart LR
+    A[trace:v1 markers] --> B[Marker parser]
+    B --> C[AST symbol attachment]
+    C --> D[SQLite trace graph]
+    D --> E[Git provenance]
+    E --> F[Fingerprints and staleness]
+    F --> G[Policy evaluation]
+    D --> H[Query engine]
+    H --> I[context / why / impact / search]
+    G --> J[Verify gate]
+    J --> K[Hook engine]
+    K --> L[Agent context and Stop gate]
+    L --> M[CI merge gate]
 ```
 
-Artifacts declare **edges** next to the behavior they describe, as ordinary
-comment markers. The engine derives the rest (path, symbol, line range, git
-provenance) — none of that is written by hand:
+Markers are the authoring notation; the graph is the product. Paths, line numbers, commit SHAs, and test results are derived — never written into markers — so trace identity survives refactors and evidence can never silently go stale.
 
-```python
-# trace:v1 id=impl.auth.refresh work=WORK-AUTH-237 satisfies=REQ-AUTH-017
-def rotate_refresh_token(token: str) -> TokenPair:
-    ...
-```
+## Capabilities
 
-```python
-# trace:v1 id=test.auth.refresh-reuse verifies=REQ-AUTH-017 exercises=impl.auth.refresh
-def test_reused_refresh_token_is_rejected():
-    ...
-```
-
-When a requirement changes, the indexer fingerprints it, marks downstream
-implementations and tests `STALE_REVIEW_REQUIRED`, and demotes prior evidence
-to historical. `trace verify` then refuses to pass at `merge` until someone
-reviews or re-verifies. Nothing is claimed wrong — only that the old proof no
-longer establishes conformance.
+| Area | What TraceLayer provides |
+|---|---|
+| Protocol | One-line versioned `trace:v1` grammar, typed semantic edges, stable IDs, deterministic type inference, generated schema docs |
+| Indexing | Full and changed-scope indexing, Markdown/YAML artifact extraction, fence-aware marker scanning, honest file-level degradation for unsupported languages |
+| Symbols | Tree-sitter attachment for Python, TypeScript, JavaScript, Go, Rust, and Java — markers attach to symbols, never line numbers |
+| Graph | SQLite materialized index with declared, structural (`contains`), and observed (`executed`) provenance; FTS5 search; bounded traversal |
+| Provenance | Git-derived first-seen/last-modified history, rename tracking, changed-line ranges, dirty-tree status — no commit IDs in source |
+| Staleness | Requirement/implementation fingerprints, upstream-change propagation, review states, historical evidence preservation |
+| Policy | Four profiles (minimal/standard/strict/safety-critical) across five lifecycles, scoped expiring waivers, deterministic TL-rule registry |
+| Query UX | `context`, `why`, `impact`, `search`, `graph` (tree/mermaid/DOT/JSON/JSONL), `status`, `doctor`, `report pr` |
+| Hooks | Session start, prompt context, pre-mutation block-once guard, post-mutation guidance, batch summary, fail-closed Stop gate |
+| Evidence | JUnit/Cobertura/normalized ingestion, revision binding, L0–L3 proof levels, per-test Python coverage adapter |
+| Migration | CodeOps scan/plan/apply with deterministic classification, Scry detection, doctor diagnostics with rename suggestions |
+| Audit | Bounded deterministic audit packages for an independent semantic reviewer — no LLM required for the engine itself |
 
 ## Quick start
 
+### Prerequisites
+
+- Python `3.12+`
+- [`uv`](https://docs.astral.sh/uv/) (dependency management is uv-only; no pip)
+
 ```bash
-# 1. Install
 uv sync
-
-# 2. Initialize a repo (writes .trace/trace.toml, .trace/policy.toml,
-#    .gitignore entries; never overwrites existing config)
-trace init
-
-# 3. Index everything once
-trace index --all
-
-# 4. Check the health of the whole repo
-trace status
-
-# 5. Verify only what changed against the merge lifecycle
-trace verify --changed --lifecycle merge
-
-# 6. When a task touches traced behavior, orient first
-trace context impl.auth.refresh
+uv run trace --help
 ```
 
-Then, before declaring any task complete: run the linked tests, ingest
-evidence, and run `trace verify --changed` again.
+Trace an existing repository:
+
+```bash
+uv run trace init --root <repo>          # writes .trace/trace.toml + policy.toml
+uv run trace index --root <repo> --all
+uv run trace verify --root <repo> --all
+uv run trace context --root <repo> <trace-id>
+```
+
+Run the full development baseline:
+
+```bash
+uv run pytest
+uv run ruff check .
+uv run trace docs generate --check
+```
+
+## Architecture
+
+TraceLayer is a single Python package with deliberately narrow module boundaries:
+
+```text
+src/tracelayer/
+  cli.py                   Typer CLI; business logic lives in modules
+  engine.py                Indexing pipeline, verify, staleness, TraceRepository API
+  config.py                trace.toml / policy.toml models and loading
+  diagnostics.py           TL-rule registry; every failure carries remediation
+  protocol/                Marker grammar, parser, ID rules, ontology, generated schema
+  discovery/               File enumeration, ignore logic, monorepo scopes
+  artifacts/               Markdown, YAML, and generic file-level extraction
+  symbols/                 Tree-sitter parsers and marker-to-symbol attachment
+  graph/                   Node/edge models, SQLite store, migrations, traversal, fingerprints
+  git/                     Provenance, history, diff-range mapping (argv-array subprocess only)
+  evidence/                JUnit, Cobertura, normalized JSON, freshness, proof levels
+  policy/                  Profiles, lifecycle, waivers, deterministic rule functions
+  query/                   context, why, impact, search
+  hooks/                   Event handlers and file-backed session state
+  audit/                   Bounded semantic-audit packages and external auditor adapter
+  migration/               CodeOps and Scry importers
+```
+
+Every module is independently testable; the CLI is a thin shell over the engine.
+
+## Safety model
+
+TraceLayer sits in the coding-agent control loop, so correctness is fail-closed by construction:
+
+- Declared claims are never displayed as proven: a `test -> exercises -> implementation` claim stays unproven until observed execution evidence exists (proof levels L0–L3).
+- Derived facts cannot be declared: paths, SHAs, test results, and structural/observed edges are rejected in markers.
+- Ambiguity is a diagnostic, never a silent guess: detached markers, unresolved targets, and duplicate IDs are deterministic TL failures with remediation.
+- Staleness preserves history: changing a requirement marks downstream review-required; it never deletes evidence.
+- Repository text is untrusted data: hooks inject bounded, sanitized summaries; subprocess calls use argv arrays; no `shell=True`.
+- Policy can weaken only deliberately: enforcement-file changes surface as TL063 warnings; waivers are scoped, owned, and expiring.
+- CI and the Stop gate run the same engine as the CLI — there is no separate enforcement code path.
 
 ## Documentation
 
-| Topic | Doc |
+| Document | Purpose |
 |---|---|
-| Concepts: three truths, graph, stable IDs, staleness | [docs/concepts.md](docs/concepts.md) |
-| Marker syntax (generated, normative) | [docs/marker-protocol.md](docs/marker-protocol.md) |
-| Edge semantics (generated) | [docs/relationships.md](docs/relationships.md) |
-| Policy: profiles, lifecycle, waivers, rule IDs | [docs/policy.md](docs/policy.md) |
-| Hook architecture | [docs/hooks.md](docs/hooks.md) |
-| Claude Code integration | [docs/claude-code.md](docs/claude-code.md) |
-| Test/coverage evidence and proof levels | [docs/evidence.md](docs/evidence.md) |
-| CodeOps migration | [docs/migration-codeops.md](docs/migration-codeops.md) |
-| Security and threat model | [docs/security.md](docs/security.md) |
-| Large repos and monorepos | [docs/large-repos.md](docs/large-repos.md) |
-| Agent Skill | [skills/traceability/SKILL.md](skills/traceability/SKILL.md) |
+| [Concepts](docs/concepts.md) | Three truths, the trace graph, stable IDs, staleness |
+| [Marker protocol](docs/marker-protocol.md) | Generated normative `trace:v1` syntax and placement rules |
+| [Relationships](docs/relationships.md) | Generated semantic/structural/observed edge semantics |
+| [Policy](docs/policy.md) | Profiles, lifecycles, waivers, and the TL-rule catalog |
+| [Hooks](docs/hooks.md) | Event model, block-once semantics, injection safety |
+| [Evidence](docs/evidence.md) | JUnit/Cobertura ingestion and proof levels L0–L3 |
+| [Migration](docs/migration-codeops.md) | CodeOps scan/plan/apply workflow |
+| [Security](docs/security.md) | Threat model and mitigations |
+| [Large repositories](docs/large-repos.md) | Incremental indexing, monorepo scopes, performance targets |
+| [Architecture decisions](docs/adr/) | ADR-0001 through ADR-0008 |
 
-## Adapters
+## Contributing
 
-- [Claude Code](adapters/claude-code/README.md)
-- [Generic JSON hooks](adapters/generic-json-hooks/protocol.md)
-- [OpenCode](adapters/opencode/README.md)
+TraceLayer uses protected, squash-only pull requests with required checks. Read [CONTRIBUTING.md](CONTRIBUTING.md) before making changes. Run `uv run trace docs generate --check` when editing protocol documentation and `trace verify --changed` before proposing a merge — this repository traces itself.
 
-## CI
+## License
 
-`.github/workflows/trace.yml` runs deterministic trace validation, test +
-coverage evidence ingestion, and evidence-aware verification on every PR and
-push to main. Fork PRs get no write tokens for trace commands.
+Apache License 2.0 — see [LICENSE](LICENSE).
