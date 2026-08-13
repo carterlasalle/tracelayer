@@ -15,3 +15,8 @@ node_modules/
 
 # Local agent-skill copy from `tracelayer init --all` (canonical: skills/traceability).
 .agents/
+
+# Local agent skill copies from `tracelayer init` (canonical: skills/traceability).
+.claude/skills/
+.omp/skills/
+.pi/skills/
