@@ -24,7 +24,7 @@ Install, trace a repository, and get your first answer in under a minute:
 uv tool install tracelayer            # pipx install tracelayer also works
 
 cd your-repo
-trace init                            # .trace config + AGENTS.md invariant + .mcp.json (MCP on by default)
+trace init                            # full bootstrap: config, invariant, skill + hooks for every detected agent, .mcp.json
 trace index --all                     # builds the trace graph
 trace verify --all                    # policy check (exit 0 = pass)
 trace context <trace-id>              # why does this exist, what verifies it
@@ -240,10 +240,12 @@ skills.sh ecosystem:
 npx skills add carterlasalle/tracelayer --agent claude-code
 ```
 
-For existing repositories, `trace init --skill` copies the skill into
-`.agents/skills/traceability/` directly. The same folder is ready for skill
-registries (e.g. skills.sh, anthropics/skills) — it follows the standard
-layout and links references directly from `SKILL.md`.
+For existing repositories, `trace init` copies the skill into
+`.agents/skills/traceability/` and installs hooks for every detected agent
+(project scope — all files land in the repo; `--no-skill` opts out). The
+same folder is ready for skill registries (e.g. skills.sh, anthropics/skills)
+— it follows the standard layout and links references directly from
+`SKILL.md`. Use `trace install` for global (user-level) agent installs.
 
 ## MCP server (optional adapter)
 

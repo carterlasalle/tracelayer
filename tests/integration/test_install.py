@@ -161,6 +161,27 @@ def test_install_project_writes_mcp_json(tmp_path):
     assert "tracelayer" in mcp["mcpServers"]
 
 
+def test_install_agent_without_hook_assets(tmp_path):
+    """Agents with no hook assets (cursor) must not crash install."""
+    repo = make_git_repo(tmp_path, {"a.py": "x = 1\n"})
+    r = run_trace(repo, "install", "--agent", "cursor", "--yes", env=_env(tmp_path))
+    assert r.returncode == 0, r.stderr
+    assert "cursor: installed" in r.stdout or "cursor: already-installed" in r.stdout
+
+
+def test_init_installs_skill_and_hooks_for_detected_agents(tmp_path):
+    home = tmp_path / "home"
+    (home / ".claude").mkdir(parents=True)
+    repo = make_git_repo(tmp_path, {"a.py": "x = 1\n"})
+    r = run_trace(repo, "init", env=_env(tmp_path))
+    assert r.returncode == 0, r.stderr
+    assert "claude-code:" in r.stdout
+    assert (repo / ".claude" / "settings.json").exists()
+    assert (repo / ".claude" / "skills" / "traceability" / "SKILL.md").exists()
+    assert (repo / ".agents" / "skills" / "traceability" / "SKILL.md").exists()
+    assert (repo / ".mcp.json").exists()
+
+
 def test_bundled_skill_dir_found():
     from tracelayer.install import bundled_skill_dir
 

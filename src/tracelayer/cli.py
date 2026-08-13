@@ -303,10 +303,9 @@ def init(
     root: Path | None = _root_opt(),
     observe: bool = typer.Option(False, "--observe", help="Initialize without a policy file"),
     skill: bool = typer.Option(
-        False, "--skill", help="Copy the traceability skill into .agents/skills/"
-    ),
-    claude: bool = typer.Option(
-        False, "--claude", help="Merge TraceLayer hooks into .claude/settings.json"
+        True,
+        "--skill/--no-skill",
+        help="Install the skill (and hooks) for every detected agent, project scope",
     ),
     agents_note: bool = typer.Option(
         True,
@@ -321,16 +320,19 @@ def init(
     all_features: bool = typer.Option(
         False,
         "--all",
-        help="Initialize everything: config + policy + skill + claude hooks + mcp",
+        help="Everything is the default; kept for compatibility",
     ),
 ) -> None:
-    """Initialize .trace config, policy, .gitignore, and agent files (spec 28.1)."""
-    if all_features:
-        skill, claude, mcp = True, True, True
+    """Bootstrap the repository (spec 28.1).
+
+    Config + policy + gitignore + AGENTS.md/CLAUDE.md invariant, the skill
+    (with hooks) for every detected agent, and the MCP server. Project scope
+    only: all files land inside the repository. Use `trace install` for
+    global (user-level) agent installs.
+    """
     root = _resolve_root(ctx, root)
-    written = _run_init(
-        root, observe=observe, skill=skill, claude=claude, agents_note=agents_note, mcp=mcp
-    )
+    _ = all_features  # compat: everything is the default
+    written = _run_init(root, observe=observe, skill=skill, agents_note=agents_note, mcp=mcp)
     if written:
         for p in written:
             typer.echo(f"wrote {p.relative_to(root)}")
@@ -342,8 +344,7 @@ def _run_init(
     root: Path,
     *,
     observe: bool,
-    skill: bool,
-    claude: bool,
+    skill: bool = True,
     agents_note: bool = True,
     mcp: bool = True,
 ) -> list[Path]:
@@ -366,21 +367,36 @@ def _run_init(
         content = (content.rstrip("\n") + "\n" if content.strip() else "") + line + "\n"
         gi.write_text(content, encoding="utf-8")
         written.append(gi)
+    if agents_note:
+        status, path = append_agents_note(root)
+        if status == "appended" and path is not None:
+            written.append(path)
     if skill:
         dst = root / ".agents" / "skills" / "traceability"
         if not dst.exists():
             shutil.copytree(bundled_skill_dir(), dst)
             written.append(dst)
-    if claude:
-        _, config = hook_config_for("claude-code", root)
-        path = root / ".claude" / "settings.json"
-        status, _ = merge_json_file(path, config)
-        if status != "already-installed":
-            written.append(path)
-    if agents_note:
-        status, path = append_agents_note(root)
-        if status == "appended" and path is not None:
-            written.append(path)
+        for name in sorted(detect_agents()):
+            status, path = install_skill(name, root, link=False, force=False)
+            if status == "installed":
+                written.append(path)
+            typer.echo(f"{name}: {status} -> {path}")
+            hooks = hook_config_for(name, root)
+            if hooks is not None:
+                file, config = hooks
+                hstatus, hpath = merge_json_file(file, config)
+                typer.echo(f"  hooks: {hstatus} -> {hpath}")
+                if hstatus != "already-installed":
+                    written.append(hpath)
+                continue
+            rows = install_hook_assets(name, root, force=False)
+            for hstatus, hpath in rows:
+                typer.echo(f"  hooks: {hstatus} -> {hpath}")
+                if hstatus != "already-installed":
+                    written.append(hpath)
+            note = hook_note(name)
+            if note:
+                typer.echo(f"  hooks note: {note}")
     if mcp:
         status, path = merge_mcp_json(root)
         if status == "installed":

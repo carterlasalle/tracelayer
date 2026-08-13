@@ -342,8 +342,14 @@ HOOK_ASSETS: dict[str, dict[str, object]] = {
 def install_hook_assets(
     agent: str, root: Path | None = None, *, force: bool = False
 ) -> list[tuple[str, Path]]:
-    """Copy file-based hook assets for an agent. Returns (status, path) rows."""
-    spec = HOOK_ASSETS[agent]
+    """Copy file-based hook assets for an agent. Returns (status, path) rows.
+
+    Agents without file-based hook assets (e.g. cursor, hermes-agent,
+    generic) return an empty list; their skill install still happens.
+    """
+    spec = HOOK_ASSETS.get(agent)
+    if spec is None:
+        return []
     base = expand(str(spec["global"])) if root is None else (root / str(spec["project"]))
     rows: list[tuple[str, Path]] = []
     for src_rel, dest_rel in spec["files"]:  # type: ignore[union-attr]
