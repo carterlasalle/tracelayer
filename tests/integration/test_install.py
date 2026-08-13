@@ -83,6 +83,49 @@ def test_first_run_hint_on_unconfigured_repo(tmp_path):
     assert "trace init" not in r2.stderr  # no hint for init itself
 
 
+def test_install_pi_omp_opencode_hook_assets(tmp_path):
+    repo = make_git_repo(tmp_path, {"a.py": "x = 1\n"})
+    r = run_trace(
+        repo,
+        "install",
+        "--agent",
+        "pi",
+        "--agent",
+        "omp",
+        "--agent",
+        "opencode",
+        "--yes",
+        env=_env(tmp_path),
+    )
+    assert r.returncode == 0, r.stderr
+    assert (repo / ".pi" / "hooks.json").is_file()
+    assert (repo / ".pi" / "trace-hook.sh").is_file()
+    assert (repo / ".omp" / "hook" / "hooks.yaml").is_file()
+    assert (repo / ".omp" / "extensions" / "trace-gate.ts").is_file()
+    assert (repo / "opencode.json").is_file()
+    assert "activate" in r.stdout
+
+
+def test_install_global_hooks_for_pi(tmp_path):
+    home = _env(tmp_path)
+    r = run_trace(tmp_path, "install", "--agent", "pi", "--global", "--yes", env=home)
+    assert r.returncode == 0
+    assert (tmp_path / "home" / ".pi" / "hooks.json").is_file()
+    assert (tmp_path / "home" / ".pi" / "agent" / "skills" / "traceability" / "SKILL.md").is_file()
+
+
+def test_install_update_refreshes(tmp_path):
+    home = _env(tmp_path)
+    run_trace(tmp_path, "install", "--agent", "claude-code", "--global", "--yes", env=home)
+    skill = tmp_path / "home" / ".claude" / "skills" / "traceability" / "SKILL.md"
+    first = skill.read_text()
+    r = run_trace(
+        tmp_path, "install", "--agent", "claude-code", "--global", "--update", "--yes", env=home
+    )
+    assert r.returncode == 0
+    assert skill.read_text() == first  # refresh is content-stable
+
+
 def test_bundled_skill_dir_found():
     from tracelayer.install import bundled_skill_dir
 

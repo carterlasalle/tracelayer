@@ -51,6 +51,7 @@ packages = ["src/tracelayer"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "skills/traceability" = "tracelayer/_skills/traceability"
+"adapters" = "tracelayer/_adapters"
 
 [tool.hatch.build.targets.sdist]
 include = [

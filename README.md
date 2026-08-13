@@ -90,6 +90,11 @@ trace --help
 From a local checkout: `uv tool install .`. From the repository directly:
 `uv tool install git+https://github.com/carterlasalle/tracelayer.git`.
 
+Note: macOS ships a built-in `trace` (/usr/bin/trace, Apple Instruments).
+This project installs its `trace` binary to `~/.local/bin` — make sure it
+precedes `/usr/bin` in your PATH (`which trace` should not print
+`/usr/bin/trace`).
+
 The first time you run `trace` outside a configured repository it prints
 next steps: `trace init` to enable traceability in the current repo, or
 `trace install` to install the skill and hooks into your agent harnesses
@@ -201,10 +206,14 @@ trace install --agent claude-code --global --yes   # ~/.claude/skills
 trace install --yes                      # all detected agents, non-interactive
 ```
 
-Hooks are merged for claude-code (`.claude/settings.json`) and codex
-(`.codex/hooks.json`) in project scope; other agents get the skill only —
-see `adapters/<harness>/README.md` for their hook setup. The same skill is
-installable through the skills.sh ecosystem:
+Hooks install for every agent: JSON-merged settings for claude-code
+(`.claude/settings.json`) and codex (`.codex/hooks.json`); file-based hook
+configs for pi (`.pi/hooks.json` + wrapper), omp (`.omp/hook/hooks.yaml` +
+extension gate), and opencode (`opencode.json`) — each with an activation
+note (e.g. `pi install npm:@hsingjui/pi-hooks`, `/hooks-trust` in omp).
+After upgrading the tool, refresh installed copies with
+`trace install --update`. The same skill is installable through the
+skills.sh ecosystem:
 
 ```bash
 npx skills add carterlasalle/tracelayer --agent claude-code

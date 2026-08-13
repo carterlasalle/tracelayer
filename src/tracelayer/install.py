@@ -78,10 +78,15 @@ def bundled_skill_dir() -> Path:
             return p
     except (ModuleNotFoundError, TypeError, OSError):
         pass
-    repo = Path.cwd() / "skills" / "traceability"
+    repo = _repo_root() / "skills" / "traceability"
     if repo.is_dir():
         return repo
     raise FileNotFoundError("traceability skill not found (broken installation)")
+
+
+def _repo_root() -> Path:
+    """Source-checkout root when running from the repository (dev installs)."""
+    return Path(__file__).resolve().parents[2]
 
 
 def detect_agents() -> list[str]:
@@ -280,6 +285,83 @@ def codex_hooks_config() -> dict:
             }
         ],
     }
+
+
+def bundled_file(repo_rel: str) -> Path:
+    """A bundled repository asset (e.g. ``adapters/pi/hooks.template.json``).
+
+    Bundled under ``tracelayer/_adapters`` in the wheel; falls back to the
+    source checkout path in development.
+    """
+    try:
+        pkg_rel = repo_rel.removeprefix("adapters/")
+        ref = resources.files("tracelayer") / "_adapters" / pkg_rel
+        p = Path(str(ref))
+        if p.is_file():
+            return p
+    except (ModuleNotFoundError, TypeError, OSError):
+        pass
+    repo = _repo_root() / repo_rel
+    if repo.is_file():
+        return repo
+    raise FileNotFoundError(f"bundled asset not found: {repo_rel}")
+
+
+# Hook assets copied for harnesses without a JSON-merge settings file.
+# dest is relative to the agent's hook base (global or project scope).
+HOOK_ASSETS: dict[str, dict[str, object]] = {
+    "pi": {
+        "global": "~/.pi",
+        "project": ".pi",
+        "files": [
+            ("adapters/pi/hooks.template.json", "hooks.json"),
+            ("adapters/pi/hooks/trace-hook.sh", "trace-hook.sh"),
+        ],
+        "note": "activate: pi install npm:@hsingjui/pi-hooks",
+    },
+    "omp": {
+        "global": "~/.omp",
+        "project": ".omp",
+        "files": [
+            ("adapters/oh-my-pi/hooks.yaml", "hook/hooks.yaml"),
+            ("adapters/oh-my-pi/trace-gate.ts", "extensions/trace-gate.ts"),
+        ],
+        "note": "activate: /hooks-trust in omp",
+    },
+    "opencode": {
+        "global": "~/.config/opencode",
+        "project": ".",
+        "files": [
+            ("adapters/opencode/config.template.json", "opencode.json"),
+        ],
+        "note": "verify hook schema against your OpenCode version",
+    },
+}
+
+
+def install_hook_assets(
+    agent: str, root: Path | None = None, *, force: bool = False
+) -> list[tuple[str, Path]]:
+    """Copy file-based hook assets for an agent. Returns (status, path) rows."""
+    spec = HOOK_ASSETS[agent]
+    base = expand(str(spec["global"])) if root is None else (root / str(spec["project"]))
+    rows: list[tuple[str, Path]] = []
+    for src_rel, dest_rel in spec["files"]:  # type: ignore[union-attr]
+        src = bundled_file(src_rel)
+        dst = base / dest_rel
+        if dst.exists() and not force:
+            rows.append(("already-installed", dst))
+            continue
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst)
+        os.chmod(dst, 0o755 if src_rel.endswith(".sh") else 0o644)
+        rows.append(("installed", dst))
+    return rows
+
+
+def hook_note(agent: str) -> str | None:
+    spec = HOOK_ASSETS.get(agent)
+    return str(spec["note"]) if spec and "note" in spec else None
 
 
 def hook_config_for(agent: str, root: Path | None = None) -> tuple[Path, dict] | None:

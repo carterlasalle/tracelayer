@@ -29,6 +29,8 @@ from tracelayer.install import (
     bundled_skill_dir,
     detect_agents,
     hook_config_for,
+    hook_note,
+    install_hook_assets,
     install_skill,
     merge_json_file,
     skill_installed,
@@ -370,6 +372,9 @@ def install(
         False, "--global", "-g", help="Install to user-wide agent dirs"
     ),
     link: bool = typer.Option(False, "--link", help="Symlink the skill instead of copying"),
+    update: bool = typer.Option(
+        False, "--update", help="Refresh existing skill and hook installs (force)"
+    ),
     yes: bool = typer.Option(
         False, "--yes", "-y", help="Skip prompts; install to all detected agents"
     ),
@@ -382,8 +387,9 @@ def install(
     Project scope (default) installs into the repository's agent directories;
     --global installs into ~/<agent>/skills. Skill directories follow the
     skills.sh agent-directory table so `npx skills add` and this command
-    agree. Hooks are JSON-merged for claude-code (.claude/settings.json) and
-    codex (.codex/hooks.json); other agents get the skill only.
+    agree. Hooks install for every agent: JSON-merged settings for
+    claude-code and codex, file-based hook configs for pi, omp, and opencode.
+    After upgrading the tool, run `trace install --update` to refresh copies.
     """
     root = _resolve_root(ctx, None)
     if list_only:
@@ -415,18 +421,22 @@ def install(
                 f"unknown agent {name!r}; valid: {', '.join(sorted(INSTALL_AGENTS))}", err=True
             )
             raise typer.Exit(2)
-        status, path = install_skill(name, None if global_install else root, link=link)
+        status, path = install_skill(
+            name, None if global_install else root, link=link, force=update
+        )
         typer.echo(f"{name}: {status} -> {path}")
         hooks = hook_config_for(name, None if global_install else root)
         if hooks is not None:
-            if global_install:
-                typer.echo(
-                    "  hooks: skipped for --global (use `trace init --claude` per repository)"
-                )
-            else:
-                file, config = hooks
-                hstatus, hpath = merge_json_file(file, config)
-                typer.echo(f"  hooks: {hstatus} -> {hpath}")
+            file, config = hooks
+            hstatus, hpath = merge_json_file(file, config)
+            typer.echo(f"  hooks: {hstatus} -> {hpath}")
+            continue
+        rows = install_hook_assets(name, None if global_install else root, force=update)
+        for hstatus, hpath in rows:
+            typer.echo(f"  hooks: {hstatus} -> {hpath}")
+        note = hook_note(name)
+        if note:
+            typer.echo(f"  hooks note: {note}")
 
 
 @app.command()
