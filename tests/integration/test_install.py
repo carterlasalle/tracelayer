@@ -131,13 +131,21 @@ def test_init_writes_mcp_json_by_default(tmp_path):
     r = run_trace(repo, "init", env=_env(tmp_path))
     assert r.returncode == 0
     mcp = json.loads((repo / ".mcp.json").read_text())
-    assert "trace" in mcp["mcpServers"]["tracelayer"]["command"]
+    assert mcp["mcpServers"]["tracelayer"]["command"] == "tracelayer"
     # re-init is idempotent and preserves other servers
     mcp["mcpServers"]["other"] = {"command": "other"}
     (repo / ".mcp.json").write_text(json.dumps(mcp), encoding="utf-8")
     run_trace(repo, "init", env=_env(tmp_path))
     merged = json.loads((repo / ".mcp.json").read_text())
     assert "other" in merged["mcpServers"] and "tracelayer" in merged["mcpServers"]
+
+
+def test_init_all_skips_nothing(tmp_path):
+    repo = make_git_repo(tmp_path, {"a.py": "x = 1\n"})
+    run_trace(repo, "init", "--all", env=_env(tmp_path))
+    assert (repo / ".mcp.json").exists()
+    assert (repo / ".agents" / "skills" / "traceability" / "SKILL.md").exists()
+    assert (repo / ".claude" / "settings.json").exists()
 
 
 def test_init_no_mcp_skips(tmp_path):

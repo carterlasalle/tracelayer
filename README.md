@@ -90,10 +90,12 @@ trace --help
 From a local checkout: `uv tool install .`. From the repository directly:
 `uv tool install git+https://github.com/carterlasalle/tracelayer.git`.
 
-Note: macOS ships a built-in `trace` (/usr/bin/trace, Apple Instruments).
-This project installs its `trace` binary to `~/.local/bin` — make sure it
-precedes `/usr/bin` in your PATH (`which trace` should not print
-`/usr/bin/trace`).
+Note: macOS ships a built-in `trace` (/usr/bin/trace, Apple Instruments),
+and some shells put `/usr/bin` ahead of `~/.local/bin` — which then shadows
+this project's binary. Both executables are installed, so use
+`tracelayer` where a collision bites (`tracelayer init`, `tracelayer
+verify`); it has no system counterpart. Check with `which trace` / `which
+tracelayer`.
 
 The first time you run `trace` outside a configured repository it prints
 next steps: `trace init` to enable traceability in the current repo, or
@@ -236,15 +238,16 @@ interface (the spec marks MCP as never required). `trace init` and
 Connect Claude Code:
 
 ```bash
-claude mcp add tracelayer -- uv run trace mcp
+claude mcp add tracelayer -- uv run tracelayer mcp
 ```
 
-Or add a project-level `.mcp.json` for any MCP client:
+Or add a project-level `.mcp.json` for any MCP client (written automatically
+by `trace init` / `trace install`):
 
 ```json
 {
   "mcpServers": {
-    "tracelayer": { "command": "trace", "args": ["mcp"] }
+    "tracelayer": { "command": "tracelayer", "args": ["mcp"] }
   }
 }
 ```

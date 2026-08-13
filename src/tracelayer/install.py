@@ -414,8 +414,12 @@ MCP_SERVER_NAME = "tracelayer"
 
 
 def mcp_config() -> dict:
-    """Project-level .mcp.json entry exposing the trace mcp server."""
-    return {"mcpServers": {MCP_SERVER_NAME: {"command": "trace", "args": ["mcp"]}}}
+    """Project-level .mcp.json entry exposing the trace mcp server.
+
+    Uses the `tracelayer` executable: `trace` collides with the macOS
+    system command (/usr/bin/trace) in some PATH orderings.
+    """
+    return {"mcpServers": {MCP_SERVER_NAME: {"command": "tracelayer", "args": ["mcp"]}}}
 
 
 def merge_mcp_json(root: Path) -> tuple[str, Path]:
@@ -436,7 +440,7 @@ def merge_mcp_json(root: Path) -> tuple[str, Path]:
     servers = existing.setdefault("mcpServers", {})
     if MCP_SERVER_NAME in servers:
         return "already-present", path
-    servers[MCP_SERVER_NAME] = {"command": "trace", "args": ["mcp"]}
+    servers[MCP_SERVER_NAME] = mcp_config()["mcpServers"][MCP_SERVER_NAME]
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")
     tmp.replace(path)

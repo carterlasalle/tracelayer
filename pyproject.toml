@@ -1,6 +1,6 @@
 [project]
 name = "tracelayer"
-version = "0.1.1"
+version = "0.1.2"
 description = "TraceLayer: agent-native software traceability system"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -41,6 +41,7 @@ Documentation = "https://github.com/carterlasalle/tracelayer#documentation"
 
 [project.scripts]
 trace = "tracelayer.cli:main"
+tracelayer = "tracelayer.cli:main"
 
 [build-system]
 requires = ["hatchling"]

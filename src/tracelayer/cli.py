@@ -315,8 +315,15 @@ def init(
         "--mcp/--no-mcp",
         help="Register the trace MCP server in .mcp.json (optional adapter, on by default)",
     ),
+    all_features: bool = typer.Option(
+        False,
+        "--all",
+        help="Initialize everything: config + policy + skill + claude hooks + mcp",
+    ),
 ) -> None:
     """Initialize .trace config, policy, .gitignore, and agent files (spec 28.1)."""
+    if all_features:
+        skill, claude, mcp = True, True, True
     root = _resolve_root(ctx, root)
     written = _run_init(
         root, observe=observe, skill=skill, claude=claude, agents_note=agents_note, mcp=mcp
