@@ -224,6 +224,33 @@ For existing repositories, `trace init --skill` copies the skill into
 registries (e.g. skills.sh, anthropics/skills) — it follows the standard
 layout and links references directly from `SKILL.md`.
 
+## MCP server (optional adapter)
+
+`trace mcp` exposes the query surface and the verify gate as MCP tools over
+stdio, so any MCP-capable agent can connect directly. It is deterministic,
+local, and optional — the skill + CLI + hooks remain the canonical
+interface (the spec marks MCP as never required).
+
+Connect Claude Code:
+
+```bash
+claude mcp add tracelayer -- uv run trace mcp
+```
+
+Or add a project-level `.mcp.json` for any MCP client:
+
+```json
+{
+  "mcpServers": {
+    "tracelayer": { "command": "trace", "args": ["mcp"] }
+  }
+}
+```
+
+Tools: `status`, `search`, `context`, `why`, `impact`, `verify`, `index`.
+`index` refreshes the graph from the repository (changed scope by default);
+the rest are read-only. Results are JSON text.
+
 ## Contributing
 
 TraceLayer uses protected, squash-only pull requests with required checks. Read [CONTRIBUTING.md](CONTRIBUTING.md) before making changes. Run `uv run trace docs generate --check` when editing protocol documentation and `trace verify --changed` before proposing a merge — this repository traces itself.

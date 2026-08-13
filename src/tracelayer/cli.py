@@ -35,6 +35,7 @@ from tracelayer.install import (
     merge_json_file,
     skill_installed,
 )
+from tracelayer.mcp import run_mcp
 from tracelayer.migration.codeops import MigrationItem, MigrationPlan
 from tracelayer.protocol.schema import markdown_docs
 from tracelayer.query.context import render_context_text
@@ -437,6 +438,22 @@ def install(
         note = hook_note(name)
         if note:
             typer.echo(f"  hooks note: {note}")
+
+
+@app.command()
+def mcp(ctx: typer.Context, root: Path | None = _root_opt()) -> None:
+    """Run the MCP stdio server (optional adapter).
+
+    Exposes status/search/context/why/impact/verify/index as MCP tools for
+    any MCP-capable agent. Deterministic and local; never required — the
+    skill + CLI + hooks are the canonical interface (spec Phase 10).
+    """
+    root = _resolve_root(ctx, root)
+    engine, _diags = _open(root)
+    try:
+        sys.exit(run_mcp(engine))
+    except KeyboardInterrupt:
+        sys.exit(0)
 
 
 @app.command()
