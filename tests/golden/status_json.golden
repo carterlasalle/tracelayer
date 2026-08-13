@@ -1,0 +1,12 @@
+{
+  "blocking_stale": 0,
+  "broken_refs": 0,
+  "changed_artifacts": 0,
+  "declared_edges": 9,
+  "evidence_runs": 0,
+  "lifecycle": "wip",
+  "nodes": 7,
+  "policy": "standard",
+  "structural_edges": 0,
+  "warnings": 0
+}

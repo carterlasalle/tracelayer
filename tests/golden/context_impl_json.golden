@@ -1,0 +1,44 @@
+{
+  "downstream": [
+    {
+      "predicate": "exercises",
+      "trace_id": "test.auth.refresh-reuse"
+    }
+  ],
+  "node_type": "implementation",
+  "path": "src/auth/tokens.py",
+  "provenance": {
+    "commits": [
+      "<sha>"
+    ],
+    "first_seen": "<sha>",
+    "last_modified": "<sha>"
+  },
+  "staleness": "current",
+  "status": "current",
+  "symbol": "src.auth.tokens.rotate_refresh_token",
+  "title": null,
+  "trace_id": "impl.auth.refresh",
+  "upstream": [
+    {
+      "predicate": "work",
+      "trace_id": "WORK-AUTH-237"
+    },
+    {
+      "predicate": "satisfies",
+      "trace_id": "REQ-AUTH-017"
+    },
+    {
+      "predicate": "implements",
+      "trace_id": "ADR-0042"
+    }
+  ],
+  "verification": [
+    {
+      "current": false,
+      "outcome": null,
+      "proof_level": 0,
+      "test_trace_id": "test.auth.refresh-reuse"
+    }
+  ]
+}

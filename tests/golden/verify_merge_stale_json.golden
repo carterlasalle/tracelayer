@@ -1,0 +1,71 @@
+{
+  "diagnostics": [
+    {
+      "lifecycle": "merge",
+      "message": "Changed requirement REQ-AUTH-017 has stale downstream node ADR-0042 (addresses edge)",
+      "path": "docs/reqs.md",
+      "remediation": "Review downstream relationships; run `trace review <id>` after confirming they still hold.",
+      "rule": "TL011",
+      "severity": "ERROR",
+      "trace_id": "REQ-AUTH-017"
+    },
+    {
+      "lifecycle": "merge",
+      "message": "Changed requirement REQ-AUTH-017 has stale downstream node impl.auth.refresh (satisfies edge)",
+      "path": "docs/reqs.md",
+      "remediation": "Review downstream relationships; run `trace review <id>` after confirming they still hold.",
+      "rule": "TL011",
+      "severity": "ERROR",
+      "trace_id": "REQ-AUTH-017"
+    },
+    {
+      "lifecycle": "merge",
+      "message": "Changed requirement REQ-AUTH-017 has stale downstream node test.auth.refresh-reuse (verifies edge)",
+      "path": "docs/reqs.md",
+      "remediation": "Review downstream relationships; run `trace review <id>` after confirming they still hold.",
+      "rule": "TL011",
+      "severity": "ERROR",
+      "trace_id": "REQ-AUTH-017"
+    },
+    {
+      "lifecycle": "merge",
+      "message": "Linked test test.auth.refresh-reuse (verifies REQ-AUTH-017) did not pass at revision <sha>",
+      "path": "tests/test_auth.py",
+      "remediation": "Run the linked tests and ingest results with `trace evidence ingest`.",
+      "rule": "TL021",
+      "severity": "ERROR",
+      "trace_id": "test.auth.refresh-reuse"
+    },
+    {
+      "lifecycle": "merge",
+      "message": "Stale node ADR-0042 blocks merge",
+      "path": "docs/adr.md",
+      "remediation": "Review or re-verify the stale relationship.",
+      "rule": "TL110",
+      "severity": "ERROR",
+      "trace_id": "ADR-0042"
+    },
+    {
+      "lifecycle": "merge",
+      "message": "Stale node impl.auth.refresh blocks merge",
+      "path": "src/auth/tokens.py",
+      "remediation": "Review or re-verify the stale relationship.",
+      "rule": "TL110",
+      "severity": "ERROR",
+      "trace_id": "impl.auth.refresh"
+    },
+    {
+      "lifecycle": "merge",
+      "message": "Stale node test.auth.refresh-reuse blocks merge",
+      "path": "tests/test_auth.py",
+      "remediation": "Review or re-verify the stale relationship.",
+      "rule": "TL110",
+      "severity": "ERROR",
+      "trace_id": "test.auth.refresh-reuse"
+    }
+  ],
+  "lifecycle": "merge",
+  "policy": "standard",
+  "schema": "tracelayer-verify/v1",
+  "status": "fail"
+}

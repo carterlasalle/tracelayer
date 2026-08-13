@@ -1,0 +1,46 @@
+[project]
+name = "tracelayer"
+version = "0.1.0"
+description = "TraceLayer: agent-native software traceability system"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "typer>=0.12",
+    "pydantic>=2.7",
+    "tree-sitter>=0.23",
+    "tree-sitter-language-pack>=0.3",
+    "pyyaml>=6.0",
+]
+
+
+[tool.ruff.lint.per-file-ignores]
+"src/tracelayer/cli.py" = ["B008"]
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "coverage>=7.6",
+    "hypothesis>=6.100",
+    "ruff>=0.6",
+]
+
+[project.scripts]
+trace = "tracelayer.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tracelayer"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = ["E501"]
