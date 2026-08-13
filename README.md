@@ -5,16 +5,42 @@
 **Agent-native software traceability: intent, implementation, verification, provenance, and evidence as a deterministic graph.**
 
 [![CI](https://img.shields.io/github/actions/workflow/status/carterlasalle/tracelayer/trace.yml?branch=master&label=CI)](https://github.com/carterlasalle/tracelayer/actions/workflows/trace.yml)
-![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)
+[![PyPI version](https://img.shields.io/pypi/v/tracelayer.svg)](https://pypi.org/project/tracelayer/)
+![Python](https://img.shields.io/pypi/pyversions/tracelayer.svg)
 ![uv](https://img.shields.io/badge/uv-managed-884AA8?logo=python&logoColor=white)
-![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
-![Tests](https://img.shields.io/badge/tests-709%20passing-brightgreen)
+![License](https://img.shields.io/pypi/l/tracelayer.svg)
 
 [Marker protocol](docs/marker-protocol.md) · [Relationships](docs/relationships.md) · [Concepts](docs/concepts.md) · [Policy](docs/policy.md) · [Hooks](docs/hooks.md) · [Evidence](docs/evidence.md) · [Security](docs/security.md)
 
 </div>
 
 TraceLayer makes the **why** of software traversable. One-line `trace:v1` markers declare the semantic relationships that cannot be derived — which work item produced a behavior, which requirement it satisfies, which tests intend to verify it. The engine derives everything else: AST symbol attachment, Git provenance, revision fingerprints, staleness, and runtime evidence. The result is a continuously verified trace graph that agents and reviewers can query instead of loading the whole repository.
+
+## Quickstart
+
+Install, trace a repository, and get your first answer in under a minute:
+
+```bash
+uv tool install tracelayer            # pipx install tracelayer also works
+
+cd your-repo
+trace init                            # writes .trace config; appends the invariant to AGENTS.md
+trace index --all                     # builds the trace graph
+trace verify --all                    # policy check (exit 0 = pass)
+trace context <trace-id>              # why does this exist, what verifies it
+```
+
+Trace a behavior by adding one line above it:
+
+```python
+# trace:v1 id=impl.demo satisfies=REQ-1
+def do_the_thing():
+    ...
+```
+
+then `trace index --all` again. Staleness, evidence, hooks, and the CI gate
+all build on this. Running `trace` outside a configured repository prints the
+`trace init` / `trace install` next steps.
 
 ## How it works
 
@@ -53,19 +79,17 @@ Markers are the authoring notation; the graph is the product. Paths, line number
 | Migration | CodeOps scan/plan/apply with deterministic classification, Scry detection, doctor diagnostics with rename suggestions |
 | Audit | Bounded deterministic audit packages for an independent semantic reviewer — no LLM required for the engine itself |
 
-## Quick start
+## Usage
 
 ### Install
 
-From the repository (no publish step needed):
-
 ```bash
-uv tool install git+https://github.com/carterlasalle/tracelayer.git
+uv tool install tracelayer            # PyPI; pipx install tracelayer also works
 trace --help
 ```
 
-Or install from a local checkout: `uv tool install .`. The wheel is verified
-against a clean venv with `uv build`; a PyPI publish is the planned next step.
+From a local checkout: `uv tool install .`. From the repository directly:
+`uv tool install git+https://github.com/carterlasalle/tracelayer.git`.
 
 The first time you run `trace` outside a configured repository it prints
 next steps: `trace init` to enable traceability in the current repo, or
