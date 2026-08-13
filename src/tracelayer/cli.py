@@ -466,6 +466,19 @@ def install(
                 f"unknown agent {name!r}; valid: {', '.join(sorted(INSTALL_AGENTS))}", err=True
             )
             raise typer.Exit(2)
+    _install_agents(root, targets, global_install=global_install, link=link, update=update)
+
+
+def _install_agents(
+    root: Path,
+    targets: list[str],
+    *,
+    global_install: bool,
+    link: bool = False,
+    update: bool = False,
+) -> None:
+    """Install/refresh skill + hooks for one or more agents (shared loop)."""
+    for name in targets:
         status, path = install_skill(
             name, None if global_install else root, link=link, force=update
         )
@@ -485,6 +498,30 @@ def install(
     if not global_install:
         mstatus, mpath = merge_mcp_json(root)
         typer.echo(f"mcp: {mstatus} -> {mpath}")
+
+
+@app.command()
+def update(
+    ctx: typer.Context,
+    global_install: bool = typer.Option(
+        False, "--global", "-g", help="Refresh global (user-level) copies instead of project scope"
+    ),
+) -> None:
+    """Refresh skill copies and hooks for every detected agent.
+
+    Run after upgrading the tool: propagates updated skill/hook content
+    into existing installs (project scope by default).
+    """
+    root = _resolve_root(ctx, None)
+    targets = sorted(detect_agents())
+    if not targets:
+        typer.echo(
+            "no agents detected; run `trace install --list` or pass "
+            f"--agent ({', '.join(sorted(INSTALL_AGENTS))}) via `trace install`",
+            err=True,
+        )
+        raise typer.Exit(2)
+    _install_agents(root, targets, global_install=global_install, update=True)
 
 
 @app.command()

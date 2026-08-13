@@ -233,8 +233,8 @@ configs for pi (`.pi/hooks.json` + wrapper), omp (`.omp/hook/hooks.yaml` +
 extension gate), and opencode (`opencode.json`) — each with an activation
 note (e.g. `pi install npm:@hsingjui/pi-hooks`, `/hooks-trust` in omp).
 After upgrading the tool, refresh installed copies with
-`trace install --update`. The same skill is installable through the
-skills.sh ecosystem:
+`tracelayer update` (or `trace install --update`). The same skill is
+installable through the skills.sh ecosystem:
 
 ```bash
 npx skills add carterlasalle/tracelayer --agent claude-code

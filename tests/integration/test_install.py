@@ -182,6 +182,20 @@ def test_init_installs_skill_and_hooks_for_detected_agents(tmp_path):
     assert (repo / ".mcp.json").exists()
 
 
+def test_update_refreshes_installed_copies(tmp_path):
+    home = tmp_path / "home"
+    (home / ".claude").mkdir(parents=True)
+    repo = make_git_repo(tmp_path, {"a.py": "x = 1\n"})
+    run_trace(repo, "init", env=_env(tmp_path))
+    skill = repo / ".claude" / "skills" / "traceability" / "SKILL.md"
+    skill.write_text("stale skill content\n", encoding="utf-8")
+    r = run_trace(repo, "update", env=_env(tmp_path))
+    assert r.returncode == 0, r.stderr
+    assert "claude-code:" in r.stdout
+    assert "stale skill content" not in skill.read_text()
+    assert "How enforcement works" in skill.read_text()
+
+
 def test_bundled_skill_dir_found():
     from tracelayer.install import bundled_skill_dir
 
