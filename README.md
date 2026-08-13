@@ -4,7 +4,7 @@
 
 **Agent-native software traceability: intent, implementation, verification, provenance, and evidence as a deterministic graph.**
 
-[![CI](https://github.com/carterlasalle/tracelayer/actions/workflows/trace.yml/badge.svg)](https://github.com/carterlasalle/tracelayer/actions/workflows/trace.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/carterlasalle/tracelayer/trace.yml?branch=master&label=CI)](https://github.com/carterlasalle/tracelayer/actions/workflows/trace.yml)
 ![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)
 ![uv](https://img.shields.io/badge/uv-managed-884AA8?logo=python&logoColor=white)
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
