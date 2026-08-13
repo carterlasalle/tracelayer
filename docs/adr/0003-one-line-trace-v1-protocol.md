@@ -1,10 +1,10 @@
-# ADR-0003: One-line trace:v1 protocol
+# ADR-0003: One-line marker protocol
 
 **Status:** Accepted
 
 ## Context
 
-Markers must be grep-friendly (`rg 'trace:v1'`), reviewable in Git, and
+Markers must be grep-friendly (a single ripgrep match), reviewable in Git, and
 versioned.
 
 ## Decision

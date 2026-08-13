@@ -69,14 +69,18 @@ def _callback(
     ),
 ) -> None:
     """Global options; commands may also pass ``-C`` after the subcommand."""
-    ctx.obj = {"root": (root or Path.cwd()).resolve(), "debug": debug}
+    root = root.resolve()
+    ctx.obj = {"root": root, "debug": debug}
+    _maybe_hint_unconfigured(root)
 
 
-def _maybe_hint_unconfigured() -> None:
+def _maybe_hint_unconfigured(root: Path) -> None:
     """First-run guidance: printing install next steps when the repo isn't traced.
 
     `uv tool install` cannot run post-install scripts, so the message appears
     on the first command run outside a configured repository instead.
+    Keyed to the resolved ``--root`` (what commands actually operate on),
+    not the process cwd.
     """
     args = sys.argv[1:]
     if not args:
@@ -85,7 +89,7 @@ def _maybe_hint_unconfigured() -> None:
         return
     if any(a in ("init", "install", "--help", "-h", "--version") for a in args):
         return
-    if (Path.cwd() / ".trace" / "trace.toml").exists():
+    if (root / ".trace" / "trace.toml").exists():
         return
     typer.echo(
         "TraceLayer is not configured in this repository.\n"
@@ -98,7 +102,6 @@ def _maybe_hint_unconfigured() -> None:
 
 def main() -> None:
     """Console-script entrypoint (pyproject ``[project.scripts] trace``)."""
-    _maybe_hint_unconfigured()
     app()
 
 

@@ -1,4 +1,4 @@
-# Marker comment for fixtures (not parsed as a real marker: no trace:v1 prefix).
+# Marker comment for fixtures (deliberately not a real marker).
 
 
 def foo(a: int, b: int) -> int:

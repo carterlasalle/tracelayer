@@ -1,7 +1,7 @@
 """CodeOps migration: scan, plan, apply (spec Section 33, contract §M).
 
 Reads legacy ``codeops:trace`` annotations and proposes first-class
-``trace:v1`` markers. Classification is deterministic from marker content plus
+markers. Classification is deterministic from marker content plus
 attachment context (test-file detection by path). ``apply_plan`` rewrites ONLY
 items classified ``deterministic`` or ``high_confidence``; everything else is
 left for human/agent review per spec 33.3 ("never perform semantic rewrites in
@@ -119,7 +119,7 @@ class MigrationItem:
     path: str
     line: int
     classification: str  # deterministic|high_confidence|requires_review|dropped|derived
-    new_marker: str | None  # canonical trace:v1 line or None
+    new_marker: str | None  # canonical marker line or None
     note: str
     diagnostics: list[Diagnostic] = field(default_factory=list)
     raw: str = ""  # original codeops line (for unchanged detection)
@@ -269,7 +269,7 @@ def scan_codeops(root: Path, config: TraceConfig) -> tuple[list[CodeOpsMarker], 
                 continue
             idx = line.index(CODEOPS_PREFIX)
             payload = line[idx + len(CODEOPS_PREFIX) :]
-            # Block-comment closers that share the line (mirrors the trace:v1
+            # Block-comment closers that share the line (mirrors the marker
             # grammar); a value containing `-->` cannot be represented.
             payload = payload.split("-->", 1)[0].split("*/", 1)[0]
             fields, fdiags = _parse_fields(payload, rel, i)
