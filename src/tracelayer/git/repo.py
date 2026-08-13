@@ -70,6 +70,10 @@ class GitRepo:
         """Repository top-level directory."""
         return self._root
 
+    def run(self, *args: str) -> subprocess.CompletedProcess[str]:
+        """Run a git command confined to the repo root (argv only, no shell)."""
+        return _run_git(self._root, *args)
+
     def rev(self) -> str | None:
         """HEAD commit SHA, or None when unavailable (e.g. unborn HEAD)."""
         try:
