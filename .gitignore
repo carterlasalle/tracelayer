@@ -12,3 +12,6 @@ htmlcov/
 .mypy_cache/
 node_modules/
 .serena/
+
+# Local agent-skill copy from `tracelayer init --all` (canonical: skills/traceability).
+.agents/
