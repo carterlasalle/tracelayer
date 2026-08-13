@@ -4,6 +4,6 @@ from __future__ import annotations
 
 from tracelayer.engine import Engine, TraceRepository
 
-__version__ = "0.1.6"
+__version__ = "0.1.7"
 
 __all__ = ["Engine", "TraceRepository"]
