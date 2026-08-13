@@ -3,10 +3,19 @@
 from __future__ import annotations
 
 import os
+from typing import Any
 
 from tree_sitter_language_pack import get_parser
 
-from tracelayer.symbols.base import SymbolRef
+from tracelayer.symbols.base import (
+    SymbolRef,
+    line_starts,
+    no_cyclic_gc,
+    symbol_lines,
+)
+from tracelayer.symbols.base import (
+    ast_normalized as _ast_normalized,
+)
 
 
 def _module_path(path: str) -> str:
@@ -40,56 +49,58 @@ class JavaParser:
     def parse(self, text: str, path: str) -> list[SymbolRef]:
         out: list[SymbolRef] = []
         try:
-            tree = self.parser.parse(text.encode("utf-8"))
-            self._walk(tree.root_node, _module_path(path), text, out, ())
+            with no_cyclic_gc():
+                data = text.encode("utf-8")
+                tree = self.parser.parse(data)
+                self._walk(tree.root_node, _module_path(path), data, out, ())
         except Exception:
             pass  # malformed source: return symbols parsed so far
         return out
 
     def ast_normalized(self, source: str) -> str:
-        """Conservative AST normalization: str(root) includes source text."""
-        return str(self.parser.parse(source.encode("utf-8")).root_node)
+        return _ast_normalized(source, self.parser)
 
-    def _walk(self, node, module: str, text: str, out: list[SymbolRef],
+    def _walk(self, root, module: str, data: bytes, out: list[SymbolRef],
               enclosing: tuple[str, ...]) -> None:
-        ntype = node.type
-        if ntype in _KIND_BY_TYPE:
-            self._type(node, module, text, out, enclosing)
-            return
-        if ntype in ("method_declaration", "constructor_declaration"):
-            self._member(node, module, text, out, enclosing, ntype)
-            return
-        for child in node.children:
-            self._walk(child, module, text, out, enclosing)
+        """Iterative DFS: deep source files cannot overflow the interpreter stack."""
+        pending: list[tuple[Any, tuple[str, ...]]] = [(root, enclosing)]
+        while pending:
+            node, enc = pending.pop()
+            ntype = node.type
+            if ntype in _KIND_BY_TYPE:
+                name_node = node.child_by_field_name("name")
+                if name_node is not None:
+                    name = name_node.text.decode("utf-8")
+                    out.append(
+                        self._ref(node, data, _KIND_BY_TYPE[ntype], name,
+                                  self._qname(module, enc, name))
+                    )
+                    pending.extend(
+                        (c, enc + (name,)) for c in reversed(node.children)
+                    )
+                continue
+            if ntype in ("method_declaration", "constructor_declaration"):
+                self._member(node, module, data, out, enc, ntype)
+                continue
+            pending.extend((c, enc) for c in reversed(node.children))
 
-    def _type(self, node, module: str, text: str, out: list[SymbolRef],
-              enclosing: tuple[str, ...]) -> None:
-        name_node = node.child_by_field_name("name")
-        if name_node is None:
-            return
-        name = name_node.text.decode("utf-8")
-        kind = _KIND_BY_TYPE[node.type]
-        out.append(self._ref(node, text, kind, name, self._qname(module, enclosing, name)))
-        for child in node.children:
-            self._walk(child, module, text, out, enclosing + (name,))
-
-    def _member(self, node, module: str, text: str, out: list[SymbolRef],
+    def _member(self, node, module: str, data: bytes, out: list[SymbolRef],
                 enclosing: tuple[str, ...], ntype: str) -> None:
         name_node = node.child_by_field_name("name")
         if name_node is None:
             return
         name = name_node.text.decode("utf-8")
         kind = "method" if ntype == "method_declaration" else "constructor"
-        out.append(self._ref(node, text, kind, name, self._qname(module, enclosing, name)))
+        out.append(self._ref(node, data, kind, name, self._qname(module, enclosing, name)))
 
     @staticmethod
     def _qname(module: str, enclosing: tuple[str, ...], name: str) -> str:
         return ".".join((module, *enclosing, name))
 
     @staticmethod
-    def _ref(node, text: str, kind: str, name: str, qname: str) -> SymbolRef:
+    def _ref(node, data: bytes, kind: str, name: str, qname: str) -> SymbolRef:
         return SymbolRef(
             "java", kind, name, qname,
-            node.start_point.row + 1, node.end_point.row + 1,
-            text[node.start_byte:node.end_byte],
+            *symbol_lines(line_starts(data), node.start_byte, node.end_byte),
+            data[node.start_byte:node.end_byte].decode("utf-8", "replace"),
         )

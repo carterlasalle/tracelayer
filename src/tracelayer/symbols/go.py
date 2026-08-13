@@ -6,7 +6,7 @@ import os
 
 from tree_sitter_language_pack import get_parser
 
-from tracelayer.symbols.base import SymbolRef
+from tracelayer.symbols.base import SymbolRef, line_starts, no_cyclic_gc, symbol_lines
 
 
 def _module_path(path: str) -> str:
@@ -43,30 +43,33 @@ class GoParser:
         module = _module_path(path)
         out: list[SymbolRef] = []
         try:
-            tree = self.parser.parse(text.encode("utf-8"))
-            for node in tree.root_node.children:
-                if node.type == "function_declaration":
-                    self._function(node, module, text, out)
-                elif node.type == "method_declaration":
-                    self._method(node, module, text, out)
-                elif node.type == "type_declaration":
-                    self._type_decl(node, module, text, out)
+            with no_cyclic_gc():
+                data = text.encode("utf-8")
+                tree = self.parser.parse(data)
+                for node in tree.root_node.children:
+                    if node.type == "function_declaration":
+                        self._function(node, module, data, out)
+                    elif node.type == "method_declaration":
+                        self._method(node, module, data, out)
+                    elif node.type == "type_declaration":
+                        self._type_decl(node, module, data, out)
         except Exception:
             pass  # malformed source: return symbols parsed so far
         return out
 
     def ast_normalized(self, source: str) -> str:
         """Conservative AST normalization: str(root) includes source text."""
-        return str(self.parser.parse(source.encode("utf-8")).root_node)
+        with no_cyclic_gc():
+            return str(self.parser.parse(source.encode("utf-8")).root_node)
 
-    def _function(self, node, module: str, text: str, out: list[SymbolRef]) -> None:
+    def _function(self, node, module: str, data: bytes, out: list[SymbolRef]) -> None:
         name_node = node.child_by_field_name("name")
         if name_node is None:
             return
         name = name_node.text.decode("utf-8")
-        out.append(self._ref(node, text, "function", name, f"{module}.{name}"))
+        out.append(self._ref(node, data, "function", name, f"{module}.{name}"))
 
-    def _method(self, node, module: str, text: str, out: list[SymbolRef]) -> None:
+    def _method(self, node, module: str, data: bytes, out: list[SymbolRef]) -> None:
         name_node = node.child_by_field_name("name")
         receiver = node.child_by_field_name("receiver")
         if name_node is None or receiver is None:
@@ -74,9 +77,9 @@ class GoParser:
         name = name_node.text.decode("utf-8")
         recv = _receiver_type(receiver)
         qname = f"{module}.{recv}.{name}" if recv else f"{module}.{name}"
-        out.append(self._ref(node, text, "method", name, qname))
+        out.append(self._ref(node, data, "method", name, qname))
 
-    def _type_decl(self, node, module: str, text: str, out: list[SymbolRef]) -> None:
+    def _type_decl(self, node, module: str, data: bytes, out: list[SymbolRef]) -> None:
         for spec in node.children:
             if spec.type != "type_spec":
                 continue
@@ -93,12 +96,13 @@ class GoParser:
             if name_node is None:
                 continue
             name = name_node.text.decode("utf-8")
-            out.append(self._ref(spec, text, kind, name, f"{module}.{name}"))
+            out.append(self._ref(spec, data, kind, name, f"{module}.{name}"))
 
     @staticmethod
-    def _ref(node, text: str, kind: str, name: str, qname: str) -> SymbolRef:
+    def _ref(node, data: bytes, kind: str, name: str, qname: str) -> SymbolRef:
+        starts = line_starts(data)
+        start_line, end_line = symbol_lines(starts, node.start_byte, node.end_byte)
         return SymbolRef(
-            "go", kind, name, qname,
-            node.start_point.row + 1, node.end_point.row + 1,
-            text[node.start_byte:node.end_byte],
+            "go", kind, name, qname, start_line, end_line,
+            data[node.start_byte:node.end_byte].decode("utf-8", "replace"),
         )

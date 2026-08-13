@@ -9,6 +9,7 @@ from tracelayer.symbols.base import (
     ast_normalized,
     collect_symbols,
     module_path,
+    no_cyclic_gc,
 )
 
 
@@ -22,11 +23,12 @@ class PythonParser:
         """Parse Python definitions; malformed source returns symbols so far."""
         out: list[SymbolRef] = []
         try:
-            data = text.encode("utf-8")
-            tree = self._parser.parse(data)
-            out = collect_symbols(
-                tree.root_node, data, self.language, module_path(path), self._symbol_info
-            )
+            with no_cyclic_gc():
+                data = text.encode("utf-8")
+                tree = self._parser.parse(data)
+                out = collect_symbols(
+                    tree.root_node, data, self.language, module_path(path), self._symbol_info
+                )
         except Exception:
             pass  # malformed source: return whatever was collected
         return out

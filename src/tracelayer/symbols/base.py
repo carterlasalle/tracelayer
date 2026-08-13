@@ -7,9 +7,12 @@ walker, and the deterministic marker-attachment rule.
 
 from __future__ import annotations
 
+import bisect
+import gc
 import hashlib
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -20,6 +23,61 @@ from tracelayer.protocol import MarkerHit
 SymbolInfo = tuple[str, str]  # (kind, name) for a definition node
 
 _PARSER_CACHE: dict[str, Any] = {}
+
+
+_GC_LOCKED_OFF = False
+
+
+def line_starts(data: bytes) -> list[int]:
+    """Offsets (0-based) of each line's first byte, plus a len(data) sentinel."""
+    starts = [0]
+    for i, b in enumerate(data):
+        if b == 0x0A:
+            starts.append(i + 1)
+    starts.append(len(data))
+    return starts
+
+
+def line_at(starts: list[int], byte: int) -> int:
+    """1-based line number containing the given byte offset (clamped)."""
+    return bisect.bisect_right(starts, byte)
+
+
+def symbol_lines(starts: list[int], start_byte: int, end_byte: int) -> tuple[int, int]:
+    """1-based inclusive line range for a node's [start_byte, end_byte) span."""
+    start_line = line_at(starts, start_byte)
+    end_line = line_at(starts, max(end_byte - 1, start_byte))
+    return start_line, end_line
+
+
+def ensure_tree_sitter_gc_safety() -> None:
+    """Disable the cyclic collector once, permanently, before tree-sitter use.
+
+    The tree-sitter Python binding's finalizers are unsafe under the cyclic
+    collector: an automatic collection (or even an explicit ``gc.collect()``)
+    while tree-sitter trees/parsers exist segfaults or bus-errors
+    nondeterministically (reproduced on macOS arm64 with tree-sitter 0.25 and
+    0.26 while indexing a 1k-line module). The parser cache keeps trees alive
+    across calls, so there is no safe point to re-enable. Reference counting
+    still collects normal objects; the only cost is that true reference
+    cycles are reclaimed at process exit instead of eagerly.
+    """
+    global _GC_LOCKED_OFF
+    if not _GC_LOCKED_OFF:
+        gc.disable()
+        _GC_LOCKED_OFF = True
+
+
+@contextmanager
+def no_cyclic_gc() -> Iterator[None]:
+    """Ensure the cyclic collector is off for a tree-sitter traversal.
+
+    Calls :func:`ensure_tree_sitter_gc_safety` (idempotent) so direct parser
+    use is protected too; the collector stays off for the process lifetime per
+    the tree-sitter binding bug documented there.
+    """
+    ensure_tree_sitter_gc_safety()
+    yield
 
 
 def _parser_for(language: str) -> Any:
@@ -54,9 +112,36 @@ class SymbolParser(Protocol):
 
 
 def ast_normalized(source: str, parser: Any) -> str:
-    """Parse source and render the root node s-expression (formatting-sensitive)."""
-    tree = parser.parse(source.encode("utf-8"))
-    return str(tree.root_node)
+    """Canonical, deterministic AST serialization (text-sensitive).
+
+    Renders an s-expression of node types with leaf-token text included, so
+    literal changes (``return 1`` -> ``return 2``) change the fingerprint
+    while inter-token whitespace does not. It deliberately does NOT use
+    ``str(root_node)``: the tree-sitter repr embeds ``start_point`` /
+    ``end_point`` positions, whose access across parses segfaults the process
+    (see :func:`no_cyclic_gc`). The walk is iterative so deep trees cannot
+    overflow the interpreter stack.
+    """
+    with no_cyclic_gc():
+        data = source.encode("utf-8")
+        tree = parser.parse(data)
+        parts: list[str] = []
+        stack: list[tuple[Any, bool]] = [(tree.root_node, False)]
+        while stack:
+            node, close = stack.pop()
+            if close:
+                parts.append(")")
+                continue
+            parts.append(f"({node.type}")
+            stack.append((node, True))
+            children = node.children
+            if not children:
+                parts.append(
+                    f'"{data[node.start_byte:node.end_byte].decode("utf-8", "replace")}"'
+                )
+            else:
+                stack.extend((c, False) for c in reversed(children))
+        return " ".join(parts)
 
 
 def module_path(path: str) -> str:
@@ -80,41 +165,54 @@ def collect_symbols(
     non-symbol scope (e.g. TypeScript namespaces) whose name is pushed onto the
     qualified-name stack without emitting a symbol. Symbols are emitted in
     document order, so markers attach to the nearest following definition.
+
+    The walk is iterative (explicit stack) so deeply nested source files can
+    never overflow the interpreter stack: an unbounded recursive walker
+    segfaulted on nested expressions in real repositories.
     """
     out: list[SymbolRef] = []
-
-    def rec(node: Any, stack: list[str], in_class: bool) -> None:
-        info = symbol_info(node, in_class)
-        if info is not None:
-            kind, name = info
-            qualified = ".".join(p for p in (module, *stack, name) if p)
-            out.append(
-                SymbolRef(
-                    language=language,
-                    kind=kind,
-                    name=name,
-                    qualified_name=qualified,
-                    start_line=node.start_point.row + 1,
-                    end_line=node.end_point.row + 1,
-                    source=text[node.start_byte : node.end_byte].decode("utf-8"),
+    # Line numbers come from newline offsets, never from node.start_point /
+    # end_point: the tree-sitter binding segfaults nondeterministically when
+    # point positions are read across parses (see no_cyclic_gc docstring).
+    starts = line_starts(text)
+    # (node, name_stack, in_class); name_stack is shared per branch so
+    # qualified names follow document order exactly like the recursive walk.
+    with no_cyclic_gc():
+        pending: list[tuple[Any, list[str], bool]] = [(root, [], False)]
+        while pending:
+            node, stack, in_class = pending.pop()
+            info = symbol_info(node, in_class)
+            if info is not None:
+                kind, name = info
+                qualified = ".".join(p for p in (module, *stack, name) if p)
+                start_line, end_line = symbol_lines(
+                    starts, node.start_byte, node.end_byte
                 )
-            )
-            stack.append(name)
-            for child in node.children:
-                rec(child, stack, in_class or kind == "class")
-            stack.pop()
-            return
-        scope = scope_name(node) if scope_name is not None else None
-        if scope is not None:
-            stack.append(scope)
-            for child in node.children:
-                rec(child, stack, in_class)
-            stack.pop()
-            return
-        for child in node.children:
-            rec(child, stack, in_class)
-
-    rec(root, [], False)
+                out.append(
+                    SymbolRef(
+                        language=language,
+                        kind=kind,
+                        name=name,
+                        qualified_name=qualified,
+                        start_line=start_line,
+                        end_line=end_line,
+                        source=text[node.start_byte : node.end_byte].decode("utf-8"),
+                    )
+                )
+                child_stack = [*stack, name]
+                child_class = in_class or kind == "class"
+                pending.extend(
+                    (c, child_stack, child_class) for c in reversed(node.children)
+                )
+                continue
+            scope = scope_name(node) if scope_name is not None else None
+            if scope is not None:
+                child_stack = [*stack, scope]
+                pending.extend(
+                    (c, child_stack, in_class) for c in reversed(node.children)
+                )
+                continue
+            pending.extend((c, stack, in_class) for c in reversed(node.children))
     return out
 
 

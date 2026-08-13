@@ -6,7 +6,7 @@ import importlib
 
 from tree_sitter_language_pack import get_parser as _pack_get_parser
 
-from tracelayer.symbols.base import SymbolParser
+from tracelayer.symbols.base import SymbolParser, ensure_tree_sitter_gc_safety
 
 # Language name -> parser class name, imported lazily on first use.
 _CLASSES: dict[str, str] = {
@@ -35,6 +35,7 @@ def get_parser(language: str) -> SymbolParser:
     if language not in _CLASSES:
         raise ValueError(f"unsupported language: {language!r}")
     if language not in _instances:
+        ensure_tree_sitter_gc_safety()
         module = importlib.import_module(f"tracelayer.symbols.{language}")
         cls = getattr(module, _CLASSES[language])
         _instances[language] = cls(_pack_get_parser(language))
