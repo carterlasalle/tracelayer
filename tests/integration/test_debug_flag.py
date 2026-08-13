@@ -13,7 +13,8 @@ def test_debug_index_emits_stage_stats(tmp_path):
     })
     r = run_trace(repo, "--debug", "index", "--all")
     assert r.returncode == 0
-    payload = json.loads(r.stderr.strip())
+    # The first-run hint may precede the JSON line on unconfigured repos.
+    payload = json.loads(r.stderr.strip().splitlines()[-1])
     assert payload["command"] == "index"
     assert payload["nodes"] == 1
     assert "files_scanned" in payload["per_stage"]
@@ -27,7 +28,7 @@ def test_debug_verify_emits_diagnostics_count(tmp_path):
     assert run_trace(repo, "index", "--all").returncode == 0
     r = run_trace(repo, "--debug", "verify", "--all")
     assert r.returncode == 0
-    payload = json.loads(r.stderr.strip())
+    payload = json.loads(r.stderr.strip().splitlines()[-1])
     assert payload["command"] == "verify"
     assert payload["lifecycle"] == "wip"
     assert "diagnostics" in payload
@@ -39,4 +40,6 @@ def test_no_debug_keeps_stderr_clean(tmp_path):
     })
     r = run_trace(repo, "index", "--all")
     assert r.returncode == 0
-    assert r.stderr.strip() == ""
+    # No JSON diagnostics on stderr; at most the first-run hint.
+    assert "files_scanned" not in r.stderr
+    assert r.stderr.strip() == "" or "trace init" in r.stderr

@@ -30,9 +30,13 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --frozen
+        env:
+          TRACE_NO_HINT: "1"
 
       - name: Deterministic trace validation
         run: uv run trace verify --changed --lifecycle merge
+        env:
+          TRACE_NO_HINT: "1"
 
       - name: Test with machine-readable results and coverage
         run: ./scripts/test-with-trace-evidence.sh

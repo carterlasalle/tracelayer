@@ -67,6 +67,11 @@ trace --help
 Or install from a local checkout: `uv tool install .`. The wheel is verified
 against a clean venv with `uv build`; a PyPI publish is the planned next step.
 
+The first time you run `trace` outside a configured repository it prints
+next steps: `trace init` to enable traceability in the current repo, or
+`trace install` to install the skill and hooks into your agent harnesses
+globally. Set `TRACE_NO_HINT=1` to silence that message (e.g. in CI).
+
 ### Prerequisites
 
 - Python `3.12+`
@@ -150,13 +155,23 @@ TraceLayer sits in the coding-agent control loop, so correctness is fail-closed 
 ## Installing the agent skill
 
 The canonical skill (canonical layout: `SKILL.md` + `README.md` +
-`references/`) lives in [`skills/traceability/`](skills/traceability/README.md).
-Install it into your harness with:
+`references/`) lives in [`skills/traceability/`](skills/traceability/README.md)
+and is bundled with the installed package. Install it with `trace install`:
 
 ```bash
-scripts/install-skill.sh --claude --omp      # ~/.claude/skills and ~/.omp/skills
-scripts/install-skill.sh --repo /path/to/repo   # repository-local .agents/skills
-scripts/install-skill.sh --link              # symlink for development
+trace install --list                     # detect agents and install state
+trace install --agent claude-code        # project scope (.claude/skills)
+trace install --agent claude-code --global --yes   # ~/.claude/skills
+trace install --yes                      # all detected agents, non-interactive
+```
+
+Hooks are merged for claude-code (`.claude/settings.json`) and codex
+(`.codex/hooks.json`) in project scope; other agents get the skill only —
+see `adapters/<harness>/README.md` for their hook setup. The same skill is
+installable through the skills.sh ecosystem:
+
+```bash
+npx skills add carterlasalle/tracelayer --agent claude-code
 ```
 
 For existing repositories, `trace init --skill` copies the skill into

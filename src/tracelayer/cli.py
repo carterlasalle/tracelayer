@@ -10,6 +10,7 @@ failure when required) and 1 for any blocked hook decision.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import sqlite3
 import sys
@@ -22,6 +23,16 @@ from tracelayer.config import default_policy_toml, default_trace_toml
 from tracelayer.diagnostics import SEVERITY_ERROR, Diagnostic
 from tracelayer.engine import Engine
 from tracelayer.graph.traverse import Subgraph
+from tracelayer.install import AGENTS as INSTALL_AGENTS
+from tracelayer.install import (
+    append_agents_note,
+    bundled_skill_dir,
+    detect_agents,
+    hook_config_for,
+    install_skill,
+    merge_json_file,
+    skill_installed,
+)
 from tracelayer.migration.codeops import MigrationItem, MigrationPlan
 from tracelayer.protocol.schema import markdown_docs
 from tracelayer.query.context import render_context_text
@@ -56,8 +67,33 @@ def _callback(
     ctx.obj = {"root": (root or Path.cwd()).resolve(), "debug": debug}
 
 
+def _maybe_hint_unconfigured() -> None:
+    """First-run guidance: printing install next steps when the repo isn't traced.
+
+    `uv tool install` cannot run post-install scripts, so the message appears
+    on the first command run outside a configured repository instead.
+    """
+    args = sys.argv[1:]
+    if not args:
+        return
+    if os.environ.get("TRACE_NO_HINT"):
+        return
+    if any(a in ("init", "install", "--help", "-h", "--version") for a in args):
+        return
+    if (Path.cwd() / ".trace" / "trace.toml").exists():
+        return
+    typer.echo(
+        "TraceLayer is not configured in this repository.\n"
+        "  - trace init            enable traceability here\n"
+        "  - trace install         install the skill + hooks into agent harnesses\n"
+        "  - trace install --list  see detected agents",
+        err=True,
+    )
+
+
 def main() -> None:
     """Console-script entrypoint (pyproject ``[project.scripts] trace``)."""
+    _maybe_hint_unconfigured()
     app()
 
 
@@ -260,11 +296,14 @@ def init(
     root: Path | None = _root_opt(),
     observe: bool = typer.Option(False, "--observe", help="Initialize without a policy file"),
     skill: bool = typer.Option(False, "--skill", help="Copy the traceability skill into .agents/skills/"),
-    claude: bool = typer.Option(False, "--claude", help="Write .claude/settings.json from the adapter template"),
+    claude: bool = typer.Option(False, "--claude", help="Merge TraceLayer hooks into .claude/settings.json"),
+    agents_note: bool = typer.Option(True, "--agents-note/--no-agents-note",
+                                     help="Append the trace invariant to AGENTS.md/CLAUDE.md"),
 ) -> None:
-    """Initialize .trace config, policy, and .gitignore entries (spec 28.1)."""
+    """Initialize .trace config, policy, .gitignore, and agent files (spec 28.1)."""
     root = _resolve_root(ctx, root)
-    written = _run_init(root, observe=observe, skill=skill, claude=claude)
+    written = _run_init(root, observe=observe, skill=skill, claude=claude,
+                        agents_note=agents_note)
     if written:
         for p in written:
             typer.echo(f"wrote {p.relative_to(root)}")
@@ -272,7 +311,8 @@ def init(
         typer.echo("nothing to do; files already present")
 
 
-def _run_init(root: Path, *, observe: bool, skill: bool, claude: bool) -> list[Path]:
+def _run_init(root: Path, *, observe: bool, skill: bool, claude: bool,
+              agents_note: bool = True) -> list[Path]:
     root = root.resolve()
     dot = root / ".trace"
     dot.mkdir(parents=True, exist_ok=True)
@@ -293,19 +333,82 @@ def _run_init(root: Path, *, observe: bool, skill: bool, claude: bool) -> list[P
         gi.write_text(content, encoding="utf-8")
         written.append(gi)
     if skill:
-        src = root / "skills" / "traceability"
         dst = root / ".agents" / "skills" / "traceability"
-        if src.is_dir() and not dst.exists():
-            shutil.copytree(src, dst)
+        if not dst.exists():
+            shutil.copytree(bundled_skill_dir(), dst)
             written.append(dst)
     if claude:
-        tpl = root / "adapters" / "claude-code" / "settings.template.json"
-        dst = root / ".claude" / "settings.json"
-        if tpl.exists() and not dst.exists():
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            dst.write_text(tpl.read_text(encoding="utf-8"), encoding="utf-8")
-            written.append(dst)
+        _, config = hook_config_for("claude-code", root)
+        path = root / ".claude" / "settings.json"
+        status, _ = merge_json_file(path, config)
+        if status != "already-installed":
+            written.append(path)
+    if agents_note:
+        status, path = append_agents_note(root)
+        if status == "appended" and path is not None:
+            written.append(path)
     return written
+
+
+@app.command()
+def install(
+    ctx: typer.Context,
+    agent: list[str] | None = typer.Option(
+        None, "--agent", "-a",
+        help="Target agent(s), repeatable: claude-code, codex, pi, omp, hermes-agent, opencode, cursor, generic",
+    ),
+    global_install: bool = typer.Option(False, "--global", "-g", help="Install to user-wide agent dirs"),
+    link: bool = typer.Option(False, "--link", help="Symlink the skill instead of copying"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip prompts; install to all detected agents"),
+    list_only: bool = typer.Option(False, "--list", "-l", help="List detected agents and install state"),
+) -> None:
+    """Install the traceability skill (and hooks) into agent harnesses.
+
+    Project scope (default) installs into the repository's agent directories;
+    --global installs into ~/<agent>/skills. Skill directories follow the
+    skills.sh agent-directory table so `npx skills add` and this command
+    agree. Hooks are JSON-merged for claude-code (.claude/settings.json) and
+    codex (.codex/hooks.json); other agents get the skill only.
+    """
+    root = _resolve_root(ctx, None)
+    if list_only:
+        detected = set(detect_agents())
+        for name in sorted(INSTALL_AGENTS):
+            installed = skill_installed(name, None if global_install else root)
+            marker = "*" if name in detected else " "
+            typer.echo(f"{marker} {name:<14} {'installed' if installed else 'not installed'}")
+        return
+    targets = list(agent) if agent else []
+    if not targets:
+        targets = detect_agents()
+        if not targets:
+            typer.echo(
+                "no agents detected; pass --agent explicitly "
+                f"({', '.join(sorted(INSTALL_AGENTS))})",
+                err=True,
+            )
+            raise typer.Exit(2)
+        if not yes and len(targets) > 1:
+            keep: list[str] = []
+            for name in targets:
+                if typer.confirm(f"Install into {name}?"):
+                    keep.append(name)
+            targets = keep
+    for name in targets:
+        if name not in INSTALL_AGENTS:
+            typer.echo(f"unknown agent {name!r}; valid: {', '.join(sorted(INSTALL_AGENTS))}",
+                       err=True)
+            raise typer.Exit(2)
+        status, path = install_skill(name, None if global_install else root, link=link)
+        typer.echo(f"{name}: {status} -> {path}")
+        hooks = hook_config_for(name, None if global_install else root)
+        if hooks is not None:
+            if global_install:
+                typer.echo("  hooks: skipped for --global (use `trace init --claude` per repository)")
+            else:
+                file, config = hooks
+                hstatus, hpath = merge_json_file(file, config)
+                typer.echo(f"  hooks: {hstatus} -> {hpath}")
 
 
 @app.command()

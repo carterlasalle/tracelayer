@@ -49,6 +49,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/tracelayer"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"skills/traceability" = "tracelayer/_skills/traceability"
+
 [tool.hatch.build.targets.sdist]
 include = [
     "/src",
