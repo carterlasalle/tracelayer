@@ -55,6 +55,18 @@ Markers are the authoring notation; the graph is the product. Paths, line number
 
 ## Quick start
 
+### Install
+
+From the repository (no publish step needed):
+
+```bash
+uv tool install git+https://github.com/carterlasalle/tracelayer.git
+trace --help
+```
+
+Or install from a local checkout: `uv tool install .`. The wheel is verified
+against a clean venv with `uv build`; a PyPI publish is the planned next step.
+
 ### Prerequisites
 
 - Python `3.12+`
@@ -134,6 +146,23 @@ TraceLayer sits in the coding-agent control loop, so correctness is fail-closed 
 | [Security](docs/security.md) | Threat model and mitigations |
 | [Large repositories](docs/large-repos.md) | Incremental indexing, monorepo scopes, performance targets |
 | [Architecture decisions](docs/adr/) | ADR-0001 through ADR-0008 |
+
+## Installing the agent skill
+
+The canonical skill (canonical layout: `SKILL.md` + `README.md` +
+`references/`) lives in [`skills/traceability/`](skills/traceability/README.md).
+Install it into your harness with:
+
+```bash
+scripts/install-skill.sh --claude --omp      # ~/.claude/skills and ~/.omp/skills
+scripts/install-skill.sh --repo /path/to/repo   # repository-local .agents/skills
+scripts/install-skill.sh --link              # symlink for development
+```
+
+For existing repositories, `trace init --skill` copies the skill into
+`.agents/skills/traceability/` directly. The same folder is ready for skill
+registries (e.g. skills.sh, anthropics/skills) — it follows the standard
+layout and links references directly from `SKILL.md`.
 
 ## Contributing
 

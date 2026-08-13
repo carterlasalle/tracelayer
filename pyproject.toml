@@ -4,6 +4,27 @@ version = "0.1.0"
 description = "TraceLayer: agent-native software traceability system"
 readme = "README.md"
 requires-python = ">=3.12"
+license = "Apache-2.0"
+authors = [{ name = "carterlasalle" }]
+keywords = [
+    "traceability",
+    "requirements",
+    "software-engineering",
+    "agents",
+    "ci",
+    "cli",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Quality Assurance",
+]
 dependencies = [
     "typer>=0.12",
     "pydantic>=2.7",
@@ -12,17 +33,11 @@ dependencies = [
     "pyyaml>=6.0",
 ]
 
-
-[tool.ruff.lint.per-file-ignores]
-"src/tracelayer/cli.py" = ["B008"]
-[dependency-groups]
-dev = [
-    "pytest>=8.0",
-    "pytest-cov>=5.0",
-    "coverage>=7.6",
-    "hypothesis>=6.100",
-    "ruff>=0.6",
-]
+[project.urls]
+Homepage = "https://github.com/carterlasalle/tracelayer"
+Repository = "https://github.com/carterlasalle/tracelayer"
+Issues = "https://github.com/carterlasalle/tracelayer/issues"
+Documentation = "https://github.com/carterlasalle/tracelayer#documentation"
 
 [project.scripts]
 trace = "tracelayer.cli:main"
@@ -34,6 +49,31 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/tracelayer"]
 
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/skills",
+    "/adapters",
+    "/docs",
+    "/tests",
+    "/scripts",
+    "/README.md",
+    "/CONTRIBUTING.md",
+    "/SECURITY.md",
+    "/LICENSE",
+    "/AGENTS.md",
+    "/pyproject.toml",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "coverage>=7.6",
+    "hypothesis>=6.100",
+    "ruff>=0.6",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
@@ -44,3 +84,6 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]
 ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/tracelayer/cli.py" = ["B008"]
