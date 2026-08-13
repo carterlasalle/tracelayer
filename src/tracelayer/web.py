@@ -104,6 +104,14 @@ def _read_html() -> bytes:
         return b"TraceLayer web UI asset missing (broken install)."
 
 
+def _read_vendor() -> bytes:
+    """Serve the bundled 3D-graph library (offline-first, NFR-001)."""
+    try:
+        return (_HTML_PATH.parent / "vendor" / "3d-force-graph.min.js").read_bytes()
+    except OSError:
+        return b"// vendor asset missing (broken install)"
+
+
 class _Handler(BaseHTTPRequestHandler):
     engine: Engine | None = None  # set by run_web
 
@@ -130,6 +138,14 @@ class _Handler(BaseHTTPRequestHandler):
             body = _read_html()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if path == "/vendor/3d-force-graph.min.js":
+            body = _read_vendor()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/javascript")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)

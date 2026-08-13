@@ -97,6 +97,8 @@ def test_web_serves_html_and_node_detail(tmp_path):
     try:
         html = _fetch(f"http://127.0.0.1:{port}/")
         assert "3d-force-graph" in html and "TraceLayer" in html
+        vendor = _fetch(f"http://127.0.0.1:{port}/vendor/3d-force-graph.min.js")
+        assert "three" in vendor or "ForceGraph" in vendor
         detail = _fetch(f"http://127.0.0.1:{port}/api/node/impl.auth.rotate")
         assert detail["id"] == "impl.auth.rotate"
         up = {(u["id"], u["predicate"]) for u in detail["upstream"]}

@@ -38,5 +38,6 @@ paths = [
   ".pi/**",
   ".omp/**",
   ".agents/**",
-  "opencode.json"
+  "opencode.json",
+  "src/tracelayer/web/vendor/**"
 ]
