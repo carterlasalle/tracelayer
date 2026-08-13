@@ -90,6 +90,25 @@ trace --help
 From a local checkout: `uv tool install .`. From the repository directly:
 `uv tool install git+https://github.com/carterlasalle/tracelayer.git`.
 
+### Homebrew
+
+Formula lives in the [`homebrew-tap`](https://github.com/carterlasalle/homebrew-tap)
+tap (source: `contrib/brew/tracelayer.rb`):
+
+```bash
+brew install carterlasalle/tap/tracelayer
+```
+
+After each release, bump the formula (PyPI sdist URL + sha256):
+
+```bash
+contrib/brew/bump.sh        # latest version on PyPI
+contrib/brew/bump.sh 0.1.2  # specific version
+```
+
+The brew formula installs both `trace` and `tracelayer`; `tracelayer` never
+collides with macOS `/usr/bin/trace`.
+
 Note: macOS ships a built-in `trace` (/usr/bin/trace, Apple Instruments),
 and some shells put `/usr/bin` ahead of `~/.local/bin` — which then shadows
 this project's binary. Both executables are installed, so use
