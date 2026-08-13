@@ -126,6 +126,33 @@ def test_install_update_refreshes(tmp_path):
     assert skill.read_text() == first  # refresh is content-stable
 
 
+def test_init_writes_mcp_json_by_default(tmp_path):
+    repo = make_git_repo(tmp_path, {"a.py": "x = 1\n"})
+    r = run_trace(repo, "init", env=_env(tmp_path))
+    assert r.returncode == 0
+    mcp = json.loads((repo / ".mcp.json").read_text())
+    assert "trace" in mcp["mcpServers"]["tracelayer"]["command"]
+    # re-init is idempotent and preserves other servers
+    mcp["mcpServers"]["other"] = {"command": "other"}
+    (repo / ".mcp.json").write_text(json.dumps(mcp), encoding="utf-8")
+    run_trace(repo, "init", env=_env(tmp_path))
+    merged = json.loads((repo / ".mcp.json").read_text())
+    assert "other" in merged["mcpServers"] and "tracelayer" in merged["mcpServers"]
+
+
+def test_init_no_mcp_skips(tmp_path):
+    repo = make_git_repo(tmp_path, {"a.py": "x = 1\n"})
+    run_trace(repo, "init", "--no-mcp", env=_env(tmp_path))
+    assert not (repo / ".mcp.json").exists()
+
+
+def test_install_project_writes_mcp_json(tmp_path):
+    repo = make_git_repo(tmp_path, {"a.py": "x = 1\n"})
+    run_trace(repo, "install", "--agent", "claude-code", "--yes", env=_env(tmp_path))
+    mcp = json.loads((repo / ".mcp.json").read_text())
+    assert "tracelayer" in mcp["mcpServers"]
+
+
 def test_bundled_skill_dir_found():
     from tracelayer.install import bundled_skill_dir
 

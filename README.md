@@ -24,7 +24,7 @@ Install, trace a repository, and get your first answer in under a minute:
 uv tool install tracelayer            # pipx install tracelayer also works
 
 cd your-repo
-trace init                            # writes .trace config; appends the invariant to AGENTS.md
+trace init                            # .trace config + AGENTS.md invariant + .mcp.json (MCP on by default)
 trace index --all                     # builds the trace graph
 trace verify --all                    # policy check (exit 0 = pass)
 trace context <trace-id>              # why does this exist, what verifies it
@@ -229,7 +229,9 @@ layout and links references directly from `SKILL.md`.
 `trace mcp` exposes the query surface and the verify gate as MCP tools over
 stdio, so any MCP-capable agent can connect directly. It is deterministic,
 local, and optional — the skill + CLI + hooks remain the canonical
-interface (the spec marks MCP as never required).
+interface (the spec marks MCP as never required). `trace init` and
+`trace install` (project scope) register it automatically in `.mcp.json`
+(merged, other servers preserved; `trace init --no-mcp` opts out).
 
 Connect Claude Code:
 

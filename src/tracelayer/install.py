@@ -407,6 +407,43 @@ def merge_json_file(path: Path, config: dict) -> tuple[str, Path]:
 
 
 # --------------------------------------------------------------------------
+# MCP server registration (.mcp.json) — optional adapter, on by default
+# --------------------------------------------------------------------------
+
+MCP_SERVER_NAME = "tracelayer"
+
+
+def mcp_config() -> dict:
+    """Project-level .mcp.json entry exposing the trace mcp server."""
+    return {"mcpServers": {MCP_SERVER_NAME: {"command": "trace", "args": ["mcp"]}}}
+
+
+def merge_mcp_json(root: Path) -> tuple[str, Path]:
+    """Write/merge the tracelayer MCP server into <root>/.mcp.json.
+
+    Existing MCP servers are preserved; re-running is idempotent.
+    """
+    path = root / ".mcp.json"
+    if path.exists():
+        try:
+            existing = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            existing = {}
+        if not isinstance(existing, dict):
+            existing = {}
+    else:
+        existing = {}
+    servers = existing.setdefault("mcpServers", {})
+    if MCP_SERVER_NAME in servers:
+        return "already-present", path
+    servers[MCP_SERVER_NAME] = {"command": "trace", "args": ["mcp"]}
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")
+    tmp.replace(path)
+    return "installed", path
+
+
+# --------------------------------------------------------------------------
 # Repository invariant (AGENTS.md / CLAUDE.md) — append-only
 # --------------------------------------------------------------------------
 

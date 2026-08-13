@@ -33,6 +33,7 @@ from tracelayer.install import (
     install_hook_assets,
     install_skill,
     merge_json_file,
+    merge_mcp_json,
     skill_installed,
 )
 from tracelayer.mcp import run_mcp
@@ -309,10 +310,17 @@ def init(
         "--agents-note/--no-agents-note",
         help="Append the trace invariant to AGENTS.md/CLAUDE.md",
     ),
+    mcp: bool = typer.Option(
+        True,
+        "--mcp/--no-mcp",
+        help="Register the trace MCP server in .mcp.json (optional adapter, on by default)",
+    ),
 ) -> None:
     """Initialize .trace config, policy, .gitignore, and agent files (spec 28.1)."""
     root = _resolve_root(ctx, root)
-    written = _run_init(root, observe=observe, skill=skill, claude=claude, agents_note=agents_note)
+    written = _run_init(
+        root, observe=observe, skill=skill, claude=claude, agents_note=agents_note, mcp=mcp
+    )
     if written:
         for p in written:
             typer.echo(f"wrote {p.relative_to(root)}")
@@ -321,7 +329,13 @@ def init(
 
 
 def _run_init(
-    root: Path, *, observe: bool, skill: bool, claude: bool, agents_note: bool = True
+    root: Path,
+    *,
+    observe: bool,
+    skill: bool,
+    claude: bool,
+    agents_note: bool = True,
+    mcp: bool = True,
 ) -> list[Path]:
     root = root.resolve()
     dot = root / ".trace"
@@ -356,6 +370,10 @@ def _run_init(
     if agents_note:
         status, path = append_agents_note(root)
         if status == "appended" and path is not None:
+            written.append(path)
+    if mcp:
+        status, path = merge_mcp_json(root)
+        if status == "installed":
             written.append(path)
     return written
 
@@ -438,6 +456,9 @@ def install(
         note = hook_note(name)
         if note:
             typer.echo(f"  hooks note: {note}")
+    if not global_install:
+        mstatus, mpath = merge_mcp_json(root)
+        typer.echo(f"mcp: {mstatus} -> {mpath}")
 
 
 @app.command()
