@@ -529,6 +529,38 @@ def update(
 
 
 @app.command()
+def web(
+    ctx: typer.Context,
+    root: Path | None = _root_opt(),
+    host: str = typer.Option("127.0.0.1", "--host", help="Bind address (localhost only by default)"),
+    port: int = typer.Option(8765, "--port", help="Port for the web UI"),
+    open_browser: bool = typer.Option(
+        True, "--open/--no-open", help="Open the browser automatically"
+    ),
+) -> None:
+    """Serve the trace graph as a local web UI with 3D visualization.
+
+    Spawns a stdlib-only HTTP server on localhost. The graph is **markers
+    only**: nodes from trace markers + work items, and only declared
+    semantic edges (satisfies/verifies/exercises/work/...), never
+    structural derivations. Ctrl-C to stop.
+    """
+    from tracelayer.web import run_web
+
+    root = _resolve_root(ctx, root)
+    engine, _diags = _open(root)
+    try:
+        run_web(engine, host=host, port=port, open_browser=open_browser)
+    except OSError as exc:
+        typer.echo(f"cannot bind {host}:{port} ({exc}); try --port <other>", err=True)
+        raise typer.Exit(1) from exc
+    except KeyboardInterrupt:
+        pass
+    finally:
+        engine.close()
+
+
+@app.command()
 def mcp(ctx: typer.Context, root: Path | None = _root_opt()) -> None:
     """Run the MCP stdio server (optional adapter).
 

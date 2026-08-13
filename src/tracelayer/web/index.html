@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- trace:v1 id=impl.web.ui-asset work=WORK-TL-001 -->
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TraceLayer Graph</title>
+<script src="https://unpkg.com/3d-force-graph@1.77.0/dist/3d-force-graph.min.js"></script>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #0b0f14; color: #d7dde4;
+    font: 13px/1.45 ui-sans-serif, system-ui, sans-serif; overflow: hidden; }
+  #graph { position: fixed; inset: 0; }
+  #topbar { position: fixed; top: 0; left: 0; right: 0; display: flex; gap: 10px;
+    align-items: center; padding: 10px 14px; z-index: 10; pointer-events: none; }
+  #topbar > * { pointer-events: auto; }
+  h1 { font-size: 14px; margin: 0; font-weight: 600; letter-spacing: .02em; }
+  h1 small { color: #7d8b9c; font-weight: 400; }
+  #search { flex: 0 1 260px; background: #141b24; border: 1px solid #26313e;
+    color: #d7dde4; border-radius: 6px; padding: 5px 9px; outline: none; }
+  #search:focus { border-color: #3b82f6; }
+  #legend { position: fixed; left: 14px; bottom: 14px; z-index: 10; background: #141b24cc;
+    border: 1px solid #26313e; border-radius: 8px; padding: 8px 10px; display: grid;
+    grid-template-columns: auto auto; gap: 2px 12px; font-size: 12px; backdrop-filter: blur(4px); }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+    margin-right: 6px; vertical-align: baseline; }
+  #panel { position: fixed; top: 56px; right: 14px; width: 300px; max-height: calc(100% - 90px);
+    overflow: auto; z-index: 10; background: #141b24f2; border: 1px solid #26313e;
+    border-radius: 8px; padding: 12px 14px; display: none; backdrop-filter: blur(4px); }
+  #panel h2 { margin: 0 0 8px; font-size: 14px; word-break: break-all; }
+  #panel .meta { color: #8fa0b3; font-size: 12px; margin-bottom: 8px; }
+  #panel h3 { margin: 10px 0 4px; font-size: 11px; text-transform: uppercase;
+    letter-spacing: .06em; color: #7d8b9c; }
+  #panel ul { margin: 0; padding-left: 16px; }
+  #panel li { margin: 1px 0; cursor: pointer; }
+  #panel li:hover { color: #7cb3ff; }
+  #panel .close { float: right; cursor: pointer; color: #8fa0b3; border: none;
+    background: none; font-size: 15px; }
+  #counts { color: #7d8b9c; font-size: 12px; }
+  #empty { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    z-index: 5; color: #8fa0b3; text-align: center; }
+</style>
+</head>
+<body>
+<div id="topbar">
+  <h1>TraceLayer <small>markers only</small></h1>
+  <input id="search" placeholder="Filter by id or title…" />
+  <span id="counts"></span>
+</div>
+<div id="empty">No trace nodes yet — run <code>trace index --all</code>, then refresh.</div>
+<div id="legend"></div>
+<div id="panel"></div>
+<div id="graph"></div>
+
+<script>
+const TYPE_COLORS = {
+  requirement: "#f59e0b", prd: "#f59e0b", decision: "#a78bfa",
+  plan: "#22d3ee", work: "#f472b6", implementation: "#4ade80",
+  test: "#60a5fa", document: "#9ca3af", operations: "#f87171",
+  ops: "#f87171", runbook: "#f87171", default: "#64748b",
+};
+const LEGEND = [
+  ["requirement", "#f59e0b"], ["decision", "#a78bfa"], ["plan", "#22d3ee"],
+  ["work", "#f472b6"], ["implementation", "#4ade80"], ["test", "#60a5fa"],
+  ["doc/ops", "#9ca3af"],
+];
+
+let GRAPH = { nodes: [], edges: [] };
+
+const colorOf = (t) => TYPE_COLORS[t] || TYPE_COLORS.default;
+
+async function loadGraph() {
+  const r = await fetch("/api/graph");
+  const data = await r.json();
+  GRAPH = data;
+  document.getElementById("counts").textContent =
+    `${data.counts.nodes} nodes · ${data.counts.edges} declared edges`;
+  if (!data.nodes.length) {
+    document.getElementById("empty").style.display = "flex";
+    return;
+  }
+  const nodes = data.nodes.map((n) => ({
+    id: n.id, name: n.id, type: n.type, title: n.title, path: n.path, status: n.status,
+    val: n.type === "requirement" ? 3 : n.type === "implementation" ? 2 : 1.4,
+    color: colorOf(n.type),
+  }));
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const links = data.edges
+    .filter((e) => byId.has(e.source) && byId.has(e.target))
+    .map((e) => ({ source: e.source, target: e.target, predicate: e.predicate }));
+  window.Graph = ForceGraph3D()(document.getElementById("graph"))
+    .graphData({ nodes, links })
+    .nodeLabel((n) => `${n.id}\n${n.title || ""}`)
+    .nodeRelSize(5)
+    .linkColor((l) => "#3a4a5c")
+    .linkWidth(0.6)
+    .linkDirectionalParticles(1)
+    .linkDirectionalParticleSpeed(0.005)
+    .linkDirectionalParticleColor((l) => "#7cb3ff")
+    .onNodeClick((n) => showNode(n.id))
+    .onNodeHover((n) => {
+      document.body.style.cursor = n ? "pointer" : "default";
+    })
+    .onLinkHover((l) => {
+      if (l) {
+        l.__label = `${l.predicate}`;
+        l.__tmp = { color: l.color, width: l.width };
+        l.color = "#7cb3ff"; l.width = 2;
+      } else if (GRAPH.edges.some((e) => e === l)) { /* noop */ }
+    });
+}
+
+async function showNode(id) {
+  const r = await fetch(`/api/node/${encodeURIComponent(id)}`);
+  if (!r.ok) return;
+  const d = await r.json();
+  const panel = document.getElementById("panel");
+  const html = [];
+  html.push(`<button class="close">×</button>`);
+  html.push(`<h2>${escapeHtml(d.id)}</h2>`);
+  html.push(`<div class="meta">${escapeHtml(d.type)} · ${escapeHtml(d.status)}` +
+    (d.path ? ` · ${escapeHtml(d.path)}` : "") + (d.symbol ? ` · ${escapeHtml(d.symbol)}` : "") +
+    (d.title ? `<br/>${escapeHtml(d.title)}` : "") + `</div>`);
+  if (d.upstream.length) {
+    html.push(`<h3>Connects from</h3><ul>`);
+    d.upstream.forEach((u) => html.push(`<li data-id="${escapeHtml(u.id)}">${escapeHtml(u.predicate)} → ${escapeHtml(u.id)}</li>`));
+    html.push(`</ul>`);
+  }
+  if (d.downstream.length) {
+    html.push(`<h3>Connects to</h3><ul>`);
+    d.downstream.forEach((u) => html.push(`<li data-id="${escapeHtml(u.id)}">${escapeHtml(u.id)} <span style="color:#7d8b9c">${escapeHtml(u.predicate)}</span></li>`));
+    html.push(`</ul>`);
+  }
+  if (d.verification.length) {
+    html.push(`<h3>Verification</h3><ul>`);
+    d.verification.forEach((v) => html.push(`<li>${escapeHtml(v.test)} — ${escapeHtml(v.outcome)} L${v.proof_level}${v.current ? "" : " (STALE)"}</li>`));
+    html.push(`</ul>`);
+  }
+  panel.innerHTML = html.join("");
+  panel.style.display = "block";
+  panel.querySelectorAll("[data-id]").forEach((el) =>
+    el.addEventListener("click", () => showNode(el.dataset.id)));
+  panel.querySelector(".close").addEventListener("click", () => (panel.style.display = "none"));
+}
+
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function renderLegend() {
+  const el = document.getElementById("legend");
+  el.innerHTML = LEGEND.map(([name, color]) =>
+    `<span><span class="dot" style="background:${color}"></span>${name}</span>`).join("");
+}
+
+document.getElementById("search").addEventListener("input", (e) => {
+  const q = e.target.value.trim().toLowerCase();
+  if (!window.Graph) return;
+  window.Graph.nodeVisibility((n) =>
+    !q || n.id.toLowerCase().includes(q) || (n.title || "").toLowerCase().includes(q));
+});
+
+renderLegend();
+loadGraph().catch((err) => {
+  document.getElementById("empty").textContent = `Failed to load graph: ${err.message}`;
+  document.getElementById("empty").style.display = "flex";
+});
+</script>
+</body>
+</html>

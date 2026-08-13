@@ -247,6 +247,23 @@ same folder is ready for skill registries (e.g. skills.sh, anthropics/skills)
 — it follows the standard layout and links references directly from
 `SKILL.md`. Use `trace install` for global (user-level) agent installs.
 
+## Web UI: trace graph (markers only)
+
+`trace web` spawns a local web UI with a 3D force-directed graph of the
+trace graph — see what connects to what, and why, through the markers:
+
+```bash
+trace web            # http://127.0.0.1:8765/ (opens the browser)
+trace web --port 9000 --no-open
+```
+
+Nodes are colored by type (requirement/decision/plan/work/implementation/
+test/docs), edges are the declared marker relationships
+(`satisfies`, `verifies`, `exercises`, `work`, `implements`, ...) — never
+structural derivations. Click a node to inspect its upstream intent,
+downstream dependents, and verification status; filter with the search box.
+The server is stdlib-only and binds localhost by default.
+
 ## MCP server (optional adapter)
 
 `trace mcp` exposes the query surface and the verify gate as MCP tools over
