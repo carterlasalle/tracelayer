@@ -124,7 +124,91 @@ def build_audit_package(
         "evidence_summary": evidence_summary,
         "trace_paths": trace_paths,
         "unexpected_changes": unexpected,
+        "deterministic_findings": _deterministic_findings(
+            store, by_uid, implementations, tests, max_items
+        ),
     }
+
+
+def _deterministic_findings(
+    store: GraphStore,
+    by_uid: dict[str, Node],
+    implementations: list[dict],
+    tests: list[dict],
+    max_items: int,
+) -> list[dict]:
+    """Meaning-adjacent suspects the auditor must judge (review depth).
+
+    Deterministic signals, not verdicts: each finding names the artifact and
+    the reason; the semantic auditor decides whether it is real.
+    """
+    findings: list[dict[str, str]] = []
+    impl_by_id = {n["id"]: n for n in implementations}
+    test_by_id = {n["id"]: n for n in tests}
+    seen: set[tuple[str, str]] = set()
+
+    for test_node in list(store.all_nodes(active_only=True)):
+        if test_node.node_type != "test":
+            continue
+        excerpt = test_by_id.get(test_node.trace_id, {}).get("source_excerpt", "")
+        for edge in store.edges_from(test_node.entity_uid, "exercises"):
+            impl = by_uid.get(edge.to_uid)
+            if impl is None or impl.trace_id not in impl_by_id:
+                continue
+            symbol = impl.symbol_qualified_name or impl.title or ""
+            key = ("misleading_test", test_node.trace_id)
+            if key in seen:
+                continue
+            seen.add(key)
+            if symbol and symbol not in excerpt and impl.trace_id not in excerpt:
+                findings.append(
+                    {
+                        "kind": "suspected_misleading_test",
+                        "test": test_node.trace_id,
+                        "implementation": impl.trace_id,
+                        "reason": (
+                            f"test declares exercises={impl.trace_id} but its source "
+                            "never references the implementation symbol or id"
+                        ),
+                    }
+                )
+
+    for impl_node in list(store.all_nodes(active_only=True)):
+        if impl_node.node_type != "implementation":
+            continue
+        if impl_node.status() == "stale_review_required":
+            findings.append(
+                {
+                    "kind": "unreviewed_requirement_drift",
+                    "implementation": impl_node.trace_id,
+                    "reason": "implementation changed since its requirement changed; "
+                    "the old evidence is no longer current and no review is recorded",
+                }
+            )
+
+    for plan_node in list(store.all_nodes(active_only=True)):
+        if plan_node.node_type != "plan":
+            continue
+        expected = plan_node.metadata.get("expects") or []
+        implemented = {
+            e.from_uid
+            for e in store.edges_to(plan_node.entity_uid)
+            if e.status == "active" and e.predicate == "implements"
+        }
+        for expected_id in expected:
+            target = store.get_node(trace_id=expected_id)
+            if target is None or target.entity_uid not in implemented:
+                findings.append(
+                    {
+                        "kind": "plan_gap",
+                        "plan": plan_node.trace_id,
+                        "missing": expected_id,
+                        "reason": "plan expects the artifact but it is absent or not linked via implements",
+                    }
+                )
+                if len(findings) >= max_items:
+                    return findings
+    return findings[:max_items]
 
 
 # --------------------------------------------------------------------------

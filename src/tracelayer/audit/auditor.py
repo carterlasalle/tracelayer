@@ -37,6 +37,18 @@ deterministically by the engine. Answer questions such as:
 - Does the evidence support the claim the agent is making?
 - Is a trace relationship semantically wrong even though both IDs resolve?
 
+The package includes a ``deterministic_findings`` list: suspects the engine
+cannot judge itself. For each finding, decide whether it is real:
+- ``suspected_misleading_test``: the test claims exercises=<impl> but its
+  source never names the implementation. A real misleading test passes while
+  asserting nothing about the claimed behavior; a false positive is a test
+  that reaches the implementation through helpers, fixtures, or indirection.
+- ``unreviewed_requirement_drift``: the implementation changed after its
+  requirement changed and no review is recorded. Judge whether the new code
+  still plausibly satisfies the requirement text.
+- ``plan_gap``: a plan expects an artifact that is absent or not linked.
+  Judge whether the plan is incomplete or the expectation is stale.
+
 You may make the overall gate stricter, but you cannot declare a broken
 reference valid or fabricate missing evidence.
 

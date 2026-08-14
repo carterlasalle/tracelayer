@@ -696,6 +696,94 @@ def task(
 
 
 # trace:v1 id=impl.cli.task-summary work=WORK-TL-001
+@plan_app.command("sync")
+def plan_sync(
+    ctx: typer.Context,
+    plan_id: str = typer.Argument(..., help="PLAN-... id"),
+    apply: bool = typer.Option(
+        False, "--apply", help="Rewrite the plan marker with the reconciled expects= list"
+    ),
+    root: Path | None = _root_opt(),
+) -> None:
+    """Reconcile a plan's expected obligations with repository reality.
+
+    Compares the plan marker's ``expects=`` against the artifacts actually
+    linked via ``implements`` edges. Reports discovered artifacts (built but
+    not declared) and missing ones; ``--apply`` rewrites the plan marker so
+    the plan learns what was actually produced (CodeOps trace_updates-style
+    auto-sync), then reindexes.
+    """
+    import re
+
+    root = _resolve_root(ctx, root)
+    engine, _diags = _open(root)
+    try:
+        node = engine.store.get_node(trace_id=plan_id)
+        if node is None or not node.active:
+            typer.echo(f"no active plan node: {plan_id}", err=True)
+            raise typer.Exit(2)
+        declared = set(node.metadata.get("expects") or [])
+        implemented = {
+            t.trace_id
+            for e in engine.store.edges_to(node.entity_uid)
+            if e.status == "active" and e.predicate == "implements"
+            for t in [engine.store.get_node(uid=e.from_uid)]
+            if t is not None and t.active
+        }
+        missing = sorted(
+            d
+            for d in declared
+            if engine.store.get_node(trace_id=d) is None
+            or not engine.store.get_node(trace_id=d).active
+            or engine.store.get_node(trace_id=d).entity_uid
+            not in {
+                e.from_uid
+                for e in engine.store.edges_to(node.entity_uid)
+                if e.status == "active" and e.predicate == "implements"
+            }
+        )
+        discovered = sorted(implemented - declared)
+        typer.echo(f"plan: {plan_id}")
+        typer.echo(f"declared:   {sorted(declared) or '(none)'}")
+        typer.echo(f"discovered: {discovered or '(none)'}")
+        typer.echo(f"missing:    {missing or '(none)'}")
+        if not apply:
+            if discovered or missing:
+                typer.echo(
+                    "re-run with --apply to write the reconciled expects= into the plan marker"
+                )
+                raise typer.Exit(1)
+            typer.echo("plan is in sync with the repository")
+            return
+        new_expects = sorted(set(declared) | set(discovered))
+        if not node.canonical_path:
+            typer.echo("plan marker has no canonical path; cannot rewrite", err=True)
+            raise typer.Exit(2)
+        marker_path = root / node.canonical_path
+        if not marker_path.is_file():
+            typer.echo(f"plan marker file missing: {node.canonical_path}", err=True)
+            raise typer.Exit(2)
+        text = marker_path.read_text(encoding="utf-8")
+        lines = text.split("\n")
+        found = False
+        for i, ln in enumerate(lines):
+            if f"id={plan_id}" in ln and "trace:v1" in ln:
+                if "expects=" in ln:
+                    lines[i] = re.sub(r"expects=[^ >]*", f"expects={','.join(new_expects)}", ln)
+                elif new_expects:
+                    lines[i] = ln.replace(" -->", f" expects={','.join(new_expects)} -->")
+                found = True
+                break
+        if not found:
+            typer.echo(f"marker line for {plan_id} not found in {node.canonical_path}", err=True)
+            raise typer.Exit(2)
+        marker_path.write_text("\n".join(lines), encoding="utf-8")
+        engine.index_changed()
+        typer.echo(f"plan marker updated: expects={','.join(new_expects)}")
+    finally:
+        engine.close()
+
+
 @app.command()
 def summary(
     ctx: typer.Context,
