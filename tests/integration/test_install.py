@@ -142,6 +142,7 @@ def test_init_writes_mcp_json_by_default(tmp_path):
 
 
 def test_init_all_skips_nothing(tmp_path):
+    (tmp_path / "home" / ".claude" / "skills").mkdir(parents=True)
     repo = make_git_repo(tmp_path, {"a.py": "x = 1\n"})
     run_trace(repo, "init", "--all", env=_env(tmp_path))
     assert (repo / ".mcp.json").exists()
@@ -172,7 +173,7 @@ def test_install_agent_without_hook_assets(tmp_path):
 
 def test_init_installs_skill_and_hooks_for_detected_agents(tmp_path):
     home = tmp_path / "home"
-    (home / ".claude").mkdir(parents=True)
+    (home / ".claude" / "skills").mkdir(parents=True)
     repo = make_git_repo(tmp_path, {"a.py": "x = 1\n"})
     r = run_trace(repo, "init", env=_env(tmp_path))
     assert r.returncode == 0, r.stderr
@@ -185,7 +186,7 @@ def test_init_installs_skill_and_hooks_for_detected_agents(tmp_path):
 
 def test_update_refreshes_installed_copies(tmp_path):
     home = tmp_path / "home"
-    (home / ".claude").mkdir(parents=True)
+    (home / ".claude" / "skills").mkdir(parents=True)
     repo = make_git_repo(tmp_path, {"a.py": "x = 1\n"})
     run_trace(repo, "init", env=_env(tmp_path))
     skill = repo / ".claude" / "skills" / "traceability" / "SKILL.md"
