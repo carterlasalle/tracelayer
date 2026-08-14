@@ -286,6 +286,10 @@ def test_default_policy_toml_roundtrip(tmp_path: Path) -> None:
         "generated/**",
         "docs/vendor/**",
         ".trace/**",
+        ".gitignore",
+        "AGENTS.md",
+        "CLAUDE.md",
+        ".mcp.json",
     ]
 
 

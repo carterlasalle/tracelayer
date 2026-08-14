@@ -120,9 +120,9 @@ def cobertura_for(lines: tuple[int, int], filename: str = "src/auth/tokens.py") 
 
 
 def setup_auth_repo(tmp_path: Path) -> Path:
-    """make_git_repo(AUTH_FILES) + ``trace init`` + full index."""
+    """make_git_repo(AUTH_FILES) + ``trace init`` (config only) + full index."""
     root = make_git_repo(tmp_path, dict(AUTH_FILES))
-    _expect_ok(run_trace(root, "init"))
+    _expect_ok(run_trace(root, "init", "--no-skill", "--no-mcp"))
     _expect_ok(run_trace(root, "index", "--all"))
     return root
 

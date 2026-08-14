@@ -1,11 +1,22 @@
-"""PreToolUse Write/Edit hook — block-once mutation gate (spec 22.3, FR-025).
+"""PreToolUse Write/Edit hook — authoring + context gate (spec 22.3, FR-025).
 
-The first edit of protected traced behavior is blocked when the session has
-not loaded trace context for it; after `trace context <id>` runs (recording
-the load) or after the one-time block, edits are allowed again.
+Two gates, both evaluated BEFORE the mutation lands:
+
+1. **Authoring gate (P0)**: the proposed edit is simulated and parsed. New
+   behavioral boundaries (functions/classes/methods) without a trace marker
+   or an explicit ``# trace:exempt`` are BLOCKED with the exact marker to
+   write — new code cannot exist before tracing is considered. The
+   obligation is persisted in session state so the stop gate can enforce it.
+
+2. **Context gate (spec 22.3)**: the first edit of protected traced
+   behavior is blocked when the session has not loaded trace context for
+   it; after ``trace context <id>`` runs (recording the load) or after the
+   one-time block, edits are allowed again.
 """
 
 from __future__ import annotations
+
+from pathlib import Path
 
 from tracelayer.hooks.common import (
     HookContext,
@@ -21,22 +32,27 @@ from tracelayer.hooks.common import (
 )
 
 
+# trace:v1 id=impl.hooks.authoring-gate work=WORK-TL-001
 def handle(ctx: HookContext, payload: dict) -> HookOutput:
-    """Block the first context-free edit of protected behavior (once)."""
+    """Block untraced new behavior; then the context-free edit of protected nodes."""
+    allow = {"event": "pre_mutation", "decision": "allow"}
     if ctx.store is None or ctx.state is None:
-        return render_allowed("", {"event": "pre_mutation", "decision": "allow"})
+        return render_allowed("", allow)
     path = str(payload.get("path", ""))
     line = _as_int(payload.get("line"))
+    authoring = _authoring_block(ctx, path, payload)
+    if authoring is not None:
+        return authoring
     cfg = ctx.project.config.hooks
     node = node_at_path(ctx.store, path, line)
     if node is None or not is_protected(ctx.store, node):
-        return render_allowed("", {"event": "pre_mutation", "decision": "allow", "path": path})
+        return render_allowed("", {**allow, "path": path})
     if not (cfg.pre_edit_require_context and cfg.pre_edit_block_once):
-        return render_allowed("", {"event": "pre_mutation", "decision": "allow", "path": path})
+        return render_allowed("", {**allow, "path": path})
     if ctx.state.context_loaded(ctx.session_id, node.trace_id):
-        return render_allowed("", {"event": "pre_mutation", "decision": "allow", "path": path})
+        return render_allowed("", {**allow, "path": path})
     if ctx.state.blocked_without_context(ctx.session_id, node.trace_id):
-        return render_allowed("", {"event": "pre_mutation", "decision": "allow", "path": path})
+        return render_allowed("", {**allow, "path": path})
     ctx.state.record_blocked_edit(ctx.session_id, node.trace_id)
     text = _block_text(ctx, node)
     return render_blocked(
@@ -50,6 +66,236 @@ def handle(ctx: HookContext, payload: dict) -> HookOutput:
             "output": text,
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Authoring gate: proposed-edit classification (review P0)
+# ---------------------------------------------------------------------------
+
+_EXEMPT_MARK = "# trace:exempt"
+_EXEMPT_HTML_MARK = "<!-- trace:exempt -->"
+
+
+def _proposed_text(root: Path, path: str, payload: dict) -> str | None:
+    """Simulate the mutation: Write content, or Edit old->new replacement."""
+    content = payload.get("content")
+    if content is not None:
+        return str(content)
+    old = payload.get("old_string")
+    new = payload.get("new_string")
+    if old is None or new is None:
+        return None  # no mutation text available; fall back to current file
+    current = _read_file(root, path)
+    if current is None:
+        return None
+    if old in current:
+        return current.replace(old, str(new), 1)
+    return None  # old_string mismatch; do not guess
+
+
+def _read_file(root: Path, path: str) -> str | None:
+    from tracelayer.hooks.post_mutation import _read_text
+
+    return _read_text(root, path)
+
+
+def _new_boundaries(root: Path, path: str, current: str | None, proposed: str) -> list:
+    """(symbol, line) definitions that the proposed edit introduces."""
+    parser = _parser_for(path)
+    if parser is None:
+        return []
+    try:
+        new_symbols = parser.parse(proposed, path)
+    except Exception:
+        return []
+    if not new_symbols:
+        return []
+    if current is None:
+        return [(s, s.start_line) for s in new_symbols]
+    try:
+        old_symbols = parser.parse(current, path)
+    except Exception:
+        old_symbols = []
+    old_lines = {s.start_line for s in old_symbols}
+    return [(s, s.start_line) for s in new_symbols if s.start_line not in old_lines]
+
+
+def _parser_for(path: str):
+    suffix = path.rsplit(".", 1)[-1].lower() if "." in path else ""
+    _EXT = {
+        "py": "python",
+        "ts": "typescript",
+        "js": "javascript",
+        "go": "go",
+        "rs": "rust",
+        "java": "java",
+    }
+    language = _EXT.get(suffix)
+    if language is None:
+        return None
+    try:
+        from tracelayer.symbols.registry import get_parser
+
+        return get_parser(language)
+    except (ImportError, ValueError):
+        return None
+
+
+def _relpath(root: Path, path: str) -> str:
+    """Repo-relative path for obligation identity (Claude sends absolute)."""
+    import os
+
+    try:
+        rel = os.path.relpath(path, root)
+        if not rel.startswith(".."):
+            return rel
+    except ValueError:
+        pass
+    return path
+
+
+def _exempt_or_traced(proposed: str, symbol) -> bool:
+    """True when the new boundary carries a marker or an explicit exemption."""
+    lines = proposed.splitlines()
+    marker = False
+    exempt = False
+    for i in range(max(0, symbol.start_line - 2), min(len(lines), symbol.end_line)):
+        line = lines[i].strip()
+        if _EXEMPT_MARK in line or _EXEMPT_HTML_MARK in line:
+            exempt = True
+        if "trace:v1" in line:
+            marker = True
+    return marker or exempt
+
+
+def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput | None:
+    """Block the mutation when the proposed edit adds untraced boundaries.
+
+    Deterministic: parse the simulated result, compare symbol lines against
+    the current file, and require a marker (or ``# trace:exempt``) on every
+    new boundary. Discovery-excluded paths (tests/**, vendor/**) are free.
+    """
+    if not path or ctx.state is None:
+        return None
+    state = ctx.state
+    try:
+        from tracelayer.discovery.ignore import build_ignored
+
+        if build_ignored(ctx.project.root, ctx.project.config, ctx.gitrepo)(path):
+            return None
+    except Exception:
+        pass
+    rel_path = _relpath(ctx.project.root, path)
+    current = _read_file(ctx.project.root, path)
+    proposed = _proposed_text(ctx.project.root, path, payload)
+    if proposed is None:
+        proposed = current
+    if proposed is None:
+        return None
+    boundaries = _new_boundaries(ctx.project.root, path, current, proposed)
+    untraced = [(s, line) for s, line in boundaries if not _exempt_or_traced(proposed, s)]
+    if not untraced:
+        return None
+    work = state.active_work(ctx.session_id)
+    req = state.active_requirement(ctx.session_id)
+    symbol, line = untraced[0]
+    if not (work or req):
+        text = _causal_context_block(symbol, path, line)
+        return render_blocked(
+            text,
+            {
+                "event": "pre_mutation",
+                "decision": "block",
+                "path": path,
+                "line": line,
+                "new_symbol": symbol.name,
+                "output": text,
+            },
+        )
+    state.add_obligation(
+        ctx.session_id,
+        {
+            "path": rel_path,
+            "symbol": symbol.name,
+            "kind": "new_behavior",
+            "work": work or "",
+            "requirement": req or "",
+            "suggested_marker": _suggested_marker(symbol, work, req),
+            "state": "pending",
+        },
+    )
+    text = _authoring_block_text(symbol, path, line, work, req)
+    return render_blocked(
+        text,
+        {
+            "event": "pre_mutation",
+            "decision": "block",
+            "path": path,
+            "line": line,
+            "new_symbol": symbol.name,
+            "obligation": True,
+            "output": text,
+        },
+    )
+
+
+def _suggested_marker(symbol, work: str | None, req: str | None) -> str:
+    work_attr = f" work={work}" if work else ""
+    req_attr = f" satisfies={req}" if req else ""
+    return f"# trace:v1 id=impl.{symbol.name}{work_attr}{req_attr}"
+
+
+def _authoring_block_text(symbol, path: str, line: int, work: str | None, req: str | None) -> str:
+    lines = [
+        "TRACE AUTHORING REQUIRED — NEW BEHAVIOR",
+        "",
+        "You are creating a new behavioral boundary:",
+        f"  {path}:{line}::{symbol.name}",
+        "",
+        "Why this needs a trace:",
+        "  Future agents need a stable link from this implementation back to",
+        "  the work and requirement that justify its existence.",
+        "",
+    ]
+    if work or req:
+        lines.append("Active context:")
+        if work:
+            lines.append(f"  Work: {work}")
+        if req:
+            lines.append(f"  Requirement: {req}")
+        lines.append("")
+    lines += [
+        "Retry this edit with this marker directly above the function:",
+        "",
+        f"  {_suggested_marker(symbol, work, req)}",
+        "",
+        "Do NOT add path=, commit=, test=, or line= — TraceLayer derives",
+        "those facts.",
+        "",
+        "If this function is intentionally trivial/internal and does not",
+        f"represent a meaningful behavioral boundary, add `{_EXEMPT_MARK}`",
+        "directly above it instead of silently omitting the trace.",
+    ]
+    return fit("\n".join(lines), 4000)
+
+
+def _causal_context_block(symbol, path: str, line: int) -> str:
+    lines = [
+        "TRACE CAUSAL CONTEXT REQUIRED",
+        "",
+        "You are creating product behavior, but this session has no active",
+        "work item or requirement:",
+        f"  {path}:{line}::{symbol.name}",
+        "",
+        "Future agents must be able to answer why this behavior exists.",
+        "Before creating it, either:",
+        "",
+        "  trace task begin <existing-work-id>",
+        "",
+        "or create the appropriate trace root (requirement/work item) and",
+        "establish it with `trace task begin`.",
+    ]
+    return fit("\n".join(lines), 4000)
 
 
 def _as_int(value: object) -> int | None:

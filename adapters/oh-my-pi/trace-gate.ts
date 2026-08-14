@@ -3,6 +3,7 @@
 // Blocking enforcement: pre-edit context guard + fail-closed completion gate.
 import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
 
+// trace:v1 id=impl.omp.trace-gate work=WORK-TL-001
 export default function hook(pi: HookAPI): void {
   const run = (args: string[], input: string): { code: number; out: string } => {
     const res = Bun.spawnSync(["uv", "run", "trace", ...args], {
@@ -58,16 +59,23 @@ export default function hook(pi: HookAPI): void {
     }
   });
 
-  // Fail-closed completion gate: block shutdown while trace verify fails.
-  pi.on("session_shutdown", async (event, ctx) => {
+  // Fail-closed completion gate: block while trace obligations or verify fail.
+  pi.on("session_stop", async (event, ctx) => {
     const payload = JSON.stringify({
       lifecycle: "wip",
       session_id: sessionId(ctx),
     });
     const res = run(["hook", "stop", "--format", "json"], payload);
     if (res.code !== 0) {
-      pi.log(`trace verify: ${res.out}`);
-      return { block: true, reason: "trace verification has blocking failures" };
+      let reason = "trace verification has blocking failures";
+      try {
+        const d = JSON.parse(res.out) as { output?: string };
+        if (typeof d.output === "string" && d.output) reason = d.output;
+      } catch {
+        // keep default reason
+      }
+      pi.log(`trace gate: ${reason}`);
+      return { block: true, reason };
     }
   });
 }

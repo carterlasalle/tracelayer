@@ -99,6 +99,7 @@ def test_atomic_writes_leave_no_temp_files(state):
         "dirty": [],
         "active_work": None,
         "active_requirement": None,
+        "obligations": [],
     }
 
 

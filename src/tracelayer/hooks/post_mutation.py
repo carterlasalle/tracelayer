@@ -86,6 +86,7 @@ def handle(ctx: HookContext, payload: dict) -> HookOutput:
         linked[node.trace_id] = tests
     if dirty:
         ctx.state.mark_dirty(ctx.session_id, dirty)
+    _resolve_obligations(ctx, path, text)
     block = _deleted_block(ctx.store, deleted, ctx.project.config.hooks.max_context_chars)
     if block is not None:
         return render_blocked(
@@ -283,6 +284,55 @@ def _untraced_added_symbols(root: Path, path: str, text: str) -> tuple[list[str]
         ][:3],
         added is None,
     )
+
+
+# trace:v1 id=impl.hooks.obligation-resolution work=WORK-TL-001
+def _resolve_obligations(ctx: HookContext, path: str, text: str) -> None:
+    """Mark pending trace obligations satisfied once the marker exists.
+
+    An obligation for (path, symbol) resolves when the symbol now carries a
+    marker (within its block or the line above) or when the suggested marker
+    id appears anywhere in the file.
+    """
+    if ctx.state is None:
+        return
+    parser = _parser_for(path)
+    try:
+        symbols = parser.parse(text, path) if parser else []
+    except Exception:
+        symbols = []
+    by_name = {s.name: s for s in symbols}
+    marker_lines = {h.line for h in iter_marker_hits(text, path)}
+    marker_ids: set[str] = set()
+    for hit in iter_marker_hits(text, path):
+        res = parse_marker_hit(hit, unknown_keys=ctx.project.config.markers.unknown_keys)
+        if res.marker is not None and res.marker.trace_id:
+            marker_ids.add(res.marker.trace_id)
+    for obl in ctx.state.pending_obligations(ctx.session_id):
+        if obl.get("path") != path:
+            continue
+        symbol_name = obl.get("symbol")
+        if not isinstance(symbol_name, str):
+            continue
+        symbol = by_name.get(symbol_name)
+        if symbol is None:
+            continue
+        traced = any(symbol.start_line - 1 <= m <= symbol.end_line for m in marker_lines)
+        suggested_ids = _ids_in(str(obl.get("suggested_marker", "")))
+        if traced or (suggested_ids & marker_ids):
+            ctx.state.resolve_obligation(ctx.session_id, path, symbol.name)
+
+
+def _ids_in(marker_text: str) -> set[str]:
+    """Trace ids referenced by a suggested marker line."""
+    try:
+        for hit in iter_marker_hits(marker_text, "suggested"):
+            res = parse_marker_hit(hit, unknown_keys="warn")
+            if res.marker is not None and res.marker.trace_id:
+                return {res.marker.trace_id}
+    except Exception:
+        pass
+    return set()
 
 
 def _deleted_path_output(

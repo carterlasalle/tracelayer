@@ -52,8 +52,25 @@ class HookOutput:
         if fmt == "json":
             return json.dumps(self.json, sort_keys=True)
         if fmt == "claude":
-            return json.dumps({"decision": self.decision, "output": self.output}, sort_keys=True)
+            return self._render_claude()
         return self.output
+
+    def _render_claude(self) -> str:
+        """Claude Code hook contract: ``hookSpecificOutput`` JSON on stdout.
+
+        Blocks carry ``permissionDecision: deny`` + reason; guidance goes in
+        ``additionalContext`` (docs: PreToolUse honors both fields).
+        """
+        event = self.json.get("event", "")
+        out: dict[str, object] = {"hookEventName": event}
+        if self.decision == "block":
+            out["permissionDecision"] = "deny"
+            out["permissionDecisionReason"] = self.output
+        else:
+            out["permissionDecision"] = "allow"
+            if self.output:
+                out["additionalContext"] = self.output
+        return json.dumps({"hookSpecificOutput": out}, sort_keys=True)
 
 
 def sanitize_text(text: str, max_chars: int = 200) -> str:
@@ -97,6 +114,7 @@ def hook_context(
     return HookContext(project, store, gitrepo, state.session_id_from(payload), state)
 
 
+# trace:v1 id=impl.hooks.common work=WORK-TL-001
 def render_allowed(output: str, json: dict) -> HookOutput:
     """Wrap a non-blocking hook result."""
     return HookOutput(decision="allow", output=output, json=json)

@@ -529,6 +529,54 @@ def update(
 
 
 @app.command()
+def task(
+    ctx: typer.Context,
+    command: str = typer.Argument(..., help="begin | end"),
+    work_id: str | None = typer.Argument(None, help="WORK-... id (for begin)"),
+    requirement: str | None = typer.Option(
+        None, "--requirement", "-r", help="Active requirement (REQ-...) for the task"
+    ),
+    session: str | None = typer.Option(
+        None, "--session", help="Session id (default: $TRACE_SESSION or 'default')"
+    ),
+    root: Path | None = _root_opt(),
+) -> None:
+    """Manage the session's active trace context (review P1).
+
+    ``trace task begin WORK-X`` records the active work item for the
+    session; hooks then attach new behavior to it automatically (markers
+    suggested with ``work=WORK-X``), and the pre-edit authoring gate
+    demands causal context before untraced new behavior is written.
+    """
+    from tracelayer.config import load_project
+    from tracelayer.hooks.session_state import SessionState
+
+    root = _resolve_root(ctx, root)
+    project, _diags = load_project(root)
+    state = SessionState(project)
+    sid = session or os.environ.get("TRACE_SESSION") or "default"
+    if command == "begin":
+        if not work_id:
+            typer.echo("usage: trace task begin <WORK-ID> [--requirement REQ-X]", err=True)
+            raise typer.Exit(2)
+        state.set_active_work(sid, work_id)
+        if requirement:
+            state.set_active_requirement(sid, requirement)
+        typer.echo(
+            f"active work: {work_id}"
+            + (f"\nactive requirement: {requirement}" if requirement else "")
+            + "\nHooks will attach new behavior to this work item automatically."
+        )
+        return
+    if command == "end":
+        state.clear(sid)
+        typer.echo("session trace context cleared")
+        return
+    typer.echo(f"unknown task command {command!r} (begin|end)", err=True)
+    raise typer.Exit(2)
+
+
+@app.command()
 def web(
     ctx: typer.Context,
     root: Path | None = _root_opt(),
@@ -1332,6 +1380,27 @@ def docs_generate(
         engine.close()
 
 
+def _normalize_hook_payload(raw: dict) -> dict:
+    """Map harness-specific hook payloads onto the canonical hook shape.
+
+    Claude Code sends ``{"tool_name": "Edit", "tool_input": {"file_path":
+    ..., "old_string": ..., "new_string": ...}}``; other harnesses use
+    ``file_path`` or top-level ``path``. Everything is normalized to
+    ``path`` plus the mutation text (``content`` / ``old_string`` +
+    ``new_string``) so hook handlers see one contract (adapter drift fix).
+    """
+    out = dict(raw)
+    ti = raw.get("tool_input")
+    if not isinstance(ti, dict):
+        return out
+    if not out.get("path"):
+        out["path"] = ti.get("file_path") or ti.get("path") or ""
+    for key in ("content", "old_string", "new_string", "line"):
+        if key in ti and key not in out:
+            out[key] = ti[key]
+    return out
+
+
 @app.command()
 def hook(
     ctx: typer.Context,
@@ -1343,12 +1412,13 @@ def hook(
 ) -> None:
     """Run a hook event with the payload JSON from stdin (spec Section 22).
 
-    Exit 0 on allow, 1 on block (any event).
+    Exit 0 on allow, 2 on block (Claude Code blocks on exit 2; exit 1 is a
+    non-blocking error there).
     """
     root = _resolve_root(ctx, root)
     engine, _diags = _open(root)
     try:
-        out = engine.hook(event, _read_payload())
+        out = engine.hook(event, _normalize_hook_payload(_read_payload()))
     except ValueError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(2) from exc
@@ -1356,7 +1426,7 @@ def hook(
         engine.close()
     typer.echo(out.render(fmt))
     if out.decision == "block":
-        raise typer.Exit(1)
+        raise typer.Exit(2)
 
 
 if __name__ == "__main__":

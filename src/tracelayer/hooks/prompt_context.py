@@ -16,6 +16,7 @@ _WORK_ID = re.compile(r"\b(WORK-[A-Za-z0-9][A-Za-z0-9._/-]*)\b")
 _REQ_ID = re.compile(r"\b(REQ-[A-Za-z0-9][A-Za-z0-9._/-]*)\b")
 
 
+# trace:v1 id=impl.hooks.prompt-context work=WORK-TL-001
 def handle(ctx: HookContext, payload: dict) -> HookOutput:
     """Search the prompt; inject nothing when there are no hits.
 

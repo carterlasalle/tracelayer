@@ -23,21 +23,28 @@ from tracelayer.hooks.common import (
 )
 
 
+# trace:v1 id=impl.hooks.stop-gate work=WORK-TL-001
 def handle(ctx: HookContext, payload: dict) -> HookOutput:
     """Block completion on blocking verify failures; else confirm pass."""
     policy = ctx.project.policy
     lifecycle = payload.get("lifecycle") or (policy.lifecycle_for(None) if policy else "wip")
-    result = _verify_changed(ctx, lifecycle)
+    pending = ctx.state.pending_obligations(ctx.session_id) if ctx.state else []
+    result = _verify_both(ctx, lifecycle)
     json_data = {
         "event": "stop",
-        "decision": "block" if result["blocking"] else "allow",
+        "decision": "block" if (result["blocking"] or pending) else "allow",
         "status": result["status"],
         "lifecycle": lifecycle,
+        "pending_obligations": pending,
         "diagnostics": [d.to_json() for d in result["diagnostics"]],
         "output": "",
     }
     if result.get("unavailable"):
         text = "Trace index unavailable. Run `trace index --all`, then retry."
+        json_data["output"] = text
+        return render_blocked(text, json_data)
+    if pending:
+        text = _obligation_text(pending)
         json_data["output"] = text
         return render_blocked(text, json_data)
     if result["blocking"]:
@@ -49,26 +56,41 @@ def handle(ctx: HookContext, payload: dict) -> HookOutput:
     return render_allowed(text, json_data)
 
 
-def _verify_changed(ctx: HookContext, lifecycle: str) -> dict:
-    """Verify the full materialized graph state; prefer the engine, else evaluator.
+def _verify_both(ctx: HookContext, lifecycle: str) -> dict:
+    """Union changed-scope and whole-graph verification.
 
-    ``Engine.verify(scope="all")`` evaluates the existing store only (it does
-    not reindex — only ``scope="changed"`` triggers an incremental rebuild), so
-    it is safe to call here: the gate reflects every blocking diagnostic
-    currently materialized at ``lifecycle``, not just the change set.
+    ``scope='changed'`` reindexes incrementally and evaluates the change set
+    (TL012 etc.); ``scope='all'`` evaluates global graph health. The gate
+    must enforce both: a brand-new untraced file is a changed-scope failure
+    even when the whole graph is healthy.
     """
     try:
         from tracelayer.engine import Engine
 
-        result = Engine(ctx.project, ctx.gitrepo).verify(scope="all", lifecycle=lifecycle)
+        engine = Engine(ctx.project, ctx.gitrepo)
+        changed = engine.verify(scope="changed", lifecycle=lifecycle)
+        whole = engine.verify(scope="all", lifecycle=lifecycle)
+        diagnostics = list(changed.diagnostics) + list(whole.diagnostics)
+        blocking = changed.blocking or whole.blocking
         return {
-            "status": result.status,
-            "blocking": result.blocking,
-            "diagnostics": result.diagnostics,
+            "status": "fail" if blocking else "pass",
+            "blocking": blocking,
+            "diagnostics": diagnostics,
         }
     except (ImportError, AttributeError):
         pass  # engine not implemented yet (or contract drift) — direct fallback
     return _evaluate_fallback(ctx, lifecycle)
+
+
+def _obligation_text(pending: list[dict]) -> str:
+    lines = ["TRACE OBLIGATIONS PENDING", ""]
+    for obl in pending[:8]:
+        marker = str(obl.get("suggested_marker", "")).strip()
+        lines.append(f"- {obl.get('path')}::{obl.get('symbol')} (new behavior)")
+        if marker:
+            lines.append(f"    add: {marker}")
+    lines += ["", "Resolve every obligation before completing the task."]
+    return "\n".join(lines)
 
 
 def _evaluate_fallback(ctx: HookContext, lifecycle: str) -> dict:

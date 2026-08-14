@@ -267,7 +267,7 @@ def test_edit_without_context_blocks_then_allows_after_context(tmp_path):
     env = {"TRACE_SESSION": "matrix-session"}
 
     blocked = run_trace(root, "hook", "pre-mutation", input=PRE_MUTATION_PAYLOAD, env=env)
-    assert blocked.returncode == 1
+    assert blocked.returncode == 2
     assert "TRACE CONTEXT REQUIRED" in blocked.stdout
     assert "Run `trace context impl.auth.refresh`" in blocked.stdout
 

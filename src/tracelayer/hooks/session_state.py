@@ -19,6 +19,7 @@ from tracelayer.config import Project
 _SAFE = re.compile(r"[^A-Za-z0-9._-]+")
 
 
+# trace:v1 id=impl.hooks.session-state work=WORK-TL-001
 class SessionState:
     """JSON-file-backed session state keyed by session id."""
 
@@ -117,6 +118,40 @@ class SessionState:
     def active_requirement(self, session_id: str) -> str | None:
         return self._read(session_id).get("active_requirement")
 
+    # -- pending trace obligations (durable authoring, not ephemeral prose) --
+
+    def add_obligation(self, session_id: str, obligation: dict) -> None:
+        """Persist a pending trace-authoring obligation for the session.
+
+        Obligations are durable: the agent must resolve them (by adding the
+        marker) before the stop gate allows completion.
+        """
+        data = self._read(session_id)
+        obligations = data.setdefault("obligations", [])
+        key = (obligation.get("path"), obligation.get("symbol"))
+        for existing in obligations:
+            if (existing.get("path"), existing.get("symbol")) == key:
+                return  # dedupe by path+symbol
+        obligations.append(obligation)
+        self._write(session_id, data)
+
+    def resolve_obligation(self, session_id: str, path: str, symbol: str) -> None:
+        data = self._read(session_id)
+        changed = False
+        for existing in data.get("obligations", []):
+            if (existing.get("path"), existing.get("symbol")) == (path, symbol):
+                existing["state"] = "satisfied"
+                changed = True
+        if changed:
+            self._write(session_id, data)
+
+    def pending_obligations(self, session_id: str) -> list[dict]:
+        return [
+            o
+            for o in self._read(session_id).get("obligations", [])
+            if o.get("state") != "satisfied"
+        ]
+
     def clear(self, session_id: str) -> None:
         """Reset the session to a clean slate (empty file, not deleted)."""
         self._write(
@@ -127,5 +162,6 @@ class SessionState:
                 "dirty": [],
                 "active_work": None,
                 "active_requirement": None,
+                "obligations": [],
             },
         )

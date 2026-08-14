@@ -41,8 +41,12 @@ Use this skill when:
 - reviewing a PR with trace diagnostics;
 - fixing a `trace verify` failure.
 
-Do not use it for untraced repositories, or for edits that touch no traced
-artifacts.
+Do not use it for repositories without TraceLayer installed (no `trace`
+CLI, no `.trace/` config), or for prose edits unrelated to traced
+artifacts. Use it for any mutation that may create, modify, move, test,
+configure, document, or remove trace-worthy behavior — **whether or not
+the target artifact is already traced** (new untraced behavior is exactly
+when the skill matters most).
 
 ## Mental model
 

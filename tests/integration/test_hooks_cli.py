@@ -35,7 +35,7 @@ def test_pre_mutation_blocks_once_then_allows(tmp_path):
     root = setup_auth_repo(tmp_path)
 
     blocked = run_trace(root, "hook", "pre-mutation", input=PRE_MUTATION)
-    assert blocked.returncode == 1
+    assert blocked.returncode == 2
     assert "TRACE CONTEXT REQUIRED" in blocked.stdout
     assert "impl.auth.refresh" in blocked.stdout
     assert "Run `trace context impl.auth.refresh`" in blocked.stdout
@@ -55,7 +55,7 @@ def test_pre_mutation_allows_after_context_load(tmp_path):
     env = {"TRACE_SESSION": SESSION}
 
     blocked = run_trace(root, "hook", "pre-mutation", input=PRE_MUTATION, env=env)
-    assert blocked.returncode == 1
+    assert blocked.returncode == 2
 
     # The context command records the load under the same session id.
     ctx = run_trace(root, "context", "impl.auth.refresh", env=env)
@@ -90,17 +90,17 @@ def test_pre_mutation_sessions_are_isolated(tmp_path):
     )
 
     # Alice's first edit is blocked, her retry is allowed (block-once).
-    assert run_trace(root, "hook", "pre-mutation", input=payload_a).returncode == 1
+    assert run_trace(root, "hook", "pre-mutation", input=payload_a).returncode == 2
     assert run_trace(root, "hook", "pre-mutation", input=payload_a).returncode == 0
 
     # Bob is a fresh session: still blocked despite Alice's state.
-    assert run_trace(root, "hook", "pre-mutation", input=payload_b).returncode == 1
+    assert run_trace(root, "hook", "pre-mutation", input=payload_b).returncode == 2
 
     # A session bound via TRACE_SESSION behaves like a distinct session id.
     env_blocked = run_trace(
         root, "hook", "pre-mutation", input=PRE_MUTATION, env={"TRACE_SESSION": "env-session"}
     )
-    assert env_blocked.returncode == 1
+    assert env_blocked.returncode == 2
     # Bob's block-once state is untouched by the env session.
     assert run_trace(root, "hook", "pre-mutation", input=payload_b).returncode == 0
 
@@ -120,10 +120,10 @@ def test_stop_gate_blocks_on_dirty_evidence_then_passes(tmp_path):
     assert run_trace(root, "index", "--changed").returncode == 0
 
     blocked = run_trace(root, "hook", "stop", input=json.dumps({"payload": {"lifecycle": "merge"}}))
-    assert blocked.returncode == 1
+    assert blocked.returncode == 2
     assert "Task cannot complete yet." in blocked.stdout
-    assert "[TL110]" in blocked.stdout
-    assert "Resolve the failures" in blocked.stdout
+    assert "[TL011]" in blocked.stdout  # changed requirement -> stale downstream
+    assert "trace review" in blocked.stdout
 
     # Review the changed requirement; the gate now passes (wip gates are off).
     assert run_trace(root, "review", "REQ-AUTH-017").returncode == 0
@@ -150,7 +150,8 @@ def test_stop_gate_json_envelope(tmp_path):
     assert data["decision"] == "allow"
     assert data["status"] == "pass"
     assert data["lifecycle"] == "wip"
-    assert data["diagnostics"] == []
+    # Only non-blocking configuration-change warnings (TL063) may appear.
+    assert all(d["rule"] == "TL063" for d in data["diagnostics"])
 
 
 def test_prompt_context_injects_nothing_on_no_hits(tmp_path):

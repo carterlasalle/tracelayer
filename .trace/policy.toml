@@ -31,6 +31,8 @@ paths = [
   "scripts/**",
   "README.md",
   ".gitignore",
+  "AGENTS.md",
+  "CLAUDE.md",
   "pyproject.toml",
   "uv.lock",
   ".mcp.json",

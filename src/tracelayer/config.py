@@ -339,5 +339,14 @@ require_coverage_confirmation = true
 require_semantic_audit = true
 
 [exclusions]
-paths = ["vendor/**", "generated/**", "docs/vendor/**", ".trace/**"]
+paths = [
+  "vendor/**",
+  "generated/**",
+  "docs/vendor/**",
+  ".trace/**",
+  ".gitignore",
+  "AGENTS.md",
+  "CLAUDE.md",
+  ".mcp.json"
+]
 """

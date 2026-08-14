@@ -117,7 +117,7 @@ def test_deleted_traced_symbol_with_references_blocks(tmp_path):
         "json",
         input=json.dumps({"path": "src/app.py"}),
     )
-    assert r.returncode == 1  # blocked
+    assert r.returncode == 2  # blocked (Claude exit-2 semantics)
     out = json.loads(r.stdout)
     assert out["decision"] == "block"
     assert "TRACE DELETION REQUIRES ACTION" in out["output"]
