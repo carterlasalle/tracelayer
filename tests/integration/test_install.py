@@ -207,6 +207,26 @@ def test_update_refreshes_installed_copies(tmp_path):
     assert "How enforcement works" in skill.read_text()
 
 
+# trace:v1 id=test.dogfood.tests.integration.test_install.template-drift type=test
+def test_claude_template_matches_canonical_generator(tmp_path):
+    """The checked-in Claude adapter template IS the canonical generator's
+    output — installed copies and the repo adapter cannot drift."""
+    import json
+    from pathlib import Path as _Path
+
+    from tracelayer.install import claude_settings_template
+
+    template_path = (
+        _Path(__file__).resolve().parents[2] / "adapters" / "claude-code" / "settings.template.json"
+    )
+    assert json.loads(template_path.read_text(encoding="utf-8")) == json.loads(
+        claude_settings_template()
+    )
+    hooks = json.loads(claude_settings_template())["hooks"]
+    bash_matchers = [g["matcher"] for g in hooks["PostToolUse"] if g.get("matcher") == "Bash"]
+    assert bash_matchers, "Bash PostToolUse hook must be wired in the canonical config"
+
+
 def test_bundled_skill_dir_found():
     from tracelayer.install import bundled_skill_dir
 

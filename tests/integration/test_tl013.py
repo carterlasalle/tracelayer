@@ -53,12 +53,25 @@ def test_new_boundary_with_marker_passes(tmp_path):
     assert "TL013" not in proc.stdout, proc.stdout
 
 
-def test_boundary_inside_traced_parent_passes(tmp_path):
-    """A method inside a traced class inherits trace-accountability."""
+def test_method_without_explicit_inheritance_is_traced_individually(tmp_path):
+    """A class marker does NOT geometrically cover its methods: each method
+    is a boundary unless it declares `# trace:inherit <id> reason=...`."""
     repo = _repo(tmp_path)
     (repo / "src" / "app.py").write_text(
-        "# \x74race:v1 id=impl.one satisfies=REQ-1\nclass Service:\n"
+        "# trace:v1 id=impl.one satisfies=REQ-1\nclass Service:\n"
         "    def keep(self):\n        return 1\n\n"
+        "    def new_method(self):\n        return 2\n",
+        encoding="utf-8",
+    )
+    proc = _verify(repo)
+    assert "TL013" in proc.stdout  # the methods are individually untraced
+    assert "new_method" in proc.stdout
+    # Explicit inheritance declares the method subordinate to the class.
+    (repo / "src" / "app.py").write_text(
+        "# trace:v1 id=impl.one satisfies=REQ-1\nclass Service:\n"
+        "    # trace:inherit impl.one reason=implementation-detail\n"
+        "    def keep(self):\n        return 1\n\n"
+        "    # trace:inherit impl.one reason=implementation-detail\n"
         "    def new_method(self):\n        return 2\n",
         encoding="utf-8",
     )
@@ -66,11 +79,12 @@ def test_boundary_inside_traced_parent_passes(tmp_path):
     assert "TL013" not in proc.stdout, proc.stdout
 
 
+# trace:v1 id=test.dogfood.tests.integration.test_tl013.exempt type=test
 def test_exempt_boundary_passes(tmp_path):
     repo = _repo(tmp_path)
     (repo / "src" / "app.py").write_text(
         "# \x74race:v1 id=impl.one satisfies=REQ-1\ndef keep():\n    return 1\n\n\n"
-        "# trace:exempt\ndef trivial_helper():\n    return 0\n",
+        "# trace:exempt reason=trivial-helper\ndef trivial_helper():\n    return 0\n",
         encoding="utf-8",
     )
     proc = _verify(repo)

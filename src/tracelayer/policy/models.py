@@ -17,7 +17,7 @@ if TYPE_CHECKING:  # pragma: no cover - annotations only
     from tracelayer.graph.store import GraphStore
 
 
-# trace:exempt  # data container, no behavior
+# trace:exempt reason=data container, no behavior  # data container, no behavior
 @dataclass
 class EvalContext:
     """Per-evaluation state handed to every rule function.

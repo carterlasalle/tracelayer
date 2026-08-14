@@ -84,7 +84,7 @@ RULES: dict[str, RuleDef] = {
         "TL013",
         "behavior boundary not trace-accounted",
         SEVERITY_ERROR,
-        "Add a trace:v1 marker above the boundary, inherit from a traced parent, or add `# trace:exempt`.",
+        "Add a trace:v1 marker above the boundary, inherit from a traced parent, or add `# trace:exempt reason=internal-detail`.",
     ),
     "TL014": RuleDef(
         "TL014",

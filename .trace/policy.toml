@@ -38,10 +38,12 @@ paths = [
   ".claude/**",
   ".pi/**",
   ".omp/**",
+  ".hermes/**",
   ".agents/**",
   "opencode.json",
   "src/tracelayer/web/vendor/**",
   "docs/marker-protocol.md",
   "docs/relationships.md",
-  "skills/traceability/references/marker-protocol.md"
+  "skills/traceability/references/marker-protocol.md",
+  "adapters/claude-code/settings.template.json"
 ]

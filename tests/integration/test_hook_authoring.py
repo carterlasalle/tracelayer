@@ -81,6 +81,7 @@ def test_claude_payload_normalized_and_authoring_blocked(tmp_path):
     assert "satisfies=REQ-AUTH-017" in out["output"]
 
 
+# trace:v1 id=test.dogfood.tests.integration.test_hook_authoring.authoring-gate type=test
 def test_authoring_gate_blocks_and_exemption_allows(tmp_path):
     repo = _repo(tmp_path)
     run_trace(repo, "task", "begin", "WORK-AUTH-237", env={"TRACE_SESSION": "s"})
@@ -114,7 +115,7 @@ def test_authoring_gate_blocks_and_exemption_allows(tmp_path):
         "tool_name": "Write",
         "tool_input": {
             "file_path": str(repo / "src" / "trivial.py"),
-            "content": "# trace:exempt\ndef helper():\n    return 0\n",
+            "content": "# trace:exempt reason=trivial-helper\ndef helper():\n    return 0\n",
         },
     }
     r = _pre(repo, exempt)

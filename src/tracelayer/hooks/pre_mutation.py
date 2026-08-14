@@ -4,7 +4,7 @@ Two gates, both evaluated BEFORE the mutation lands:
 
 1. **Authoring gate (P0)**: the proposed edit is simulated and parsed. New
    behavioral boundaries (functions/classes/methods) without a trace marker
-   or an explicit ``# trace:exempt`` are BLOCKED with the exact marker to
+   or an explicit ``# trace:exempt reason=internal-detail`` are BLOCKED with the exact marker to
    write — new code cannot exist before tracing is considered. The
    obligation is persisted in session state so the stop gate can enforce it.
 
@@ -72,7 +72,7 @@ def handle(ctx: HookContext, payload: dict) -> HookOutput:
 # Authoring gate: proposed-edit classification (review P0)
 # ---------------------------------------------------------------------------
 
-_EXEMPT_MARK = "# trace:exempt"
+_EXEMPT_MARK = "# trace:exempt reason=internal-detail"
 
 
 def _proposed_text(root: Path, path: str, payload: dict) -> str | None:
@@ -123,10 +123,10 @@ def _classify_boundaries(path: str, current: str | None, proposed: str) -> list[
         old_bounds = extract_boundaries(path, current) if current else []
     except Exception:
         old_bounds = []
-    base = {b.name: b for b in old_bounds}
+    base = {b.qualified_name or b.name: b for b in old_bounds}
     out: list[tuple] = []
     for b in new_bounds:
-        prior = base.get(b.name)
+        prior = base.get(b.qualified_name or b.name)
         if prior is None:
             out.append((b, "NEW"))
         elif fp(prior) != fp(b):
@@ -176,7 +176,7 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
     """Block the mutation when the proposed edit adds untraced boundaries.
 
     Deterministic: parse the simulated result, compare symbol lines against
-    the current file, and require a marker (or ``# trace:exempt``) on every
+    the current file, and require a marker (or ``# trace:exempt reason=internal-detail``) on every
     new boundary. Discovery-excluded paths (tests/**, vendor/**) are free.
     """
     if not path or ctx.state is None:
@@ -210,6 +210,9 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
     work = state.active_work(ctx.session_id)
     req = state.active_requirement(ctx.session_id)
     plan = state.active_plan(ctx.session_id)
+    from tracelayer.discovery.suggest import resolve_exercised
+
+    exercised = resolve_exercised(ctx.store, req)
     boundary, change_kind = untraced[0]
     line = boundary.start_line
     if not (work or req):
@@ -233,11 +236,13 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
             "kind": "new_behavior" if change_kind == "NEW" else "modified_behavior",
             "work": work or "",
             "requirement": req or "",
-            "suggested_marker": _suggested_marker(boundary, work, req, plan, rel_path),
+            "suggested_marker": _suggested_marker(boundary, work, req, plan, rel_path, exercised),
             "state": "pending",
         },
     )
-    text = _authoring_block_text(boundary, path, rel_path, line, work, req, plan, change_kind)
+    text = _authoring_block_text(
+        boundary, path, rel_path, line, work, req, plan, change_kind, exercised
+    )
     return render_blocked(
         text,
         {
@@ -254,12 +259,19 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
 
 # trace:exempt reason=internal-helper
 def _suggested_marker(
-    symbol, work: str | None, req: str | None, plan: str | None = None, path: str = ""
+    symbol,
+    work: str | None,
+    req: str | None,
+    plan: str | None = None,
+    path: str = "",
+    exercised: str | None = None,
 ) -> str:
     """Canonical, artifact-aware marker via the shared suggestion engine."""
     from tracelayer.discovery.suggest import suggest_marker
 
-    suggestion = suggest_marker(symbol, path, work=work, requirement=req, plan=plan)
+    suggestion = suggest_marker(
+        symbol, path, work=work, requirement=req, plan=plan, exercised=exercised
+    )
     return suggestion.marker
 
 
@@ -273,6 +285,7 @@ def _authoring_block_text(
     req: str | None,
     plan: str | None = None,
     change_kind: str = "NEW",
+    exercised: str | None = None,
 ) -> str:
     heading = (
         "TRACE AUTHORING REQUIRED — NEW BEHAVIOR"
@@ -303,7 +316,7 @@ def _authoring_block_text(
     lines += [
         "Retry this edit with this marker directly above the function:",
         "",
-        f"  {_suggested_marker(symbol, work, req, plan, rel_path)}",
+        f"  {_suggested_marker(symbol, work, req, plan, rel_path, exercised)}",
         "",
         "Do NOT add path=, commit=, test=, or line= — TraceLayer derives",
         "those facts.",

@@ -27,10 +27,23 @@ _EXT_LANG = {
 }
 _CONFIG_EXTS = {"yaml", "yml", "toml", "json"}
 _DOC_EXTS = {"md", "mdx", "markdown"}
-_EXEMPT_MARKS = ("# trace:exempt", "<!-- trace:exempt -->")
+# Per-language exemption comments. An exemption is only honored with a
+# machine-readable reason: ``# trace:exempt reason=<why>`` (auditable, no
+# silent "just exempt it" path through the gate).
+_EXEMPT_MARKERS = {
+    "python": "# trace:exempt reason=",
+    "yaml": "# trace:exempt reason=",
+    "toml": "# trace:exempt reason=",
+    "go": "// trace:exempt reason=",
+    "rust": "// trace:exempt reason=",
+    "java": "// trace:exempt reason=",
+    "typescript": "// trace:exempt reason=",
+    "javascript": "// trace:exempt reason=",
+    "markdown": "<!-- trace:exempt reason=",
+}
 
 
-# trace:exempt  # data container, no behavior
+# trace:exempt reason=data container, no behavior  # data container, no behavior
 @dataclass
 class Boundary:
     """One behavioral boundary in a file."""
@@ -42,9 +55,10 @@ class Boundary:
     source: str
     language: str
     path: str = ""
+    qualified_name: str = ""
 
 
-# trace:exempt  # public predicate helper, no behavior of its own
+# trace:exempt reason=public predicate helper, no behavior of its own  # public predicate helper, no behavior of its own
 def supported_extension(path: str) -> bool:
     suffix = path.rsplit(".", 1)[-1].lower() if "." in path else ""
     return suffix in _EXT_LANG or suffix in _CONFIG_EXTS or suffix in _DOC_EXTS
@@ -85,13 +99,9 @@ def boundary_is_traced(
         return True  # a marker directly above the key attaches to it
     if boundary.language == "json" and _json_sidecar_traced(boundary, root):
         return True  # JSON uses the sidecar anchor (.trace/sidecars/<path>.json)
-    # Inherited: inside an already-traced parent boundary.
-    for parent in boundaries:
-        if parent is boundary:
-            continue
-        if parent.start_line <= boundary.start_line <= parent.end_line:
-            if _marker_in(lines, parent.start_line, parent.end_line):
-                return True
+    # Explicit inheritance declaration (no automatic geometric coverage).
+    if _inherit(lines, boundary):
+        return True
     return False
 
 
@@ -231,9 +241,47 @@ def _heading_is_node(boundary: Boundary) -> bool:
     return infer_node_type(token) is not None
 
 
+# trace:exempt reason=internal-helper
 def _exempt(lines: list[str], boundary: Boundary) -> bool:
+    """Explicit exemption directly above the boundary, with a reason.
+
+    The exemption must carry ``reason=<why>``: bare ``trace:exempt`` is
+    ignored so agents cannot shortcut the gate without an auditable cause.
+    """
+    marker = _EXEMPT_MARKERS.get(boundary.language)
+    if marker is None:
+        return False
     for i in range(max(0, boundary.start_line - 2), boundary.start_line):
-        if any(mark in lines[i] for mark in _EXEMPT_MARKS):
+        line = lines[i]
+        if marker in line and line.split("reason=", 1)[1].strip():
+            return True
+    return False
+
+
+# trace:exempt reason=internal-helper
+def _inherit(lines: list[str], boundary: Boundary) -> bool:
+    """Explicit declaration of inheritance from a traced parent.
+
+    ``// trace:inherit <trace-id> reason=<why>`` directly above the boundary
+    replaces geometric parent coverage: a method is only covered by a class
+    marker when it says so, audibly.
+    """
+    language_marker = {
+        "python": "#",
+        "yaml": "#",
+        "toml": "#",
+        "go": "//",
+        "rust": "//",
+        "java": "//",
+        "typescript": "//",
+        "javascript": "//",
+        "markdown": "<!--",
+    }.get(boundary.language)
+    if language_marker is None:
+        return False
+    for i in range(max(0, boundary.start_line - 2), boundary.start_line):
+        line = lines[i].strip()
+        if language_marker in line and "trace:inherit" in line and "reason=" in line:
             return True
     return False
 

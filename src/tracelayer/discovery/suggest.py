@@ -77,6 +77,21 @@ def _host_language(path: str) -> str:
 
 
 # trace:exempt reason=internal-helper
+def resolve_exercised(store, requirement: str | None) -> str | None:
+    """The unique implementation satisfying the requirement, if unambiguous."""
+    if requirement is None:
+        return None
+    candidates: list[str] = []
+    for node in store.all_nodes(active_only=True):
+        if node.node_type != "implementation":
+            continue
+        for edge in store.edges_from(node.entity_uid, "satisfies"):
+            target = store.get_node(uid=edge.to_uid)
+            if target is not None and target.trace_id == requirement:
+                candidates.append(node.trace_id)
+    return candidates[0] if len(candidates) == 1 else None
+
+
 def _looks_like_test(path: str) -> bool:
     parts = path.replace("\\", "/").split("/")
     return any(
@@ -112,6 +127,7 @@ def suggest_marker(
     work: str | None = None,
     requirement: str | None = None,
     plan: str | None = None,
+    exercised: str | None = None,
 ) -> MarkerSuggestion:
     """The canonical marker for a boundary under the given session context."""
     role = classify_role(boundary, path)
@@ -123,10 +139,13 @@ def suggest_marker(
     if role in ("impl", "test", "ops"):
         if requirement:
             rel.append(f"satisfies={requirement}" if role != "test" else f"verifies={requirement}")
-    if role == "test" and work:
-        # exercises needs an implementation id; without one we note it.
-        rel.append("")
-    if role == "doc" and requirement:
+    if role == "test":
+        if exercised:
+            rel.append(f"exercises={exercised}")
+        elif requirement:
+            rel.append(
+                ""
+            )  # placeholder: note below when ambiguous    if role == "doc" and requirement:
         rel.append(f"documents={requirement}")
     if role == "ops" and requirement:
         rel.append(f"satisfies={requirement}")

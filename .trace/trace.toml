@@ -30,6 +30,7 @@ exclude = [
   ".claude/**",
   ".pi/**",
   ".omp/**",
+  ".hermes/**",
   "opencode.json"
 ]
 generated = ["src/generated/**"]

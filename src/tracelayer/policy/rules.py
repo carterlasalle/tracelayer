@@ -252,9 +252,9 @@ def rule_tl013(ctx: EvalContext) -> list[Diagnostic]:
             base_bounds = extract_boundaries(path, baseline) if baseline else []
         except Exception:
             continue  # nosec B112: unparseable file -> skip (deterministic), never fail the gate
-        base_by_name = {b.name: b for b in base_bounds}
+        base_by_name = {b.qualified_name or b.name: b for b in base_bounds}
         for boundary in cur_bounds:
-            prior = base_by_name.get(boundary.name)
+            prior = base_by_name.get(boundary.qualified_name or boundary.name)
             if prior is None:
                 changed = True  # new boundary (or renamed: re-trace it)
             elif boundary.kind == "heading":
@@ -273,7 +273,7 @@ def rule_tl013(ctx: EvalContext) -> list[Diagnostic]:
                     message=(
                         f"Behavior boundary {boundary.kind} '{boundary.name}' is not "
                         "trace-accounted: add a trace:v1 marker above it, inherit from "
-                        "a traced parent, or add `# trace:exempt`"
+                        "a traced parent, or add `# trace:exempt reason=internal-detail`"
                     ),
                 )
             )

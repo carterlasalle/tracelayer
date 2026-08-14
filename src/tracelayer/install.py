@@ -22,7 +22,6 @@ from pathlib import Path
 AGENTS_MD_NOTE = (
     "<!-- tracelayer-agent-invariant:v2 -->\n"
     "This repository uses mandatory semantic traceability. Trace integrity is "
-    "This repository uses mandatory semantic traceability. Trace integrity is "
     "part of the Definition of Done. Follow the repository traceability skill "
     "and any trace instructions injected by hooks. Do not invent trace fields, "
     "replace stable IDs during refactors, or remove markers to silence "
@@ -31,7 +30,7 @@ AGENTS_MD_NOTE = (
     "TRACE AUTHORING IS MANDATORY: whenever a Write/Edit/Create introduces or "
     "materially changes a behavioral boundary, that boundary must be "
     "trace-accounted in the same change (preserve an existing trace ID, add a "
-    "canonical `trace:v1` marker, or record an explicit `# trace:exempt`). "
+    "canonical `trace:v1` marker, or record an explicit `# trace:exempt` with a reason). "
     "Do not write new product behavior first and plan to trace it later — "
     "hooks block untraced new behavior before it is written. Example:\n\n"
     "    # trace:v1 id=impl.<slug> work=<WORK-ID> satisfies=<REQ-ID>\n"
@@ -154,6 +153,7 @@ def install_skill(
 # --------------------------------------------------------------------------
 
 
+# trace:v1 id=impl.install.claude-settings work=WORK-TL-001
 def claude_hook_settings() -> dict:
     """Claude Code settings hooks block (mirrors adapters/claude-code)."""
     return {
@@ -201,7 +201,16 @@ def claude_hook_settings() -> dict:
                             "command": "uv run trace hook post-mutation --format claude",
                         }
                     ],
-                }
+                },
+                {
+                    "matcher": "Bash",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": "uv run trace hook post-mutation --format claude",
+                        }
+                    ],
+                },
             ],
             "PostToolBatch": [
                 {
@@ -223,6 +232,17 @@ def claude_hook_settings() -> dict:
             ],
         },
     }
+
+
+# trace:v1 id=impl.install.claude-template work=WORK-TL-001
+def claude_settings_template() -> str:
+    """The checked-in adapter template, generated from the canonical config.
+
+    One source of truth: installs (``claude_hook_settings``) and the
+    repository's ``adapters/claude-code/settings.template.json`` cannot
+    drift because the template IS this output.
+    """
+    return json.dumps(claude_hook_settings(), indent=2) + "\n"
 
 
 def codex_hooks_config() -> dict:
