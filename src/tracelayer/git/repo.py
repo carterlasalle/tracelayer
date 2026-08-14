@@ -74,6 +74,21 @@ class GitRepo:
         """Run a git command confined to the repo root (argv only, no shell)."""
         return _run_git(self._root, *args)
 
+    def default_base(self) -> str | None:
+        """Merge base with the default branch, else HEAD~1, else None.
+
+        Used by changed-scope verification on clean checkouts (CI): the
+        change set under review is HEAD vs this base.
+        """
+        for ref in ("origin/master", "master", "main"):
+            r = self.run("merge-base", "HEAD", ref)
+            if r.returncode == 0 and r.stdout.strip() and r.stdout.strip() != self.rev():
+                return ref
+        r = self.run("rev-parse", "HEAD~1")
+        if r.returncode == 0 and r.stdout.strip():
+            return "HEAD~1"
+        return None
+
     def rev(self) -> str | None:
         """HEAD commit SHA, or None when unavailable (e.g. unborn HEAD)."""
         try:
@@ -100,20 +115,25 @@ class GitRepo:
         out = r.stdout.strip()
         return out if r.returncode == 0 and out else None
 
-    def changed_files(self) -> list[ChangedFile]:
-        """Files changed in the working tree and/or index, deterministically.
+    def changed_files(self, base: str | None = None) -> list[ChangedFile]:
+        """Files changed vs the working tree (default) or a base revision.
 
-        Parses ``git status --porcelain=v1 -z --renames``. With ``-z`` a
-        rename entry carries the destination path first and the source path
-        second (empirically verified format). Line ranges come from
-        ``git diff --unified=0 -- <path>`` for tracked files; untracked files
-        are whole-file (``diff_ranges=None``); deleted files carry no ranges.
-        Simplest deterministic classification of two-letter status codes:
-        ``??`` untracked, ``R*`` renamed, any ``D`` deleted, ``A*`` added,
-        everything else (M/T/U) modified.
+        ``base=None`` uses ``git status`` (local edit loop: what the working
+        tree differs from HEAD by). With a base ref, diffs ``<base>..HEAD``
+        instead (CI: the committed change set vs the merge base). Parses
+        ``git status --porcelain=v1 -z --renames`` / ``git diff
+        --name-status -z``; a rename entry carries the destination path
+        first and the source path second (empirically verified format).
+        Line ranges come from ``git diff --unified=0 -- <path>``; added
+        files carry no ranges (whole-file).
         """
         try:
-            r = _run_git(self._root, "status", "--porcelain=v1", "-z", "--renames")
+            if base is None:
+                r = _run_git(self._root, "status", "--porcelain=v1", "-z", "--renames")
+            else:
+                r = _run_git(
+                    self._root, "diff", "--name-status", "-z", "--find-renames", base, "HEAD"
+                )
         except (OSError, subprocess.SubprocessError):
             return []
         if r.returncode != 0:
@@ -122,7 +142,10 @@ class GitRepo:
         changed: list[ChangedFile] = []
         i = 0
         while i < len(parts):
-            code, path = parts[i][:2], parts[i][3:]
+            if base is None:
+                code, path = parts[i][:2], parts[i][3:]
+            else:
+                code, path = parts[i][:2], parts[i][2:]
             i += 1
             old_path: str | None = None
             if code[0] == "R" and i < len(parts):

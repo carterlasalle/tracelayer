@@ -1158,7 +1158,15 @@ class Engine:
         revision = self.gitrepo.rev() if self.gitrepo is not None else None
         if scope == "changed" and self.gitrepo is not None:
             self.index_changed()
-            changed_paths = {f.path for f in self.gitrepo.changed_files()}
+            changed = self.gitrepo.changed_files()
+            if not changed:
+                # Clean working tree (CI / post-commit): evaluate the
+                # committed change set vs the merge base of the default
+                # branch (or the previous commit), not nothing.
+                base = self.gitrepo.default_base()
+                if base is not None:
+                    changed = self.gitrepo.changed_files(base=base)
+            changed_paths = {f.path for f in changed}
             changed_ids = {
                 n.trace_id
                 for n in self.store.all_nodes(active_only=True)

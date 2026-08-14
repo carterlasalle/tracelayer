@@ -25,7 +25,12 @@ exclude = [
   "node_modules/**",
   ".venv/**",
   "dist/**",
-  "build/**"
+  "build/**",
+  ".agents/**",
+  ".claude/**",
+  ".pi/**",
+  ".omp/**",
+  "opencode.json"
 ]
 generated = ["src/generated/**"]
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 from tests.conftest import make_git_repo, run_trace
 
 
+# trace:v1 id=test.dogfood.tests.integration.test_audit_depth.py type=test
 def _repo(tmp_path):
     repo = make_git_repo(
         tmp_path,

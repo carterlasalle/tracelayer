@@ -26,6 +26,7 @@ _NODE_TYPES_BY_SECTION: dict[str, tuple[str, ...]] = {
 }
 
 
+# trace:v1 id=impl.audit.package work=WORK-TL-001
 def build_audit_package(
     project: Project,
     store: GraphStore,

@@ -74,6 +74,7 @@ def build_auditor_prompt(package: dict) -> str:
     )
 
 
+# trace:v1 id=impl.audit.runner work=WORK-TL-001
 def run_auditor(
     package: dict, *, command: str, timeout: int = 300
 ) -> tuple[dict, list[Diagnostic]]:

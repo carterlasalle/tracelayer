@@ -697,6 +697,7 @@ def task(
 
 # trace:v1 id=impl.cli.task-summary work=WORK-TL-001
 @plan_app.command("sync")
+# trace:v1 id=impl.cli.plan-sync work=WORK-TL-001
 def plan_sync(
     ctx: typer.Context,
     plan_id: str = typer.Argument(..., help="PLAN-... id"),
