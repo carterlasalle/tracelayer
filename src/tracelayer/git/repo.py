@@ -45,6 +45,7 @@ class ChangedFile:
     diff_ranges: list[tuple[int, int]] | None
 
 
+# trace:v1 id=impl.git.repo work=WORK-TL-001
 class GitRepo:
     """Minimal git adapter used by discovery and the indexing pipeline."""
 
@@ -144,14 +145,18 @@ class GitRepo:
         while i < len(parts):
             if base is None:
                 code, path = parts[i][:2], parts[i][3:]
+                i += 1
             else:
-                code, path = parts[i][:2], parts[i][2:]
-            i += 1
+                # `git diff --name-status -z` emits status and path as
+                # separate NUL-terminated fields: "M", "path", "R", "new", "old".
+                code = parts[i]
+                path = parts[i + 1] if i + 1 < len(parts) else ""
+                i += 2
             old_path: str | None = None
             if code[0] == "R" and i < len(parts):
                 old_path = parts[i]
                 i += 1
-            x, y = code[0], code[1]
+            x, y = code[0], (code[1] if len(code) > 1 else "")
             if y == "?":
                 change = "untracked"
             elif x == "R":
