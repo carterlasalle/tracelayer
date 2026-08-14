@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 _EXT_LANG = {
     "py": "python",
@@ -79,19 +80,28 @@ def extract_boundaries(path: str, text: str) -> list[Boundary]:
 
 # trace:v1 id=impl.policy.boundary-traced work=WORK-TL-001
 def boundary_is_traced(
-    text: str, boundaries: list[Boundary], boundary: Boundary, root: Path | None = None
+    text: str,
+    boundaries: list[Boundary],
+    boundary: Boundary,
+    root: Path | None = None,
+    store: object | None = None,
 ) -> bool:
     """True when the boundary is trace-accounted by any mechanism.
 
-    No naming shortcuts: a private helper is not automatically traced (it
-    must inherit from a traced parent or carry an explicit exemption), and
-    a config file's single marker does not cover unrelated keys (each key
-    attaches to its own marker, or a JSON sidecar anchor).
+    Placement is exact: a marker only counts when it is ATTACHED to the
+    boundary the way the indexer attaches markers — immediately above the
+    definition with a bounded gap of blank/comment/decorator lines (for
+    Markdown headings, in the marker window directly below the heading).
+    A marker anywhere inside the body is not a trace of that boundary.
+
+    No naming shortcuts: private helpers are not automatically traced;
+    inheritance must be declared explicitly with a target that resolves to
+    an active node in the same file.
     """
     lines = text.splitlines()
     if _exempt(lines, boundary):
         return True
-    if _marker_in(lines, boundary.start_line, boundary.end_line):
+    if _marker_attached(lines, boundary):
         return True
     if boundary.language == "markdown" and _heading_is_node(boundary):
         return True  # id-token heading infers a node without a marker
@@ -99,8 +109,8 @@ def boundary_is_traced(
         return True  # a marker directly above the key attaches to it
     if boundary.language == "json" and _json_sidecar_traced(boundary, root):
         return True  # JSON uses the sidecar anchor (.trace/sidecars/<path>.json)
-    # Explicit inheritance declaration (no automatic geometric coverage).
-    if _inherit(lines, boundary):
+    # Explicit inheritance declaration with a validated target.
+    if store is not None and _inherit_valid(lines, boundary, store):
         return True
     return False
 
@@ -154,6 +164,8 @@ def _code_boundaries(language: str, path: str, text: str) -> list[Boundary]:
                 end_line=sym.end_line,
                 source=sym.source,
                 language=language,
+                path=path,
+                qualified_name=getattr(sym, "qualified_name", "") or name,
             )
         )
     return out
@@ -259,13 +271,16 @@ def _exempt(lines: list[str], boundary: Boundary) -> bool:
 
 
 # trace:exempt reason=internal-helper
-def _inherit(lines: list[str], boundary: Boundary) -> bool:
-    """Explicit declaration of inheritance from a traced parent.
+def _inherit_target(lines: list[str], boundary: Boundary) -> str | None:
+    """The declared inheritance target id, or None.
 
-    ``// trace:inherit <trace-id> reason=<why>`` directly above the boundary
-    replaces geometric parent coverage: a method is only covered by a class
-    marker when it says so, audibly.
+    ``// trace:inherit <trace-id> reason=<why>`` directly above the
+    boundary. The target must resolve to an active node in the same file
+    (checked by the caller against the store); a bare or unresolvable
+    declaration is not accounting.
     """
+    import re
+
     language_marker = {
         "python": "#",
         "yaml": "#",
@@ -278,16 +293,81 @@ def _inherit(lines: list[str], boundary: Boundary) -> bool:
         "markdown": "<!--",
     }.get(boundary.language)
     if language_marker is None:
-        return False
+        return None
     for i in range(max(0, boundary.start_line - 2), boundary.start_line):
         line = lines[i].strip()
-        if language_marker in line and "trace:inherit" in line and "reason=" in line:
+        if language_marker not in line or "trace:inherit" not in line or "reason=" not in line:
+            continue
+        m = re.search(r"trace:inherit\s+([A-Za-z0-9._:/-]+)", line)
+        if m is not None:
+            return m.group(1)
+    return None
+
+
+# trace:exempt reason=internal-helper
+def _inherit_valid(lines: list[str], boundary: Boundary, store: Any) -> bool:
+    """Inheritance counts only when the target exists, is active, and is an
+    enclosing parent in the same file."""
+    target_id = _inherit_target(lines, boundary)
+    if target_id is None:
+        return False
+    try:
+        target = store.get_node(trace_id=target_id)
+    except Exception:
+        return False
+    if target is None or not target.active:
+        return False
+    if target.canonical_path != boundary.path:
+        return False  # a legitimate enclosing/semantic parent lives in the same file
+    if target.source_start_line and target.source_start_line > boundary.start_line:
+        return False  # not enclosing: starts below the child
+    return True
+
+
+_COMMENT_PREFIX = {
+    "python": ("#", "@"),
+    "yaml": ("#",),
+    "toml": ("#",),
+    "go": ("//", "/*", "*"),
+    "rust": ("//", "/*", "*"),
+    "java": ("//", "/*", "*"),
+    "typescript": ("//", "/*", "*"),
+    "javascript": ("//", "/*", "*"),
+    "markdown": ("<!--",),
+}
+_MAX_GAP = 3  # mirrors the indexer's marker->symbol attachment window
+
+
+# trace:exempt reason=internal-helper
+def _marker_attached(lines: list[str], boundary: Boundary) -> bool:
+    """The indexer's attachment rule, not a body scan.
+
+    Code/config: a marker within ``_MAX_GAP`` lines above the boundary
+    start, with only blank/comment/decorator lines in between. Markdown
+    headings attach the marker window directly below the heading (the
+    indexer absorbs those markers into the block).
+    """
+    if boundary.language == "markdown":
+        for i in range(boundary.start_line, min(len(lines), boundary.start_line + 6)):
+            if "trace:v1" in lines[i]:
+                return True
+        return False
+    prefixes = _COMMENT_PREFIX.get(boundary.language, ("#",))
+    for marker_idx in range(max(0, boundary.start_line - 1 - _MAX_GAP), boundary.start_line):
+        if "trace:v1" not in lines[marker_idx]:
+            continue
+        if _gap_ok(lines, marker_idx + 1, boundary.start_line - 1, prefixes):
             return True
     return False
 
 
-def _marker_in(lines: list[str], start: int, end: int) -> bool:
-    for i in range(max(0, start - 2), min(len(lines), end)):
-        if "trace:v1" in lines[i]:
-            return True
-    return False
+# trace:exempt reason=internal-helper
+def _gap_ok(lines: list[str], start: int, end: int, prefixes: tuple[str, ...]) -> bool:
+    for i in range(start, end):
+        stripped = lines[i].strip()
+        if not stripped:
+            continue
+        if any(stripped.startswith(p) for p in prefixes):
+            continue
+        return False
+    return True

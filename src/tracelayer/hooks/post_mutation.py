@@ -290,7 +290,7 @@ def _untraced_added_symbols(root: Path, path: str, text: str) -> tuple[list[str]
 
 
 # trace:v1 id=impl.hooks.obligation-resolution work=WORK-TL-001
-def _untraced_boundaries(root: Path, path: str, text: str) -> list:
+def _untraced_boundaries(ctx: HookContext, path: str, text: str) -> list:
     """Boundary objects for added symbols without markers (for suggestions)."""
     from tracelayer.discovery.boundaries import boundary_is_traced, extract_boundaries
 
@@ -298,7 +298,11 @@ def _untraced_boundaries(root: Path, path: str, text: str) -> list:
         boundaries = extract_boundaries(path, text)
     except Exception:
         return []
-    return [b for b in boundaries if not boundary_is_traced(text, boundaries, b)]
+    return [
+        b
+        for b in boundaries
+        if not boundary_is_traced(text, boundaries, b, ctx.project.root, ctx.store)
+    ]
 
 
 # trace:v1 id=impl.hooks.post-bash-scan work=WORK-TL-001
@@ -343,7 +347,7 @@ def _scan_changed_files(ctx: HookContext, json_data: dict) -> HookOutput:
                 ctx.session_id,
                 {
                     "path": f.path,
-                    "symbol": b.name,
+                    "symbol": b.qualified_name or b.name,
                     "kind": "new_behavior",
                     "work": work or "",
                     "requirement": req or "",
@@ -365,6 +369,7 @@ def _scan_changed_files(ctx: HookContext, json_data: dict) -> HookOutput:
     return render_allowed(text, json_data)
 
 
+# trace:v1 id=impl.hooks.resolve-obligations work=WORK-TL-001
 def _resolve_obligations(ctx: HookContext, path: str, text: str) -> None:
     """Mark pending trace obligations satisfied once the marker exists.
 
@@ -380,6 +385,7 @@ def _resolve_obligations(ctx: HookContext, path: str, text: str) -> None:
     except Exception:
         symbols = []
     by_name = {s.name: s for s in symbols}
+    by_qualified = {(getattr(s, "qualified_name", "") or s.name): s for s in symbols}
     marker_lines = {h.line for h in iter_marker_hits(text, path)}
     marker_ids: set[str] = set()
     for hit in iter_marker_hits(text, path):
@@ -392,13 +398,28 @@ def _resolve_obligations(ctx: HookContext, path: str, text: str) -> None:
         symbol_name = obl.get("symbol")
         if not isinstance(symbol_name, str):
             continue
-        symbol = by_name.get(symbol_name)
+        symbol = by_qualified.get(symbol_name) or by_name.get(symbol_name)
         if symbol is None:
             continue
-        traced = any(symbol.start_line - 1 <= m <= symbol.end_line for m in marker_lines)
+        # attached marker directly above the symbol (indexer placement rule)
+        traced = any(
+            symbol.start_line - 4 <= m <= symbol.start_line - 1
+            and _attachment_gap_ok(text, m, symbol.start_line)
+            for m in marker_lines
+        )
         suggested_ids = _ids_in(str(obl.get("suggested_marker", "")))
         if traced or (suggested_ids & marker_ids):
-            ctx.state.resolve_obligation(ctx.session_id, path, symbol.name)
+            ctx.state.resolve_obligation(ctx.session_id, path, symbol_name)
+
+
+# trace:exempt reason=internal-helper
+def _attachment_gap_ok(text: str, marker_line: int, symbol_start: int) -> bool:
+    """Only blank/comment/decorator lines may separate marker and symbol."""
+    for i in range(marker_line + 1, symbol_start):
+        stripped = text.splitlines()[i].strip() if i < len(text.splitlines()) else ""
+        if stripped and not stripped.startswith(("#", "//", "@", "/*", "*")):
+            return False
+    return True
 
 
 def _ids_in(marker_text: str) -> set[str]:
@@ -506,6 +527,7 @@ def _stale_downstream(store: GraphStore, changed: list[Node]) -> dict[str, list[
     return out
 
 
+# trace:v1 id=impl.hooks.guidance work=WORK-TL-001
 def _guidance(
     ctx: HookContext,
     path: str,
@@ -577,11 +599,7 @@ def _guidance(
             for name in untraced:
                 file_text = _read_text(ctx.project.root, path) or ""
                 b = next(
-                    (
-                        x
-                        for x in _untraced_boundaries(ctx.project.root, path, file_text)
-                        if x.name == name
-                    ),
+                    (x for x in _untraced_boundaries(ctx, path, file_text) if x.name == name),
                     None,
                 )
                 if b is not None:

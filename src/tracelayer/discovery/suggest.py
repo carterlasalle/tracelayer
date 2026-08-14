@@ -51,8 +51,13 @@ class MarkerSuggestion:
 
 # trace:exempt reason=internal-helper
 def _slug(name: str) -> str:
-    """kebab-case slug safe for trace ids (spaces and punctuation removed)."""
-    slug = re.sub(r"[^A-Za-z0-9]+", "-", name).strip("-").lower()
+    """kebab-case slug safe for trace ids.
+
+    Splits camelCase (TS/JS names), spaces, and punctuation: "handleRequest"
+    -> "handle-request", "Refresh Token Rotation" -> "refresh-token-rotation".
+    """
+    split = re.sub(r"(?<!^)(?=[A-Z])", "-", name)
+    slug = re.sub(r"[^A-Za-z0-9]+", "-", split).strip("-").lower()
     return slug or "boundary"
 
 
@@ -136,17 +141,16 @@ def suggest_marker(
     rel: list[str] = []
     if work:
         rel.append(f"work={work}")
-    if role in ("impl", "test", "ops"):
+    if role in ("impl", "test"):
         if requirement:
             rel.append(f"satisfies={requirement}" if role != "test" else f"verifies={requirement}")
     if role == "test":
         if exercised:
             rel.append(f"exercises={exercised}")
-        elif requirement:
-            rel.append(
-                ""
-            )  # placeholder: note below when ambiguous    if role == "doc" and requirement:
+
+    if role == "doc" and requirement:
         rel.append(f"documents={requirement}")
+
     if role == "ops" and requirement:
         rel.append(f"satisfies={requirement}")
     if role == "impl" and plan:

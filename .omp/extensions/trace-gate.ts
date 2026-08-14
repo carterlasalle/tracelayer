@@ -64,8 +64,8 @@ export default function hook(pi: HookAPI): void {
     }
   });
 
-  // Post-edit coaching: run post-mutation so obligations resolve and the
-  // model sees the trace guidance appended to the tool result.
+  // Post-edit coaching: run post-mutation so obligations resolve, and
+  // append the trace guidance directly to the tool result the model sees.
   pi.on("tool_result", async (event, ctx) => {
     if (event.toolName !== "edit" && event.toolName !== "write") return;
     const { path } = fileInfo(event.input);
@@ -75,11 +75,15 @@ export default function hook(pi: HookAPI): void {
     if (res.code !== 0) return;
     try {
       const d = JSON.parse(res.out) as { output?: string };
-      if (typeof d.output === "string" && d.output) {
-        pi.log(`trace: ${d.output.split("\n")[0]}`);
-      }
+      if (typeof d.output !== "string" || !d.output) return;
+      const content = Array.isArray(event.content) ? [...event.content] : [];
+      content.push({
+        type: "text",
+        text: `\n\n<TraceLayer>\n${d.output}\n</TraceLayer>`,
+      });
+      return { content };
     } catch {
-      // guidance is advisory post-edit; ignore render errors
+      return;
     }
   });
 

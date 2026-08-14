@@ -142,7 +142,10 @@ def test_modified_untraced_boundary_blocks_before_edit(tmp_path):
         },
     )
     assert r.returncode == 2, r.stderr
-    assert "MODIFIED UNTRACED BEHAVIOR" in json.loads(r.stdout)["output"]
+    out = json.loads(r.stdout)["output"]
+    assert "TRACE AUTHORING REQUIRED" in out
+    assert "legacy_payment_flow" in out
+    assert "modified untraced" in out
 
 
 def test_no_causal_context_blocks_with_task_begin_hint(tmp_path):

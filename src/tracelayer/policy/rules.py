@@ -263,7 +263,7 @@ def rule_tl013(ctx: EvalContext) -> list[Diagnostic]:
                 changed = _boundary_fp(prior) != _boundary_fp(boundary)
             if not changed:
                 continue
-            if boundary_is_traced(current, cur_bounds, boundary, ctx.project.root):
+            if boundary_is_traced(current, cur_bounds, boundary, ctx.project.root, ctx.store):
                 continue
             diags.append(
                 make(

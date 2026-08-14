@@ -169,7 +169,7 @@ Write the understanding first; the marker is the one line that records it.
 | Code — new behavior | line directly above the symbol | `id=impl.<slug> work= satisfies= implements=` |
 | Code — refactor | move the marker with the behavior | keep the same `id=` |
 | Test | above the test function | `verifies=` (requirement) and `exercises=` (implementation), separately |
-| Ops / runbook / config | top of the file or above the section | `documents=` / `deploys=` as applicable |
+| Ops / runbook / config | immediately above the smallest independently meaningful boundary | `documents=` / `deploys=` as applicable; file-level only when the whole file is one semantic artifact |
 | Generated / vendor | nothing | excluded by policy |
 
 ## Commands cheat sheet

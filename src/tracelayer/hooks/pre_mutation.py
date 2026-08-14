@@ -72,7 +72,7 @@ def handle(ctx: HookContext, payload: dict) -> HookOutput:
 # Authoring gate: proposed-edit classification (review P0)
 # ---------------------------------------------------------------------------
 
-_EXEMPT_MARK = "# trace:exempt reason=internal-detail"
+_EXEMPT_MARK = "# trace:exempt"
 
 
 def _proposed_text(root: Path, path: str, payload: dict) -> str | None:
@@ -240,9 +240,7 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
             "state": "pending",
         },
     )
-    text = _authoring_block_text(
-        boundary, path, rel_path, line, work, req, plan, change_kind, exercised
-    )
+    text = _authoring_plan_text(untraced, rel_path, work, req, plan, exercised)
     return render_blocked(
         text,
         {
@@ -276,56 +274,40 @@ def _suggested_marker(
 
 
 # trace:exempt reason=internal-helper
-def _authoring_block_text(
-    symbol,
-    path: str,
+def _authoring_plan_text(
+    untraced: list,
     rel_path: str,
-    line: int,
     work: str | None,
     req: str | None,
-    plan: str | None = None,
-    change_kind: str = "NEW",
-    exercised: str | None = None,
+    plan: str | None,
+    exercised: str | None,
 ) -> str:
-    heading = (
-        "TRACE AUTHORING REQUIRED — NEW BEHAVIOR"
-        if change_kind == "NEW"
-        else ("TRACE AUTHORING REQUIRED — MODIFIED UNTRACED BEHAVIOR")
-    )
-    verb = "creating a new" if change_kind == "NEW" else "modifying an existing untraced"
+    """One mutation -> the FULL authoring plan (every boundary, not just one)."""
     lines = [
-        heading,
+        "TRACE AUTHORING REQUIRED",
         "",
-        f"You are {verb} behavioral boundary:",
-        f"  {rel_path}:{line}::{symbol.name}",
-        "",
-        "Why this needs a trace:",
-        "  Future agents need a stable link from this implementation back to",
-        "  the work and requirement that justify its existence.",
+        f"This mutation creates/rewrites {len(untraced)} untraced boundary(ies):",
         "",
     ]
-    if work or req or plan:
-        lines.append("Active context:")
-        if work:
-            lines.append(f"  Work: {work}")
-        if req:
-            lines.append(f"  Requirement: {req}")
-        if plan:
-            lines.append(f"  Plan: {plan}")
-        lines.append("")
+    for idx, (boundary, change_kind) in enumerate(untraced[:8], start=1):
+        verb = "new" if change_kind == "NEW" else "modified untraced"
+        lines.append(f"{idx}. {boundary.qualified_name or boundary.name} ({verb})")
+        lines.append(
+            f"   Add above it: {_suggested_marker(boundary, work, req, plan, rel_path, exercised)}"
+        )
+    if len(untraced) > 8:
+        lines.append(f"   ... and {len(untraced) - 8} more")
     lines += [
-        "Retry this edit with this marker directly above the function:",
         "",
-        f"  {_suggested_marker(symbol, work, req, plan, rel_path, exercised)}",
+        "Why: future agents need a stable link from each behavior back to the",
+        "work and requirement that justify its existence.",
         "",
-        "Do NOT add path=, commit=, test=, or line= — TraceLayer derives",
-        "those facts.",
+        "Do NOT add path=, commit=, test=, or line= — TraceLayer derives them.",
         "",
-        "If this function is intentionally trivial/internal and does not",
-        f"represent a meaningful behavioral boundary, add `{_EXEMPT_MARK}`",
-        "directly above it instead of silently omitting the trace.",
+        "Retry the mutation with every boundary above accounted for, or add an",
+        f"explicit `{_EXEMPT_MARK} reason=<why>` for genuinely trivial code.",
     ]
-    return fit("\n".join(lines), 4000)
+    return fit("\n".join(lines), 6000)
 
 
 def _causal_context_block(symbol, path: str, line: int) -> str:
