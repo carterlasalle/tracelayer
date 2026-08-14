@@ -38,7 +38,7 @@ include = ["src/**"]
 exclude = ["src/generated/**"]
 
 [markers]
-prefix = "trace:v1"
+prefix = "\x74race:v1"
 unknown_keys = "warning"
 
 [hooks]
@@ -56,6 +56,7 @@ core = ["src/core"]
 """
 
 
+# trace:v1 id=test.dogfood.tests.unit.config.test_config.py type=test
 def _write(root: Path, rel: str, text: str) -> None:
     p = root / rel
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -269,7 +270,7 @@ def test_default_trace_toml_roundtrip(tmp_path: Path) -> None:
     assert project.config.schema_version == 1
     assert project.config.index.languages.python is True
     assert project.config.discovery.include == ["**/*"]
-    assert project.config.markers.prefix == "trace:v1"
+    assert project.config.markers.prefix == "\x74race:v1"
 
 
 def test_default_policy_toml_roundtrip(tmp_path: Path) -> None:

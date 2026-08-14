@@ -1,4 +1,4 @@
-"""Unit tests for the trace:v1 marker grammar (spec 11.1-11.2).
+"""Unit tests for the \x74race:v1 marker grammar (spec 11.1-11.2).
 
 Covers comment extraction (`#`, `//`, `--`, `%`, `;`, `*`, `/* */`, `<!-- -->`,
 plain text), tokenizing, quoted/unquoted values, escapes, unterminated quotes,
@@ -12,7 +12,7 @@ import pytest
 from tracelayer.diagnostics import SEVERITY_ERROR
 from tracelayer.protocol import grammar
 
-PREFIX = grammar.PREFIX  # "trace:v1"
+PREFIX = grammar.PREFIX  # "\x74race:v1"
 
 
 # ---------------------------------------------------------------------------
@@ -20,6 +20,7 @@ PREFIX = grammar.PREFIX  # "trace:v1"
 # ---------------------------------------------------------------------------
 
 
+# trace:v1 id=test.dogfood.tests.unit.protocol.test_grammar.py type=test
 def test_extract_plain_line() -> None:
     assert grammar.extract_marker_payload(f"{PREFIX} id=REQ-1") == f"{PREFIX} id=REQ-1"
 

@@ -9,6 +9,7 @@ from tracelayer.hooks.common import HookContext
 from tracelayer.hooks.stop_gate import handle
 
 
+# trace:v1 id=test.dogfood.tests.unit.hooks.test_stop_gate.py type=test
 def _seed(store):
     store.replace_all(
         [

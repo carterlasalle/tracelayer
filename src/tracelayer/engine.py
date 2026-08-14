@@ -267,6 +267,8 @@ def _node_from_marker(
         meta["parser_support"] = "generic"
     if key_path:
         meta["yaml_key_path"] = key_path
+    if "expects" in marker.properties:
+        meta["expects"] = marker.properties["expects"]
     if scope:
         meta["scope"] = scope
 
@@ -362,6 +364,11 @@ def _process_file(
         hits = markdown_marker_hits(rel_path, text)
         parsed = parse_all(hits)
         consumed = {b.line for b in blocks}
+        props_by_tid: dict[str, dict] = {}
+        for hit in hits:
+            marker = parsed.get(id(hit))
+            if marker is not None and marker.trace_id:
+                props_by_tid[marker.trace_id] = marker.properties
         for block in blocks:
             body_lines = len(block.body.splitlines()) if block.body else 0
             meta: dict[str, Any] = {
@@ -374,6 +381,9 @@ def _process_file(
                 meta["generated"] = True
             if scope:
                 meta["scope"] = scope
+            for prop in ("expects",):
+                if prop in props_by_tid.get(block.trace_id, {}):
+                    meta[prop] = props_by_tid[block.trace_id][prop]
             first = next((ln.strip() for ln in block.body.splitlines() if ln.strip()), None)
             if first:
                 meta["summary"] = first[:200]

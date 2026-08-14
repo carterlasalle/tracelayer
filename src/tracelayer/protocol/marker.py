@@ -146,6 +146,8 @@ def _parse_payload(
             marker.title = tok.value
         elif tok.key == "policy":
             marker.properties["policy"] = tok.value
+        elif tok.key == "expects":
+            marker.properties["expects"] = _validated_targets(tok, path, line, diags)
         elif tok.key in CONVENIENCE_EDGES:
             edge = CONVENIENCE_EDGES[tok.key]
             marker.edges.setdefault(edge, []).extend(_validated_targets(tok, path, line, diags))
@@ -227,6 +229,7 @@ def _validated_targets(
     return targets
 
 
+# trace:v1 id=impl.protocol.render-marker work=WORK-TL-001
 def render_marker(marker: ParsedMarker) -> str:
     """Render a ParsedMarker back to canonical one-line form (round-trip)."""
     parts = [grammar.PREFIX]
@@ -238,6 +241,8 @@ def render_marker(marker: ParsedMarker) -> str:
         parts.append(f"title={grammar.quote_value(marker.title)}")
     if "policy" in marker.properties:
         parts.append(f"policy={grammar.quote_value(marker.properties['policy'])}")
+    if "expects" in marker.properties:
+        parts.append(f"expects={','.join(marker.properties['expects'])}")
     for edge in ontology.EDGE_ORDER:
         targets = marker.edges.get(edge)
         if targets:

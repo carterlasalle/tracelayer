@@ -11,6 +11,7 @@ from tracelayer.hooks.common import HookContext
 from tracelayer.hooks.pre_mutation import handle
 
 
+# trace:v1 id=test.dogfood.tests.unit.hooks.test_pre_mutation.py type=test
 def _seed(store):
     store.replace_all(
         [

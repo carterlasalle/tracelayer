@@ -29,6 +29,7 @@ VALID = {
 }
 
 
+# trace:v1 id=test.dogfood.tests.unit.evidence.test_freshness.py type=test
 def write_norm(tmp_path, data) -> str:
     p = tmp_path / "evidence.json"
     p.write_text(json.dumps(data), encoding="utf-8")

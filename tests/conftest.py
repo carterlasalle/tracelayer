@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 
 
+# trace:v1 id=test.dogfood.tests.conftest.py type=test
 def make_git_repo(tmp_path: Path, files: dict[str, str]) -> Path:
     """Create a git repository at ``tmp_path`` with ``files`` committed.
 

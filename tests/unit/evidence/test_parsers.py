@@ -8,6 +8,7 @@ from tracelayer.evidence.cobertura import CoberturaParseError, parse_cobertura
 from tracelayer.evidence.junit import JUnitParseError, parse_junit
 
 
+# trace:v1 id=test.dogfood.tests.unit.evidence.test_parsers.py type=test
 def write(tmp_path, name: str, content: str):
     p = tmp_path / name
     p.write_text(content, encoding="utf-8")

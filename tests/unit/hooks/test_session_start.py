@@ -7,6 +7,7 @@ from tracelayer.diagnostics import make
 from tracelayer.hooks.session_start import handle
 
 
+# trace:v1 id=test.dogfood.tests.unit.hooks.test_session_start.py type=test
 def test_healthy_summary_within_400_chars(ctx):
     ctx.store.replace_all([make_node("REQ-1", "requirement")], [])
     out = handle(ctx, {})

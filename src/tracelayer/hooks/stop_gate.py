@@ -51,7 +51,13 @@ def handle(ctx: HookContext, payload: dict) -> HookOutput:
         text = _failure_text(ctx, result["diagnostics"])
         json_data["output"] = text
         return render_blocked(text, json_data)
-    text = f"Trace verify passed under lifecycle {lifecycle}."
+    obligations = ctx.state._read(ctx.session_id).get("obligations", []) if ctx.state else []
+    satisfied = sum(1 for o in obligations if o.get("state") == "satisfied")
+    text = f"Trace verify passed under lifecycle {lifecycle}." + (
+        f" Trace obligations: {satisfied} satisfied, {len(obligations) - satisfied} pending."
+        if obligations
+        else ""
+    )
     json_data["output"] = text
     return render_allowed(text, json_data)
 

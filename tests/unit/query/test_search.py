@@ -6,6 +6,7 @@ from tracelayer.graph.store import GraphStore
 from tracelayer.query.search import search as query_search
 
 
+# trace:v1 id=test.dogfood.tests.unit.query.test_search.py type=test
 def _seed_search_store(store, make_node):
     store.replace_all(
         [

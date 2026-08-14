@@ -35,6 +35,7 @@ def store(project: Project) -> Iterator[GraphStore]:
     s.close()
 
 
+# trace:v1 id=test.dogfood.tests.unit.conftest.py type=test
 def make_node(
     trace_id: str,
     node_type: str,

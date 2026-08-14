@@ -39,6 +39,10 @@ def marker_json_schema() -> dict:
                 "description": "Optional descriptive metadata; not a graph edge.",
             },
             "policy": {"type": "string", "description": "Rare policy override reference."},
+            "expects": {
+                "type": "string",
+                "description": "Plan-only: comma-separated artifact IDs the plan commits to producing.",
+            },
             "work": {
                 "type": "string",
                 "description": "Convenience key; a `work` edge (comma-separated).",
@@ -85,6 +89,7 @@ def _edge_types_markdown() -> str:
     return "\n".join(lines)
 
 
+# trace:v1 id=impl.protocol.schema-docs work=WORK-TL-001
 def marker_protocol_markdown() -> str:
     """Full content of the normative marker protocol document."""
     content = [
@@ -115,6 +120,8 @@ def marker_protocol_markdown() -> str:
         "- `type` — optional artifact type; inferred from the ID namespace when absent.",
         "- `title` — optional descriptive metadata; not a graph edge.",
         "- `policy` — rare policy override reference, not an arbitrary exemption.",
+        "- `expects` — plan-only: comma-separated artifact IDs the plan commits",
+        "  to producing; TL014 enforces each exists and links back via `implements`.",
         "",
         "## Convenience keys",
         "",

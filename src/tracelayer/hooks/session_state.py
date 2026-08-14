@@ -107,6 +107,17 @@ class SessionState:
     def active_work(self, session_id: str) -> str | None:
         return self._read(session_id).get("active_work")
 
+    def set_active_plan(self, session_id: str, plan_id: str | None) -> None:
+        """Record the plan the session is implementing (review P2)."""
+        if plan_id is None:
+            return
+        data = self._read(session_id)
+        data["active_plan"] = plan_id
+        self._write(session_id, data)
+
+    def active_plan(self, session_id: str) -> str | None:
+        return self._read(session_id).get("active_plan")
+
     def set_active_requirement(self, session_id: str, req_id: str | None) -> None:
         """Record the requirement the session is operating under (spec 22.4)."""
         if req_id is None:
@@ -162,6 +173,7 @@ class SessionState:
                 "dirty": [],
                 "active_work": None,
                 "active_requirement": None,
+                "active_plan": None,
                 "obligations": [],
             },
         )

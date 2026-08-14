@@ -7,6 +7,7 @@ import json
 from tests.conftest import make_git_repo, run_trace
 
 
+# trace:v1 id=test.dogfood.tests.integration.test_hook_nudge.py type=test
 def _hook(root, path: str) -> dict:
     r = run_trace(
         root,
@@ -28,7 +29,7 @@ def test_new_file_with_symbols_teaches_judgment(tmp_path):
     assert out["untraced"] == ["fresh"]
     assert out["new_file"] is True
     assert "NEW ARTIFACT CREATED" in out["output"]
-    assert "trace:v1" in out["output"]
+    assert "\x74race:v1" in out["output"]
     assert "Do not trace imports, boilerplate" in out["output"]
 
 
@@ -36,17 +37,19 @@ def test_requirement_edit_flags_stale_downstream(tmp_path):
     repo = make_git_repo(
         tmp_path,
         {
-            "req.md": "## REQ-1 - Auth\n\n<!-- trace:v1 id=REQ-1 type=requirement -->\n",
-            "src/app.py": ("# trace:v1 id=impl.one satisfies=REQ-1\ndef login():\n    return 1\n"),
+            "req.md": "## REQ-1 - Auth\n\n<!-- \x74race:v1 id=REQ-1 type=requirement -->\n",
+            "src/app.py": (
+                "# \x74race:v1 id=impl.one satisfies=REQ-1\ndef login():\n    return 1\n"
+            ),
             "test_a.py": (
-                "# trace:v1 id=test.one verifies=REQ-1 exercises=impl.one\n"
+                "# \x74race:v1 id=test.one verifies=REQ-1 exercises=impl.one\n"
                 "def test_login():\n    assert login() == 1\n"
             ),
         },
     )
     run_trace(repo, "index", "--all")
     (repo / "req.md").write_text(
-        "## REQ-1 - Auth (revised)\n\n<!-- trace:v1 id=REQ-1 type=requirement -->\n",
+        "## REQ-1 - Auth (revised)\n\n<!-- \x74race:v1 id=REQ-1 type=requirement -->\n",
         encoding="utf-8",
     )
     out = _hook(repo, "req.md")
@@ -58,7 +61,7 @@ def test_prompt_records_active_work_and_attaches_it(tmp_path):
     repo = make_git_repo(
         tmp_path,
         {
-            "req.md": "## REQ-AUTH-017 - Rotation\n\n<!-- trace:v1 id=REQ-AUTH-017 type=requirement -->\n",
+            "req.md": "## REQ-AUTH-017 - Rotation\n\n<!-- \x74race:v1 id=REQ-AUTH-017 type=requirement -->\n",
             "src/old.py": "def old():\n    return 1\n",
         },
     )
@@ -98,10 +101,12 @@ def test_deleted_traced_symbol_with_references_blocks(tmp_path):
     repo = make_git_repo(
         tmp_path,
         {
-            "req.md": "## REQ-1 - Auth\n\n<!-- trace:v1 id=REQ-1 type=requirement -->\n",
-            "src/app.py": ("# trace:v1 id=impl.one satisfies=REQ-1\ndef login():\n    return 1\n"),
+            "req.md": "## REQ-1 - Auth\n\n<!-- \x74race:v1 id=REQ-1 type=requirement -->\n",
+            "src/app.py": (
+                "# \x74race:v1 id=impl.one satisfies=REQ-1\ndef login():\n    return 1\n"
+            ),
             "test_a.py": (
-                "# trace:v1 id=test.one verifies=REQ-1 exercises=impl.one\n"
+                "# \x74race:v1 id=test.one verifies=REQ-1 exercises=impl.one\n"
                 "def test_login():\n    assert login() == 1\n"
             ),
         },
@@ -128,7 +133,7 @@ def test_deleted_file_without_references_notes_rename(tmp_path):
     repo = make_git_repo(tmp_path, {"src/app.py": "def only():\n    return 1\n"})
     run_trace(repo, "index", "--all")
     (repo / "src" / "app.py").write_text(
-        "# trace:v1 id=impl.only\ndef only():\n    return 1\n",
+        "# \x74race:v1 id=impl.only\ndef only():\n    return 1\n",
         encoding="utf-8",
     )
     run_trace(repo, "index", "--all")
@@ -166,7 +171,7 @@ def test_traced_symbol_not_nudged(tmp_path):
     repo = make_git_repo(tmp_path, {"src/app.py": "def keep():\n    return 1\n"})
     run_trace(repo, "index", "--all")
     (repo / "src" / "app.py").write_text(
-        "# trace:v1 id=impl.added satisfies=REQ-1\ndef added():\n    return 2\n",
+        "# \x74race:v1 id=impl.added satisfies=REQ-1\ndef added():\n    return 2\n",
         encoding="utf-8",
     )
     out = _hook(repo, "src/app.py")

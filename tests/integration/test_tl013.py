@@ -5,11 +5,12 @@ from __future__ import annotations
 from tests.conftest import make_git_repo, run_trace
 
 BASE = {
-    "req.md": "## REQ-1 - Auth\n\n<!-- trace:v1 id=REQ-1 type=requirement -->\n",
-    "src/app.py": "# trace:v1 id=impl.one satisfies=REQ-1\ndef keep():\n    return 1\n",
+    "req.md": "## REQ-1 - Auth\n\n<!-- \x74race:v1 id=REQ-1 type=requirement -->\n",
+    "src/app.py": "# \x74race:v1 id=impl.one satisfies=REQ-1\ndef keep():\n    return 1\n",
 }
 
 
+# trace:v1 id=test.dogfood.tests.integration.test_tl013.py type=test
 def _repo(tmp_path, extra=None):
     files = dict(BASE)
     if extra:
@@ -28,7 +29,7 @@ def test_one_marker_does_not_cover_new_untraced_boundary(tmp_path):
     """The review's escape hatch: a claimed file with a new untraced function."""
     repo = _repo(tmp_path)
     (repo / "src" / "app.py").write_text(
-        "# trace:v1 id=impl.one satisfies=REQ-1\ndef keep():\n    return 1\n\n\n"
+        "# \x74race:v1 id=impl.one satisfies=REQ-1\ndef keep():\n    return 1\n\n\n"
         "def new_payment_flow():\n    return 2\n",
         encoding="utf-8",
     )
@@ -41,8 +42,8 @@ def test_one_marker_does_not_cover_new_untraced_boundary(tmp_path):
 def test_new_boundary_with_marker_passes(tmp_path):
     repo = _repo(tmp_path)
     (repo / "src" / "app.py").write_text(
-        "# trace:v1 id=impl.one satisfies=REQ-1\ndef keep():\n    return 1\n\n\n"
-        "# trace:v1 id=impl.payments work=WORK-1 satisfies=REQ-1\ndef new_payment_flow():\n    return 2\n",
+        "# \x74race:v1 id=impl.one satisfies=REQ-1\ndef keep():\n    return 1\n\n\n"
+        "# \x74race:v1 id=impl.payments work=WORK-1 satisfies=REQ-1\ndef new_payment_flow():\n    return 2\n",
         encoding="utf-8",
     )
     (repo / ".trace").mkdir(parents=True, exist_ok=True)
@@ -56,7 +57,7 @@ def test_boundary_inside_traced_parent_passes(tmp_path):
     """A method inside a traced class inherits trace-accountability."""
     repo = _repo(tmp_path)
     (repo / "src" / "app.py").write_text(
-        "# trace:v1 id=impl.one satisfies=REQ-1\nclass Service:\n"
+        "# \x74race:v1 id=impl.one satisfies=REQ-1\nclass Service:\n"
         "    def keep(self):\n        return 1\n\n"
         "    def new_method(self):\n        return 2\n",
         encoding="utf-8",
@@ -68,7 +69,7 @@ def test_boundary_inside_traced_parent_passes(tmp_path):
 def test_exempt_boundary_passes(tmp_path):
     repo = _repo(tmp_path)
     (repo / "src" / "app.py").write_text(
-        "# trace:v1 id=impl.one satisfies=REQ-1\ndef keep():\n    return 1\n\n\n"
+        "# \x74race:v1 id=impl.one satisfies=REQ-1\ndef keep():\n    return 1\n\n\n"
         "# trace:exempt\ndef trivial_helper():\n    return 0\n",
         encoding="utf-8",
     )
@@ -85,7 +86,7 @@ def test_new_config_key_requires_trace(tmp_path):
     assert "new_contract" in proc.stdout
     # A marker anywhere in the config claims the file.
     (repo / "config.yaml").write_text(
-        "# trace:v1 id=ops.config.server work=WORK-1\nserver:\n  port: 8080\nnew_contract:\n  enabled: true\n"
+        "# \x74race:v1 id=ops.config.server work=WORK-1\nserver:\n  port: 8080\nnew_contract:\n  enabled: true\n"
     )
     (repo / ".trace").mkdir(parents=True, exist_ok=True)
     (repo / ".trace" / "work.toml").write_text('[work."WORK-1"]\ntitle = "Config"\n')

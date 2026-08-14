@@ -29,25 +29,25 @@ AUTH_FILES: dict[str, str] = {
 
 ## REQ-AUTH-017 - Refresh token rotation
 
-<!-- trace:v1 id=REQ-AUTH-017 type=requirement derived_from=PRD-AUTH-002 -->
+<!-- \x74race:v1 id=REQ-AUTH-017 type=requirement derived_from=PRD-AUTH-002 -->
 
 Whenever a refresh token is exchanged, the previous token must become unusable.
 """,
     "docs/prd.md": """# PRD-AUTH-002 - Authentication product requirements
 
-<!-- trace:v1 id=PRD-AUTH-002 type=prd -->
+<!-- \x74race:v1 id=PRD-AUTH-002 type=prd -->
 
 Authentication foundations for v1.
 """,
     "docs/adr.md": """# ADR-0042 - One-time refresh-token families
 
-<!-- trace:v1 id=ADR-0042 type=decision addresses=REQ-AUTH-017 -->
+<!-- \x74race:v1 id=ADR-0042 type=decision addresses=REQ-AUTH-017 -->
 
 Tokens are organized into families. Rotation revokes the previous token.
 """,
     "docs/plan.md": """# Phase 3 - Rotation persistence
 
-<!-- trace:v1 id=PLAN-AUTH-237/P3 type=plan work=WORK-AUTH-237 implements=ADR-0042 -->
+<!-- \x74race:v1 id=PLAN-AUTH-237/P3 type=plan work=WORK-AUTH-237 implements=ADR-0042 -->
 
 Persist token-family rotation and rejection of reuse.
 """,
@@ -61,7 +61,7 @@ jira = "AUTH-237"
     "src/auth/tokens.py": '''"""Token helpers."""
 
 
-# trace:v1 id=impl.auth.refresh work=WORK-AUTH-237 satisfies=REQ-AUTH-017 implements=ADR-0042
+# \x74race:v1 id=impl.auth.refresh work=WORK-AUTH-237 satisfies=REQ-AUTH-017 implements=ADR-0042
 def rotate_refresh_token(token: str) -> str:
     """Rotate a refresh token."""
     return "rotated-" + token
@@ -69,7 +69,7 @@ def rotate_refresh_token(token: str) -> str:
     "tests/test_auth.py": '''"""Auth tests."""
 
 
-# trace:v1 id=test.auth.refresh-reuse verifies=REQ-AUTH-017 exercises=impl.auth.refresh
+# \x74race:v1 id=test.auth.refresh-reuse verifies=REQ-AUTH-017 exercises=impl.auth.refresh
 def test_reused_refresh_token_is_rejected():
     assert rotate("x") == "rotated-x"
 ''',
@@ -79,7 +79,7 @@ def test_reused_refresh_token_is_rejected():
 #  1  """Token helpers."""
 #  2  (blank)
 #  3  (blank)
-#  4  # trace:v1 ... (marker)
+#  4  # \x74race:v1 ... (marker)
 #  5  def rotate_refresh_token(...):
 #  6      """Rotate a refresh token."""
 #  7      return "rotated-" + token
@@ -98,6 +98,7 @@ JUNIT_PASS = """<?xml version="1.0" encoding="UTF-8"?>
 """
 
 
+# trace:v1 id=test.dogfood.tests.integration._fixtures.py type=test
 def cobertura_for(lines: tuple[int, int], filename: str = "src/auth/tokens.py") -> str:
     """Cobertura report covering exactly the given line range of a file."""
     hits = "".join(
@@ -199,7 +200,7 @@ java = true
 cpp = false
 
 [markers]
-prefix = "trace:v1"
+prefix = "\x74race:v1"
 unknown_keys = "error"
 """,
         ".trace/policy.toml": """profile = "strict"
@@ -211,21 +212,21 @@ ci = "merge"
         ".trace/work.toml": '[work."WORK-STR-1"]\ntitle = "Strict endpoint work"\n',
         "docs/req.md": """## REQ-STR-001 - Strict endpoint
 
-<!-- trace:v1 id=REQ-STR-001 type=requirement -->
+<!-- \x74race:v1 id=REQ-STR-001 type=requirement -->
 
 The endpoint must be traced.
 """,
         "src/api.py": '''"""API module."""
 
 
-# trace:v1 id=impl.str.endpoint work=WORK-STR-1 satisfies=REQ-STR-001
+# \x74race:v1 id=impl.str.endpoint work=WORK-STR-1 satisfies=REQ-STR-001
 def public_endpoint():
     return "ok"
 ''',
         "tests/test_api.py": '''"""Tests."""
 
 
-# trace:v1 id=test.str.endpoint verifies=REQ-STR-001 exercises=impl.str.endpoint
+# \x74race:v1 id=test.str.endpoint verifies=REQ-STR-001 exercises=impl.str.endpoint
 def test_endpoint():
     assert public_endpoint() == "ok"
 ''',
@@ -262,7 +263,7 @@ java = true
 cpp = false
 
 [markers]
-prefix = "trace:v1"
+prefix = "\x74race:v1"
 unknown_keys = "error"
 """
 
@@ -284,14 +285,14 @@ paths = ["vendor/**", "generated/**", "docs/vendor/**", ".trace/**"]
 """,
         "docs/req.md": """## REQ-CHAIN-001 - Chain feature
 
-<!-- trace:v1 id=REQ-CHAIN-001 type=requirement -->
+<!-- \x74race:v1 id=REQ-CHAIN-001 type=requirement -->
 
 The chain must be traced.
 """,
         "src/chain.py": '''"""Chain module."""
 
 
-# trace:v1 id=impl.chain.run satisfies=REQ-CHAIN-001
+# \x74race:v1 id=impl.chain.run satisfies=REQ-CHAIN-001
 def run():
     """Run the chain."""
     return "ok"
@@ -299,7 +300,7 @@ def run():
         "tests/test_chain.py": '''"""Tests."""
 
 
-# trace:v1 id=test.chain.run verifies=REQ-CHAIN-001 exercises=impl.chain.run
+# \x74race:v1 id=test.chain.run verifies=REQ-CHAIN-001 exercises=impl.chain.run
 def test_run():
     assert run() == "ok"
 ''',
@@ -316,18 +317,18 @@ def shapes_files() -> dict[str, str]:
         ".trace/trace.toml": _DOD_TRACE_TOML,
         "docs/req.md": """## REQ-SHAPES-1 - Rectangle area
 
-<!-- trace:v1 id=REQ-SHAPES-1 type=requirement -->
+<!-- \x74race:v1 id=REQ-SHAPES-1 type=requirement -->
 
 A rectangle must compute its area.
 """,
         "src/shapes.py": '''"""Shape primitives."""
 
 
-# trace:v1 id=impl.shapes.rectangle satisfies=REQ-SHAPES-1
+# \x74race:v1 id=impl.shapes.rectangle satisfies=REQ-SHAPES-1
 class Rectangle:
     """A rectangle shape."""
 
-    # trace:v1 id=impl.shapes.rectangle.area
+    # \x74race:v1 id=impl.shapes.rectangle.area
     def area(self) -> int:
         return self.width * self.height
 

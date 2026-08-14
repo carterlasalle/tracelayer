@@ -10,6 +10,7 @@ _PREFIX = "repository data: "
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 
 
+# trace:v1 id=test.dogfood.tests.unit.hooks.test_sanitize.py type=test
 def test_sanitize_collapses_whitespace():
     assert sanitize_text("  a\n\t b   ") == _PREFIX + "a b"
     assert sanitize_text("multi\nline\n text") == _PREFIX + "multi line text"

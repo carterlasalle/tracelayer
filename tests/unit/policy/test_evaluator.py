@@ -16,6 +16,7 @@ from tracelayer.diagnostics import SEVERITY_ERROR, SEVERITY_INFO
 from tracelayer.policy.evaluator import evaluate
 
 
+# trace:v1 id=test.dogfood.tests.unit.policy.test_evaluator.py type=test
 def make_git_repo(tmp_path) -> str:
     """Init a git repo in tmp_path; returns the HEAD revision."""
     for args in (

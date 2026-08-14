@@ -29,6 +29,7 @@ PRE_MUTATION = json.dumps(
 )
 
 
+# trace:v1 id=test.dogfood.tests.integration.test_hooks_cli.py type=test
 def test_pre_mutation_blocks_once_then_allows(tmp_path):
     """First context-free edit of protected behavior blocks; the retry is
     allowed (pre_edit_block_once) without loading context."""

@@ -7,6 +7,7 @@ import json
 from tests.conftest import make_git_repo, run_trace
 
 
+# trace:v1 id=test.dogfood.tests.integration.test_install.py type=test
 def _env(tmp_path, name: str = "home") -> dict[str, str]:
     return {"HOME": str(tmp_path / name), "TRACE_SESSION": "install-test"}
 

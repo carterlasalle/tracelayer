@@ -20,10 +20,11 @@ from tracelayer.protocol import (
 from tracelayer.protocol.schema import GENERATED_HEADER
 
 
+# trace:v1 id=test.dogfood.tests.unit.protocol.test_schema.py type=test
 def test_json_schema_top_level() -> None:
     schema = marker_json_schema()
     assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
-    assert schema["title"] == "trace:v1 marker"
+    assert schema["title"] == "\x74race:v1 marker"
     assert schema["type"] == "object"
     assert schema["required"] == ["id"]
     assert schema["additionalProperties"] is False

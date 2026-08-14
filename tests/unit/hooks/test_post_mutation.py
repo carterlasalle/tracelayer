@@ -8,12 +8,11 @@ from tracelayer.graph.store import entity_uid
 from tracelayer.hooks.common import HookContext
 from tracelayer.hooks.post_mutation import handle
 
-ORIG = (
-    'def login():\n    # trace:v1 id=impl.one type=implementation title="Login"\n    return "v1"\n'
-)
+ORIG = 'def login():\n    # \x74race:v1 id=impl.one type=implementation title="Login"\n    return "v1"\n'
 FP = semantic_fingerprint(normalize_block(ORIG))
 
 
+# trace:v1 id=test.dogfood.tests.unit.hooks.test_post_mutation.py type=test
 def _seed(store):
     store.replace_all(
         [
@@ -51,7 +50,7 @@ def test_symbol_change_marks_dirty(ctx):
     _seed(ctx.store)
     _write(ctx.project.root, "src/auth.py", ORIG)
     handle(ctx, {"path": "src/auth.py"})
-    changed = 'def login():\n    # trace:v1 id=impl.one type=implementation title="Login"\n    return "v2"\n'
+    changed = 'def login():\n    # \x74race:v1 id=impl.one type=implementation title="Login"\n    return "v2"\n'
     _write(ctx.project.root, "src/auth.py", changed)
     out = handle(ctx, {"path": "src/auth.py"})
     assert out.json["changed"] == ["impl.one"]
@@ -63,7 +62,7 @@ def test_symbol_change_marks_dirty(ctx):
 def test_guidance_lists_requirement_and_tests(ctx):
     _seed(ctx.store)
     _write(ctx.project.root, "src/auth.py", ORIG)
-    changed = 'def login():\n    # trace:v1 id=impl.one type=implementation title="Login"\n    return "v3"\n'
+    changed = 'def login():\n    # \x74race:v1 id=impl.one type=implementation title="Login"\n    return "v3"\n'
     _write(ctx.project.root, "src/auth.py", changed)
     out = handle(ctx, {"path": "src/auth.py"})
     assert "TRACE CHANGE DETECTED" in out.json["output"]
@@ -88,7 +87,7 @@ def test_new_file_no_forced_marker(ctx):
     _write(
         ctx.project.root,
         "src/newmod.py",
-        '# trace:v1 id=impl.new type=implementation title="New"\ndef n(): pass\n',
+        '# \x74race:v1 id=impl.new type=implementation title="New"\ndef n(): pass\n',
     )
     out = handle(ctx, {"path": "src/newmod.py"})
     assert out.decision == "allow"
@@ -116,7 +115,7 @@ def test_no_store_allows(project, state):
 def test_dirty_persists_in_new_session_state(ctx):
     _seed(ctx.store)
     _write(ctx.project.root, "src/auth.py", ORIG)
-    changed = 'def login():\n    # trace:v1 id=impl.one type=implementation title="Login"\n    return "v4"\n'
+    changed = 'def login():\n    # \x74race:v1 id=impl.one type=implementation title="Login"\n    return "v4"\n'
     _write(ctx.project.root, "src/auth.py", changed)
     handle(ctx, {"path": "src/auth.py"})
     assert ctx.state.dirty("s1") == {"impl.one", "test.one"}

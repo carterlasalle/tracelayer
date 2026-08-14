@@ -13,6 +13,7 @@ from tracelayer.query.context import build_context, render_context_text
 _SHA = re.compile(r"^[0-9a-f]{40}$")
 
 
+# trace:v1 id=test.dogfood.tests.unit.query.test_context.py type=test
 def _ctx(store, gitrepo, trace_id):
     """build_context with a non-None assertion for test ergonomics."""
     result = build_context(store, gitrepo, trace_id)

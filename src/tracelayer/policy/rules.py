@@ -242,6 +242,11 @@ def rule_tl013(ctx: EvalContext) -> list[Diagnostic]:
             continue
         if not supported_extension(path):
             continue
+        if any(
+            n.active and n.canonical_path == path and n.node_type == "test"
+            for n in ctx.store.all_nodes(active_only=True)
+        ):
+            continue  # test files are trace-accounted at file level
         try:
             current = (ctx.project.root / path).read_text(encoding="utf-8")
         except OSError:
@@ -295,6 +300,57 @@ def _boundary_fp(boundary) -> str:
     from tracelayer.graph.fingerprints import normalize_block, semantic_fingerprint
 
     return semantic_fingerprint(normalize_block(boundary.source))
+
+
+# trace:v1 id=impl.policy.tl014 work=WORK-TL-001
+def rule_tl014(ctx: EvalContext) -> list[Diagnostic]:
+    """Plan-level expected obligations (review P2).
+
+    A plan marker may declare ``expects=<id>,<id>``: artifacts the plan
+    commits to producing. Every expected id must exist as an active node
+    with an ``implements`` edge back to the plan; anything missing blocks
+    (the plan's obligations are durable, enforced by CI and the stop gate).
+    """
+    diags: list[Diagnostic] = []
+    for node in ctx.store.all_nodes(active_only=True):
+        if node.node_type != "plan":
+            continue
+        expected = node.metadata.get("expects")
+        if not expected:
+            continue
+        implemented = {
+            e.from_uid
+            for e in ctx.store.edges_to(node.entity_uid)
+            if e.status == "active" and e.predicate == "implements"
+        }
+        for expected_id in expected:
+            target = ctx.store.get_node(trace_id=expected_id)
+            if target is None or not target.active:
+                diags.append(
+                    make(
+                        "TL014",
+                        path=node.canonical_path or None,
+                        trace_id=node.trace_id,
+                        message=(
+                            f"Plan {node.trace_id} expects {expected_id}, which does not "
+                            "exist as an active node"
+                        ),
+                    )
+                )
+                continue
+            if target.entity_uid not in implemented:
+                diags.append(
+                    make(
+                        "TL014",
+                        path=node.canonical_path or None,
+                        trace_id=node.trace_id,
+                        message=(
+                            f"Plan {node.trace_id} expects {expected_id}, but no "
+                            "active `implements` edge links it to the plan"
+                        ),
+                    )
+                )
+    return diags
 
 
 def rule_tl012(ctx: EvalContext) -> list[Diagnostic]:
@@ -640,6 +696,7 @@ RULE_FUNCTIONS: dict[str, RuleFn] = {
     "TL011": rule_tl011,
     "TL012": rule_tl012,
     "TL013": rule_tl013,
+    "TL014": rule_tl014,
     "TL020": rule_tl020,
     "TL021": rule_tl021,
     "TL022": rule_tl022,

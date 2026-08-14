@@ -44,6 +44,7 @@ marker_strategy = st.fixed_dictionaries(
 )
 
 
+# trace:v1 id=test.dogfood.tests.unit.protocol.test_property.py type=test
 @given(fields=marker_strategy)
 def test_round_trip_arbitrary_valid_marker(fields: dict) -> None:
     trace_id: str = fields["trace_id"]
@@ -146,7 +147,7 @@ def test_render_marker_never_crashes(title: str, policy: str, targets: list[str]
 @given(value=st.text())
 def test_quote_value_round_trip(value: str) -> None:
     quoted = grammar.quote_value(value)
-    tokens, diags = grammar.tokenize_fields(f"trace:v1 k={quoted}", path="<s>", line=1)
+    tokens, diags = grammar.tokenize_fields(f"\x74race:v1 k={quoted}", path="<s>", line=1)
     assert diags == []
     assert len(tokens) == 1
     assert tokens[0].value == value
@@ -155,7 +156,7 @@ def test_quote_value_round_trip(value: str) -> None:
 @given(value=valid_id_text)
 def test_arbitrary_valid_id_parses_clean(value: str) -> None:
     assume(ids.is_valid_id(value))
-    result = parse_marker_line(f"trace:v1 id={value}")
+    result = parse_marker_line(f"\x74race:v1 id={value}")
     assert result.marker is not None
     assert result.marker.trace_id == value
     assert not any(d.severity == "ERROR" for d in result.diagnostics)

@@ -66,6 +66,7 @@ def test_invalid_ids(value: str) -> None:
     assert ids.is_valid_id(value) is False
 
 
+# trace:v1 id=test.dogfood.tests.unit.protocol.test_ids.py type=test
 def test_id_pattern_is_single_line_anchored() -> None:
     # Every character in the allowed set is individually valid, including
     # the ":" and "/" that are rejected elsewhere (unquoted values).

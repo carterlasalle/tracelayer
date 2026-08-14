@@ -21,6 +21,7 @@ from tracelayer.graph.store import (
 )
 
 
+# trace:v1 id=test.dogfood.tests.unit.graph.test_store.py type=test
 def _node(
     trace_id: str,
     *,

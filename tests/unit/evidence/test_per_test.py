@@ -21,6 +21,7 @@ from tracelayer.evidence.per_test import (
 coverage_pkg = pytest.importorskip("coverage", reason="coverage not installed")
 
 
+# trace:v1 id=test.dogfood.tests.unit.evidence.test_per_test.py type=test
 class FakeCoverageData:
     """Minimal stand-in for coverage.CoverageData's read API."""
 

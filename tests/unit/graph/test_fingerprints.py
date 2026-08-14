@@ -16,6 +16,7 @@ from tracelayer.graph.fingerprints import (
 )
 
 
+# trace:v1 id=test.dogfood.tests.unit.graph.test_fingerprints.py type=test
 def test_sha256_hex_known_digest() -> None:
     assert sha256_hex("abc") == hashlib.sha256(b"abc").hexdigest()
     assert sha256_hex(b"abc") == hashlib.sha256(b"abc").hexdigest()

@@ -15,6 +15,7 @@ from tracelayer.diagnostics import SEVERITY_INFO
 from tracelayer.migration.codeops import apply_plan, build_plan, scan_codeops
 
 
+# trace:v1 id=test.dogfood.tests.unit.migration.test_codeops.py type=test
 def make_project(root: Path, **cfg) -> Project:
     return Project(root=root, config=TraceConfig(repo_id="probe", **cfg))
 
@@ -111,14 +112,14 @@ def test_scan_skips_binary_excluded_and_generated_files(tmp_path: Path) -> None:
 def test_work_item_maps_to_work_deterministic(tmp_path: Path) -> None:
     item, _ = plan_for(tmp_path, "src/billing.py", "# codeops:trace work_item=ABC-123")
     assert item.classification == "deterministic"
-    assert item.new_marker == ("# trace:v1 id=impl.abc-123 type=implementation work=ABC-123")
+    assert item.new_marker == ("# \x74race:v1 id=impl.abc-123 type=implementation work=ABC-123")
     assert "work_item=ABC-123 -> work=ABC-123" in item.note
 
 
 def test_work_item_in_test_file_uses_test_node(tmp_path: Path) -> None:
     item, _ = plan_for(tmp_path, "tests/test_billing.py", "# codeops:trace work_item=ABC-123")
     assert item.classification == "deterministic"
-    assert item.new_marker == "# trace:v1 id=test.abc-123 type=test work=ABC-123"
+    assert item.new_marker == "# \x74race:v1 id=test.abc-123 type=test work=ABC-123"
 
 
 def test_spec_on_test_file_verifies_high_confidence(tmp_path: Path) -> None:
@@ -128,21 +129,21 @@ def test_spec_on_test_file_verifies_high_confidence(tmp_path: Path) -> None:
         "# codeops:trace spec=specs/billing.md#REQ-17",
     )
     assert item.classification == "high_confidence"
-    assert item.new_marker == ("# trace:v1 id=test.req-17 type=test verifies=REQ-17")
+    assert item.new_marker == ("# \x74race:v1 id=test.req-17 type=test verifies=REQ-17")
     assert "-> verifies=REQ-17 (test attachment)" in item.note
 
 
 def test_spec_on_source_file_satisfies_high_confidence(tmp_path: Path) -> None:
     item, _ = plan_for(tmp_path, "src/billing.py", "# codeops:trace spec=specs/billing.md#REQ-17")
     assert item.classification == "high_confidence"
-    assert item.new_marker == ("# trace:v1 id=impl.req-17 type=implementation satisfies=REQ-17")
+    assert item.new_marker == ("# \x74race:v1 id=impl.req-17 type=implementation satisfies=REQ-17")
     assert "-> satisfies=REQ-17 (implementation attachment)" in item.note
 
 
 def test_spec_bare_id_on_source_satisfies(tmp_path: Path) -> None:
     item, _ = plan_for(tmp_path, "src/billing.py", "# codeops:trace spec=REQ-17")
     assert item.classification == "high_confidence"
-    assert item.new_marker == ("# trace:v1 id=impl.req-17 type=implementation satisfies=REQ-17")
+    assert item.new_marker == ("# \x74race:v1 id=impl.req-17 type=implementation satisfies=REQ-17")
 
 
 def test_unresolvable_spec_requires_review_with_tl002(tmp_path: Path) -> None:
@@ -161,7 +162,7 @@ def test_unresolvable_spec_with_work_item_keeps_deterministic_plus_tl002(
     )
     # The real edge (work) wins; the unresolvable spec is preserved, not lost.
     assert item.classification == "deterministic"
-    assert item.new_marker == ("# trace:v1 id=impl.abc-123 type=implementation work=ABC-123")
+    assert item.new_marker == ("# \x74race:v1 id=impl.abc-123 type=implementation work=ABC-123")
     assert "spec=specs/billing.md cannot be resolved" in item.note
     assert [d.rule_id for d in item.diagnostics] == ["TL002"]
 
@@ -169,7 +170,7 @@ def test_unresolvable_spec_with_work_item_keeps_deterministic_plus_tl002(
 def test_plan_maps_to_implements_deterministic(tmp_path: Path) -> None:
     item, _ = plan_for(tmp_path, "src/billing.py", "# codeops:trace plan=PLAN-2")
     assert item.classification == "deterministic"
-    assert item.new_marker == ("# trace:v1 id=impl.plan-2 type=implementation implements=PLAN-2")
+    assert item.new_marker == ("# \x74race:v1 id=impl.plan-2 type=implementation implements=PLAN-2")
 
 
 def test_commit_derived_and_dropped(tmp_path: Path) -> None:
@@ -187,7 +188,7 @@ def test_note_only_fields_never_demote_marker(tmp_path: Path) -> None:
         "test=tests/test_x.py prompt=helper.md ops=deploy.py incident=INC-9",
     )
     assert item.classification == "deterministic"
-    assert item.new_marker == ("# trace:v1 id=impl.abc-123 type=implementation work=ABC-123")
+    assert item.new_marker == ("# \x74race:v1 id=impl.abc-123 type=implementation work=ABC-123")
     for key, value in {
         "commit": "abc123",
         "test": "tests/test_x.py",
@@ -205,7 +206,7 @@ def test_ref_fields_consolidated_onto_work_note(tmp_path: Path) -> None:
         "# codeops:trace work_item=ABC-123 jira_ref=JIRA-9 github_ref=gh-1 notion_ref=nb-2",
     )
     assert item.classification == "deterministic"
-    assert item.new_marker == ("# trace:v1 id=impl.abc-123 type=implementation work=ABC-123")
+    assert item.new_marker == ("# \x74race:v1 id=impl.abc-123 type=implementation work=ABC-123")
     for key, value in {"jira_ref": "JIRA-9", "github_ref": "gh-1", "notion_ref": "nb-2"}.items():
         assert f"{key}={value} consolidated onto the work node" in item.note
 
@@ -229,7 +230,7 @@ def test_blank_placeholder_dropped(tmp_path: Path) -> None:
 def test_inline_html_marker_preserves_wrapping(tmp_path: Path) -> None:
     item, _ = plan_for(tmp_path, "notes.md", "<!-- codeops:trace work_item=WF-1 -->")
     assert item.classification == "deterministic"
-    assert item.new_marker == ("<!-- trace:v1 id=doc.wf-1 type=document work=WF-1 -->")
+    assert item.new_marker == ("<!-- \x74race:v1 id=doc.wf-1 type=document work=WF-1 -->")
 
 
 def test_duplicate_work_item_ids_are_unique_and_deterministic(tmp_path: Path) -> None:
@@ -240,8 +241,8 @@ def test_duplicate_work_item_ids_are_unique_and_deterministic(tmp_path: Path) ->
     plan = build_plan(scan_codeops(tmp_path, project.config)[0], project)
     ids = [it.new_marker for it in plan.items]
     assert ids == [
-        "# trace:v1 id=impl.abc-123 type=implementation work=ABC-123",
-        "# trace:v1 id=impl.abc-123-2 type=implementation work=ABC-123",
+        "# \x74race:v1 id=impl.abc-123 type=implementation work=ABC-123",
+        "# \x74race:v1 id=impl.abc-123-2 type=implementation work=ABC-123",
     ]
     assert len({it.new_marker for it in plan.items}) == 2
 
@@ -323,10 +324,10 @@ def test_apply_plan_rewrites_only_deterministic_and_high_confidence(
     assert result["files"]["src/billing.py"]["requires_review"] == 1
     assert result["files"]["src/billing.py"]["derived"] == 1
     assert f.read_text() == (
-        "# trace:v1 id=impl.abc-123 type=implementation work=ABC-123\n"
+        "# \x74race:v1 id=impl.abc-123 type=implementation work=ABC-123\n"
         "def bill():\n"
         "    pass\n"
-        "# trace:v1 id=impl.req-17 type=implementation satisfies=REQ-17 implements=PLAN-2\n"
+        "# \x74race:v1 id=impl.req-17 type=implementation satisfies=REQ-17 implements=PLAN-2\n"
         "# codeops:trace prompt=helper.md\n"
         "# codeops:trace commit=abc123\n"
     )
@@ -338,7 +339,9 @@ def test_apply_plan_preserves_inline_html_wrapping(tmp_path: Path) -> None:
     project = make_project(tmp_path)
     plan = build_plan(scan_codeops(tmp_path, project.config)[0], project)
     apply_plan(plan, tmp_path, project.config)
-    assert f.read_text() == ("<!-- trace:v1 id=doc.wf-1 type=document work=WF-1 -->\n\ncontext\n")
+    assert f.read_text() == (
+        "<!-- \x74race:v1 id=doc.wf-1 type=document work=WF-1 -->\n\ncontext\n"
+    )
 
 
 def test_apply_plan_missing_file_degrades_gracefully(tmp_path: Path) -> None:

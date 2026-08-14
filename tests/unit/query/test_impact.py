@@ -11,6 +11,7 @@ from tracelayer.query.impact import impact
 _SHA = re.compile(r"^[0-9a-f]{40}$")
 
 
+# trace:v1 id=test.dogfood.tests.unit.query.test_impact.py type=test
 def _seed_requirement_graph(store, make_node, make_edge):
     nodes = [
         make_node("REQ-1", "requirement"),

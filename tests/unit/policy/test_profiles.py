@@ -17,7 +17,7 @@ from tracelayer.policy.profiles import (
 # adds TL022/TL030/TL061; safety-critical adds TL050/TL060/TL062.
 _BASE = {"TL001", "TL002", "TL003", "TL004", "TL005", "TL006", "TL007", "TL040"}
 _SEMANTIC = {"TL010", "TL011", "TL020", "TL021", "TL100"}
-_STANDARD_EXTRA = {"TL012", "TL013"}
+_STANDARD_EXTRA = {"TL012", "TL013", "TL014"}
 _STRICT_EXTRA = {"TL022", "TL030", "TL061"}
 _SC_EXTRA = {"TL050", "TL060", "TL062"}
 
@@ -32,6 +32,7 @@ PRE_MERGE = ("draft", "wip", "review")
 MERGE_PLUS = ("merge", "release")
 
 
+# trace:v1 id=test.dogfood.tests.unit.policy.test_profiles.py type=test
 def test_profiles_and_lifecycles_are_stable():
     assert PROFILES == ["minimal", "standard", "strict", "safety-critical"]
     assert LIFECYCLES == ["draft", "wip", "review", "merge", "release"]

@@ -25,8 +25,7 @@ exclude = [
   "node_modules/**",
   ".venv/**",
   "dist/**",
-  "build/**",
-  "tests/**"
+  "build/**"
 ]
 generated = ["src/generated/**"]
 

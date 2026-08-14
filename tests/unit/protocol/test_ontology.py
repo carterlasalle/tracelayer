@@ -89,6 +89,7 @@ SPEC_STRUCTURAL = [
 SPEC_OBSERVED = ["executed", "passed", "failed", "built_in", "deployed_in", "attested_by"]
 
 
+# trace:v1 id=test.dogfood.tests.unit.protocol.test_ontology.py type=test
 def test_node_type_registry_matches_spec() -> None:
     assert sorted(NODE_TYPES) == sorted(SPEC_NODE_TYPES)
     assert len(NODE_TYPES) == 20

@@ -14,6 +14,7 @@ from tracelayer.diagnostics import SEVERITY_INFO
 from tracelayer.migration import scry
 
 
+# trace:v1 id=test.dogfood.tests.unit.migration.test_scry.py type=test
 def make_project(root: Path) -> Project:
     return Project(root=root, config=TraceConfig(repo_id="probe"))
 

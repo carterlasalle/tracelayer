@@ -532,6 +532,7 @@ marker_app = typer.Typer(no_args_is_help=True, help="Marker authoring helpers")
 app.add_typer(marker_app, name="marker")
 
 
+# trace:v1 id=impl.cli.marker-suggest work=WORK-TL-001
 @marker_app.command("suggest")
 def marker_suggest(
     ctx: typer.Context,
@@ -573,9 +574,11 @@ def marker_suggest(
     sid = session or os.environ.get("TRACE_SESSION") or "default"
     work = state.active_work(sid)
     req = state.active_requirement(sid)
+    plan = state.active_plan(sid)
     work_attr = f" work={work}" if work else ""
     req_attr = f" satisfies={req}" if req else ""
-    marker_line = f"# trace:v1 id=impl.{boundary.name}{work_attr}{req_attr}"
+    plan_attr = f" implements={plan}" if plan else ""
+    marker_line = f"# trace:v1 id=impl.{boundary.name}{work_attr}{req_attr}{plan_attr}"
     typer.echo(f"boundary: {rel}:{boundary.start_line}::{boundary.name} ({boundary.kind})")
     if not (work or req):
         typer.echo(
@@ -585,6 +588,56 @@ def marker_suggest(
     typer.echo(marker_line)
 
 
+plan_app = typer.Typer(no_args_is_help=True, help="Plan discipline helpers")
+app.add_typer(plan_app, name="plan")
+
+
+# trace:v1 id=impl.cli.plan-status work=WORK-TL-001
+@plan_app.command("status")
+def plan_status(
+    ctx: typer.Context,
+    plan_id: str = typer.Argument(..., help="PLAN-... id"),
+    root: Path | None = _root_opt(),
+) -> None:
+    """Show a plan's expected obligations and whether they are met.
+
+    A plan marker may declare ``expects=<id>,<id>``; every expected
+    artifact must exist as an active node linked by an ``implements`` edge
+    back to the plan (the TL014 gate).
+    """
+    root = _resolve_root(ctx, root)
+    engine, _diags = _open(root)
+    try:
+        node = engine.store.get_node(trace_id=plan_id)
+        if node is None or not node.active:
+            typer.echo(f"no active plan node: {plan_id}", err=True)
+            raise typer.Exit(2)
+        expected = node.metadata.get("expects") or []
+        implemented = {
+            e.from_uid
+            for e in engine.store.edges_to(node.entity_uid)
+            if e.status == "active" and e.predicate == "implements"
+        }
+        typer.echo(f"plan: {plan_id}  ({node.title or 'no title'})")
+        if not expected:
+            typer.echo("expected artifacts: none declared (add `expects=` to the plan marker)")
+            return
+        failed = 0
+        for expected_id in expected:
+            target = engine.store.get_node(trace_id=expected_id)
+            ok = target is not None and target.active and target.entity_uid in implemented
+            status = "ok" if ok else "MISSING"
+            failed += 0 if ok else 1
+            typer.echo(f"  {expected_id}: {status}")
+        if failed:
+            typer.echo(f"trace verify will BLOCK (TL014) with {failed} unmet obligation(s)")
+            raise typer.Exit(1)
+        typer.echo("all expected artifacts present and linked to the plan")
+    finally:
+        engine.close()
+
+
+# trace:v1 id=impl.cli.task-context work=WORK-TL-001
 @app.command()
 def task(
     ctx: typer.Context,
@@ -592,6 +645,9 @@ def task(
     work_id: str | None = typer.Argument(None, help="WORK-... id (for begin)"),
     requirement: str | None = typer.Option(
         None, "--requirement", "-r", help="Active requirement (REQ-...) for the task"
+    ),
+    plan: str | None = typer.Option(
+        None, "--plan", "-p", help="Active plan (PLAN-...) the task implements"
     ),
     session: str | None = typer.Option(
         None, "--session", help="Session id (default: $TRACE_SESSION or 'default')"
@@ -614,16 +670,22 @@ def task(
     sid = session or os.environ.get("TRACE_SESSION") or "default"
     if command == "begin":
         if not work_id:
-            typer.echo("usage: trace task begin <WORK-ID> [--requirement REQ-X]", err=True)
+            typer.echo(
+                "usage: trace task begin <WORK-ID> [--requirement REQ-X] [--plan PLAN-X]", err=True
+            )
             raise typer.Exit(2)
         state.set_active_work(sid, work_id)
         if requirement:
             state.set_active_requirement(sid, requirement)
-        typer.echo(
-            f"active work: {work_id}"
-            + (f"\nactive requirement: {requirement}" if requirement else "")
-            + "\nHooks will attach new behavior to this work item automatically."
-        )
+        if plan:
+            state.set_active_plan(sid, plan)
+        lines = [f"active work: {work_id}"]
+        if requirement:
+            lines.append(f"active requirement: {requirement}")
+        if plan:
+            lines.append(f"active plan: {plan}")
+        lines.append("Hooks will attach new behavior to this work item automatically.")
+        typer.echo("\n".join(lines))
         return
     if command == "end":
         state.clear(sid)
@@ -631,6 +693,57 @@ def task(
         return
     typer.echo(f"unknown task command {command!r} (begin|end)", err=True)
     raise typer.Exit(2)
+
+
+# trace:v1 id=impl.cli.task-summary work=WORK-TL-001
+@app.command()
+def summary(
+    ctx: typer.Context,
+    session: str | None = typer.Option(
+        None, "--session", help="Session id (default: $TRACE_SESSION or 'default')"
+    ),
+    root: Path | None = _root_opt(),
+) -> None:
+    """Task trace summary: session context + obligations + verification state."""
+    from tracelayer.config import load_project
+    from tracelayer.hooks.session_state import SessionState
+
+    root = _resolve_root(ctx, root)
+    project, _diags = load_project(root)
+    state = SessionState(project)
+    sid = session or os.environ.get("TRACE_SESSION") or "default"
+    work = state.active_work(sid)
+    req = state.active_requirement(sid)
+    plan = state.active_plan(sid)
+    obligations = state._read(sid).get("obligations", [])
+    pending = [o for o in obligations if o.get("state") != "satisfied"]
+    satisfied = [o for o in obligations if o.get("state") == "satisfied"]
+    engine, _diags2 = _open(root)
+    try:
+        work_node = engine.store.get_node(trace_id=work) if work else None
+    finally:
+        engine.close()
+    lines = ["TASK TRACE SUMMARY", ""]
+    lines.append(
+        f"work:        {work or '(none)'}"
+        + (f"  [{work_node.title if work_node else 'not in graph'}]" if work else "")
+    )
+    lines.append(f"requirement: {req or '(none)'}")
+    lines.append(f"plan:        {plan or '(none)'}")
+    lines.append("")
+    if obligations:
+        lines.append(f"obligations: {len(satisfied)} satisfied, {len(pending)} pending")
+        for obl in pending[:5]:
+            marker = str(obl.get("suggested_marker", "")).strip()
+            lines.append(f"  PENDING {obl.get('path')}::{obl.get('symbol')}")
+            if marker:
+                lines.append(f"    add: {marker}")
+    else:
+        lines.append("obligations: none recorded this session")
+    if not pending:
+        lines.append("")
+        lines.append("no pending trace obligations")
+    typer.echo("\n".join(lines))
 
 
 @app.command()

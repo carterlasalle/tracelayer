@@ -7,6 +7,7 @@ from tracelayer.graph.store import entity_uid
 from tracelayer.hooks.post_batch import handle
 
 
+# trace:v1 id=test.dogfood.tests.unit.hooks.test_post_batch.py type=test
 def _seed(store):
     store.replace_all(
         [

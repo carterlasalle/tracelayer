@@ -7,6 +7,7 @@ import json
 from tracelayer.hooks.session_state import SessionState
 
 
+# trace:v1 id=test.dogfood.tests.unit.hooks.test_session_state.py type=test
 def test_session_id_from_payload(state):
     assert state.session_id_from({"session_id": "abc"}) == "abc"
 
@@ -99,6 +100,7 @@ def test_atomic_writes_leave_no_temp_files(state):
         "dirty": [],
         "active_work": None,
         "active_requirement": None,
+        "active_plan": None,
         "obligations": [],
     }
 

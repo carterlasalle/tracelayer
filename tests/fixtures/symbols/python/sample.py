@@ -1,6 +1,7 @@
 # Marker comment for fixtures (deliberately not a real marker).
 
 
+# trace:v1 id=test.dogfood.tests.fixtures.symbols.python.sample.py type=test
 def foo(a: int, b: int) -> int:
     """Add two numbers."""
     return a + b

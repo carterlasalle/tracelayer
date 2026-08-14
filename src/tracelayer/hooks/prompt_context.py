@@ -14,6 +14,7 @@ from tracelayer.hooks.common import (
 
 _WORK_ID = re.compile(r"\b(WORK-[A-Za-z0-9][A-Za-z0-9._/-]*)\b")
 _REQ_ID = re.compile(r"\b(REQ-[A-Za-z0-9][A-Za-z0-9._/-]*)\b")
+_PLAN_ID = re.compile(r"\b(PLAN-[A-Za-z0-9][A-Za-z0-9._/-]*)\b")
 
 
 # trace:v1 id=impl.hooks.prompt-context work=WORK-TL-001
@@ -31,6 +32,7 @@ def handle(ctx: HookContext, payload: dict) -> HookOutput:
         "results": [],
         "active_work": None,
         "active_requirement": None,
+        "active_plan": None,
     }
     prompt = str(payload.get("prompt", "")).strip()
     if not prompt or ctx.store is None or ctx.state is None:
@@ -43,6 +45,10 @@ def handle(ctx: HookContext, payload: dict) -> HookOutput:
     if req is not None:
         ctx.state.set_active_requirement(ctx.session_id, req.group(1))
         json_data["active_requirement"] = req.group(1)
+    plan = _PLAN_ID.search(prompt)
+    if plan is not None:
+        ctx.state.set_active_plan(ctx.session_id, plan.group(1))
+        json_data["active_plan"] = plan.group(1)
     limit = ctx.project.config.hooks.prompt_search_limit
     try:
         results = ctx.store.search(prompt, limit=limit)

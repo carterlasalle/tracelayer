@@ -86,6 +86,12 @@ RULES: dict[str, RuleDef] = {
         SEVERITY_ERROR,
         "Add a trace:v1 marker above the boundary, inherit from a traced parent, or add `# trace:exempt`.",
     ),
+    "TL014": RuleDef(
+        "TL014",
+        "plan expected artifact missing or unlinked",
+        SEVERITY_ERROR,
+        "Create the expected artifact and declare its implements= edge to the plan.",
+    ),
     "TL012": RuleDef(
         "TL012",
         "new or changed meaningful behavior not traced",

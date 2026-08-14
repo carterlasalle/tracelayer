@@ -8,11 +8,12 @@ import subprocess
 from tests.conftest import make_git_repo, run_trace
 
 REQ_FILES = {
-    "req.md": "## REQ-AUTH-017 - Rotation\n\n<!-- trace:v1 id=REQ-AUTH-017 type=requirement work=WORK-AUTH-237 -->\n",
-    "src/auth.py": "# trace:v1 id=impl.auth.rotate work=WORK-AUTH-237 satisfies=REQ-AUTH-017\ndef rotate(t):\n    return f'rotated-{t}'\n",
+    "req.md": "## REQ-AUTH-017 - Rotation\n\n<!-- \x74race:v1 id=REQ-AUTH-017 type=requirement work=WORK-AUTH-237 -->\n",
+    "src/auth.py": "# \x74race:v1 id=impl.auth.rotate work=WORK-AUTH-237 satisfies=REQ-AUTH-017\ndef rotate(t):\n    return f'rotated-{t}'\n",
 }
 
 
+# trace:v1 id=test.dogfood.tests.integration.test_hook_authoring.py type=test
 def _repo(tmp_path):
     repo = make_git_repo(tmp_path, REQ_FILES)
     (repo / ".trace").mkdir(parents=True)
@@ -128,7 +129,7 @@ def test_authoring_gate_blocks_and_exemption_allows(tmp_path):
         "tool_input": {
             "file_path": str(repo / "src" / "billing.py"),
             "content": (
-                "# trace:v1 id=impl.billing.invoice work=WORK-AUTH-237 satisfies=REQ-AUTH-017\n"
+                "# \x74race:v1 id=impl.billing.invoice work=WORK-AUTH-237 satisfies=REQ-AUTH-017\n"
                 "def create_invoice(total):\n    return total\n"
             ),
         },
@@ -194,7 +195,7 @@ def test_obligation_blocks_stop_until_resolved(tmp_path):
     assert "payments.py::charge" in out["output"]
     # The agent retries with the marker; post-mutation resolves it
     (repo / "src" / "payments.py").write_text(
-        "# trace:v1 id=impl.payments.charge work=WORK-AUTH-237 satisfies=REQ-AUTH-017\n"
+        "# \x74race:v1 id=impl.payments.charge work=WORK-AUTH-237 satisfies=REQ-AUTH-017\n"
         "def charge():\n    return 1\n",
         encoding="utf-8",
     )
@@ -233,7 +234,9 @@ def test_marker_suggest_with_session_context(tmp_path):
     )
     assert r.returncode == 0, r.stderr
     assert "create_invoice" in r.stdout
-    assert "# trace:v1 id=impl.create_invoice work=WORK-AUTH-237 satisfies=REQ-AUTH-017" in r.stdout
+    assert (
+        "# \x74race:v1 id=impl.create_invoice work=WORK-AUTH-237 satisfies=REQ-AUTH-017" in r.stdout
+    )
 
 
 def test_stop_blocks_untraced_new_file_via_changed_scope(tmp_path):

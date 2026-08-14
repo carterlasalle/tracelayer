@@ -21,6 +21,7 @@ from tracelayer.discovery.scopes import scope_of
 from tracelayer.git.repo import GitRepo
 
 
+# trace:v1 id=test.dogfood.tests.unit.discovery.test_discovery.py type=test
 def _write(root: Path, rel: str, content: str | bytes) -> None:
     p = root / rel
     p.parent.mkdir(parents=True, exist_ok=True)

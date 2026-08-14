@@ -17,6 +17,7 @@ from tests.conftest import make_git_repo, run_trace
 TRACE_BIN = str(Path(sys.executable).parent / "trace")
 
 
+# trace:v1 id=test.dogfood.tests.integration.test_web.py type=test
 def _free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
@@ -34,13 +35,13 @@ def _indexed_repo(tmp_path) -> Path:
     repo = make_git_repo(
         tmp_path,
         {
-            "req.md": "## REQ-AUTH-017 - Rotation\n\n<!-- trace:v1 id=REQ-AUTH-017 type=requirement work=WORK-AUTH-237 -->\n",
+            "req.md": "## REQ-AUTH-017 - Rotation\n\n<!-- \x74race:v1 id=REQ-AUTH-017 type=requirement work=WORK-AUTH-237 -->\n",
             "src/auth.py": (
-                "# trace:v1 id=impl.auth.rotate work=WORK-AUTH-237 satisfies=REQ-AUTH-017\n"
+                "# \x74race:v1 id=impl.auth.rotate work=WORK-AUTH-237 satisfies=REQ-AUTH-017\n"
                 "def rotate(t):\n    return f'rotated-{t}'\n"
             ),
             "test_a.py": (
-                "# trace:v1 id=test.auth.rotate verifies=REQ-AUTH-017 exercises=impl.auth.rotate\n"
+                "# \x74race:v1 id=test.auth.rotate verifies=REQ-AUTH-017 exercises=impl.auth.rotate\n"
                 "def test_r():\n    assert rotate('x') == 'rotated-x'\n"
             ),
         },

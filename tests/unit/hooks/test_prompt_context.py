@@ -10,6 +10,7 @@ from tracelayer.graph.store import entity_uid
 from tracelayer.hooks.prompt_context import handle
 
 
+# trace:v1 id=test.dogfood.tests.unit.hooks.test_prompt_context.py type=test
 def _seed_titles(store, extra_title=None):
     nodes = [
         Node(

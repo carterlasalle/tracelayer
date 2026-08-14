@@ -12,6 +12,7 @@ from tracelayer.graph.store import GraphStore, entity_uid
 from tracelayer.graph.traverse import Subgraph, bounded_walk
 
 
+# trace:v1 id=test.dogfood.tests.unit.graph.test_traverse.py type=test
 def _node(trace_id: str) -> Node:
     return Node(
         entity_uid=entity_uid(trace_id),

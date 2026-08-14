@@ -23,11 +23,12 @@ from tracelayer.symbols.registry import get_parser, supported_languages
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures" / "symbols"
 
 
+# trace:v1 id=test.dogfood.tests.unit.symbols.test_symbols.py type=test
 def _hits(lines: list[str], path: str = "f.py") -> list[MarkerHit]:
     return [
-        MarkerHit(path=path, line=i + 1, column=1, raw=line, payload=line.split("trace:v1")[1])
+        MarkerHit(path=path, line=i + 1, column=1, raw=line, payload=line.split("\x74race:v1")[1])
         for i, line in enumerate(lines)
-        if "trace:v1" in line
+        if "\x74race:v1" in line
     ]
 
 
@@ -222,7 +223,7 @@ def _sym(start: int, end: int, name: str = "fn", qname: str | None = None) -> Sy
 
 
 def test_attach_marker_to_following_function() -> None:
-    lines = ["# trace:v1 id=REQ-1 type=requirement", "", "def foo():", "    pass"]
+    lines = ["# \x74race:v1 id=REQ-1 type=requirement", "", "def foo():", "    pass"]
     hits = _hits(lines)
     attach = attach_markers([_sym(3, 4, "foo")], hits, lines)[0]
     assert attach.attachment_kind == "symbol"
@@ -231,7 +232,13 @@ def test_attach_marker_to_following_function() -> None:
 
 
 def test_attach_marker_through_comment_lines() -> None:
-    lines = ["# trace:v1 id=REQ-1 type=requirement", "# docs", "// extra", "def foo():", "    pass"]
+    lines = [
+        "# \x74race:v1 id=REQ-1 type=requirement",
+        "# docs",
+        "// extra",
+        "def foo():",
+        "    pass",
+    ]
     attach = attach_markers([_sym(4, 5, "foo")], _hits(lines), lines)[0]
     assert attach.attachment_kind == "symbol"
     assert attach.symbol is not None
@@ -240,7 +247,7 @@ def test_attach_marker_through_comment_lines() -> None:
 def test_attach_marker_above_decorator() -> None:
     # The decorated definition starts at the decorator line, so a marker on
     # the line above attaches with no gap.
-    lines = ["# trace:v1 id=REQ-1 type=requirement", "@deco", "def foo():", "    pass"]
+    lines = ["# \x74race:v1 id=REQ-1 type=requirement", "@deco", "def foo():", "    pass"]
     sym = SymbolRef(
         language="python",
         kind="function",
@@ -256,13 +263,13 @@ def test_attach_marker_above_decorator() -> None:
 
 
 def test_attach_marker_gap_of_three_blank_lines_ok() -> None:
-    lines = ["# trace:v1 id=REQ-1 type=requirement", "", "", "", "def foo():", "    pass"]
+    lines = ["# \x74race:v1 id=REQ-1 type=requirement", "", "", "", "def foo():", "    pass"]
     attach = attach_markers([_sym(5, 6, "foo")], _hits(lines), lines)[0]
     assert attach.attachment_kind == "symbol"
 
 
 def test_attach_marker_detached_with_four_blank_lines() -> None:
-    lines = ["# trace:v1 id=REQ-1 type=requirement", "", "", "", "", "def foo():", "    pass"]
+    lines = ["# \x74race:v1 id=REQ-1 type=requirement", "", "", "", "", "def foo():", "    pass"]
     attach = attach_markers([_sym(6, 7, "foo")], _hits(lines), lines)[0]
     assert attach.attachment_kind == "file"
     assert attach.symbol is None
@@ -270,21 +277,21 @@ def test_attach_marker_detached_with_four_blank_lines() -> None:
 
 
 def test_attach_marker_detached_with_code_in_gap() -> None:
-    lines = ["# trace:v1 id=REQ-1 type=requirement", "x = 1", "def foo():", "    pass"]
+    lines = ["# \x74race:v1 id=REQ-1 type=requirement", "x = 1", "def foo():", "    pass"]
     attach = attach_markers([_sym(3, 4, "foo")], _hits(lines), lines)[0]
     assert attach.attachment_kind == "file"
     assert attach.symbol is None
 
 
 def test_attach_marker_no_symbol_at_all() -> None:
-    lines = ["# trace:v1 id=REQ-1 type=requirement", "print('nothing here')"]
+    lines = ["# \x74race:v1 id=REQ-1 type=requirement", "print('nothing here')"]
     attach = attach_markers([], _hits(lines), lines)[0]
     assert attach.attachment_kind == "file"
     assert attach.symbol is None
 
 
 def test_attach_marker_ambiguous_tie_break() -> None:
-    lines = ["# trace:v1 id=REQ-1 type=requirement", "", "def z(): pass", "def a(): pass"]
+    lines = ["# \x74race:v1 id=REQ-1 type=requirement", "", "def z(): pass", "def a(): pass"]
     syms = [_sym(3, 3, "z", "m.z"), _sym(3, 3, "a", "m.a")]
     attach = attach_markers(syms, _hits(lines), lines)[0]
     assert attach.ambiguity is True
@@ -293,7 +300,7 @@ def test_attach_marker_ambiguous_tie_break() -> None:
 
 
 def test_attach_markers_deterministic_regardless_of_input_order() -> None:
-    lines = ["# trace:v1 id=REQ-1 type=requirement", "", "def foo():", "    pass"]
+    lines = ["# \x74race:v1 id=REQ-1 type=requirement", "", "def foo():", "    pass"]
     hits = _hits(lines)
     syms = [_sym(3, 4, "foo")]
     first = attach_markers(syms, hits, lines)
@@ -306,12 +313,12 @@ def test_attach_markers_deterministic_regardless_of_input_order() -> None:
 
 def test_attach_markers_multiple_hits_order_preserved() -> None:
     lines = [
-        "# trace:v1 id=REQ-1 type=requirement",
+        "# \x74race:v1 id=REQ-1 type=requirement",
         "",
         "def foo():",
         "    pass",
         "",
-        "# trace:v1 id=REQ-2 type=requirement",
+        "# \x74race:v1 id=REQ-2 type=requirement",
         "def bar():",
         "    pass",
     ]
@@ -324,7 +331,7 @@ def test_attach_marker_realistic_python_file() -> None:
     # End-to-end: a marker line above a function in a real snippet attaches to
     # the function; a marker with a docstring target is fine (docstring is
     # inside the symbol, not in the gap).
-    src = """# trace:v1 id=IMPL-1 type=implementation work=REQ-1
+    src = """# \x74race:v1 id=IMPL-1 type=implementation work=REQ-1
 def compute(x):
     \"\"\"Compute x squared.\"\"\"
     return x * x

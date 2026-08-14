@@ -29,6 +29,7 @@ FRESH_CASES = [
 ]
 
 
+# trace:v1 id=test.dogfood.tests.golden.test_golden_outputs.py type=test
 def _normalize(text: str) -> str:
     """Replace commit shas with a stable placeholder."""
     return SHA_RE.sub("<sha>", text)

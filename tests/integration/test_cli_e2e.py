@@ -19,6 +19,7 @@ from tests.integration._fixtures import (
 )
 
 
+# trace:v1 id=test.dogfood.tests.integration.test_cli_e2e.py type=test
 def test_auth_feature_end_to_end(tmp_path):
     """Spec 50 full flow: init -> index -> queries -> requirement change ->
     stale at merge -> review -> evidence ingest -> pass -> PR report."""

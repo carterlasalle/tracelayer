@@ -18,6 +18,7 @@ from tracelayer.git.repo import GitRepo
 from tracelayer.symbols.base import SymbolRef
 
 
+# trace:v1 id=test.dogfood.tests.unit.git.test_git.py type=test
 def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", "-C", str(root), *args], capture_output=True, text=True, check=False

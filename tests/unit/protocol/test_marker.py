@@ -33,6 +33,7 @@ from tracelayer.protocol.marker import (
 # ---------------------------------------------------------------------------
 
 
+# trace:v1 id=test.dogfood.tests.unit.protocol.test_marker.py type=test
 def test_parse_simple_marker() -> None:
     result = parse_marker_line(f"{PREFIX} id=REQ-1 type=requirement title=Auth")
     assert result.marker is not None

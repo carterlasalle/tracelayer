@@ -182,6 +182,7 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
         return None
     work = state.active_work(ctx.session_id)
     req = state.active_requirement(ctx.session_id)
+    plan = state.active_plan(ctx.session_id)
     boundary = untraced[0]
     line = boundary.start_line
     if not (work or req):
@@ -205,11 +206,11 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
             "kind": "new_behavior",
             "work": work or "",
             "requirement": req or "",
-            "suggested_marker": _suggested_marker(boundary, work, req),
+            "suggested_marker": _suggested_marker(boundary, work, req, plan),
             "state": "pending",
         },
     )
-    text = _authoring_block_text(boundary, path, line, work, req)
+    text = _authoring_block_text(boundary, path, line, work, req, plan)
     return render_blocked(
         text,
         {
@@ -224,13 +225,15 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
     )
 
 
-def _suggested_marker(symbol, work: str | None, req: str | None) -> str:
+def _suggested_marker(symbol, work: str | None, req: str | None, plan: str | None = None) -> str:
     work_attr = f" work={work}" if work else ""
     req_attr = f" satisfies={req}" if req else ""
     return f"# trace:v1 id=impl.{symbol.name}{work_attr}{req_attr}"
 
 
-def _authoring_block_text(symbol, path: str, line: int, work: str | None, req: str | None) -> str:
+def _authoring_block_text(
+    symbol, path: str, line: int, work: str | None, req: str | None, plan: str | None = None
+) -> str:
     lines = [
         "TRACE AUTHORING REQUIRED — NEW BEHAVIOR",
         "",
@@ -242,17 +245,19 @@ def _authoring_block_text(symbol, path: str, line: int, work: str | None, req: s
         "  the work and requirement that justify its existence.",
         "",
     ]
-    if work or req:
+    if work or req or plan:
         lines.append("Active context:")
         if work:
             lines.append(f"  Work: {work}")
         if req:
             lines.append(f"  Requirement: {req}")
+        if plan:
+            lines.append(f"  Plan: {plan}")
         lines.append("")
     lines += [
         "Retry this edit with this marker directly above the function:",
         "",
-        f"  {_suggested_marker(symbol, work, req)}",
+        f"  {_suggested_marker(symbol, work, req, plan)}",
         "",
         "Do NOT add path=, commit=, test=, or line= — TraceLayer derives",
         "those facts.",

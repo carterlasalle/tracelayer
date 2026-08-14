@@ -7,6 +7,7 @@ from tests.unit.conftest import make_edge, make_node
 from tracelayer.policy.evaluator import evaluate
 
 
+# trace:v1 id=test.dogfood.tests.unit.evidence.test_spec_47_7.py type=test
 def _outcome(framework_id: str, outcome: str, test_uid: str | None):
     from tracelayer.evidence.models import TestOutcome
 

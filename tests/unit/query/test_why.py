@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 
+# trace:v1 id=test.dogfood.tests.unit.query.test_why.py type=test
 def _chains(paths, target):
     return [[n.trace_id for _, n in p] + [target] for p in paths]
 

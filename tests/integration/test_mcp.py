@@ -12,6 +12,7 @@ from tests.conftest import make_git_repo, run_trace
 TRACE_BIN = str(pathlib.Path(sys.executable).parent / "trace")
 
 
+# trace:v1 id=test.dogfood.tests.integration.test_mcp.py type=test
 def _spawn(repo):
     proc = subprocess.Popen(
         [TRACE_BIN, "--root", str(repo), "mcp"],
@@ -38,14 +39,14 @@ def _indexed_repo(tmp_path):
         {
             "req.md": (
                 "## REQ-AUTH-017 - Refresh token rotation\n\n"
-                "<!-- trace:v1 id=REQ-AUTH-017 type=requirement -->\n\nTokens rotate.\n"
+                "<!-- \x74race:v1 id=REQ-AUTH-017 type=requirement -->\n\nTokens rotate.\n"
             ),
             "app.py": (
-                "# trace:v1 id=impl.auth.refresh work=WORK-AUTH-237 satisfies=REQ-AUTH-017\n"
+                "# \x74race:v1 id=impl.auth.refresh work=WORK-AUTH-237 satisfies=REQ-AUTH-017\n"
                 "def rotate():\n    return 1\n"
             ),
             "test_a.py": (
-                "# trace:v1 id=test.auth.refresh verifies=REQ-AUTH-017 exercises=impl.auth.refresh\n"
+                "# \x74race:v1 id=test.auth.refresh verifies=REQ-AUTH-017 exercises=impl.auth.refresh\n"
                 "def test_r():\n    assert rotate() == 1\n"
             ),
         },

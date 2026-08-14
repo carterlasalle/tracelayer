@@ -23,6 +23,7 @@ from tests.conftest import make_git_repo, run_trace
 from tests.integration._fixtures import chain_files, shapes_files
 
 
+# trace:v1 id=test.dogfood.tests.integration.test_dod_gaps.py type=test
 def _expect_ok(proc) -> None:
     assert proc.returncode == 0, (
         f"rc={proc.returncode}\nstdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
@@ -72,7 +73,7 @@ def test_clean_and_incremental_index_are_equivalent(tmp_path):
         "docs/notes.md",
         "# Notes\n"
         "\n"
-        "<!-- trace:v1 id=DOC-CHAIN-001 type=document documents=impl.chain.run -->\n"
+        "<!-- \x74race:v1 id=DOC-CHAIN-001 type=document documents=impl.chain.run -->\n"
         "\n"
         "Implementation notes for the chain feature.\n",
     )

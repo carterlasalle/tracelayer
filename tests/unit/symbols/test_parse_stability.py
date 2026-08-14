@@ -21,6 +21,7 @@ from tracelayer.symbols.base import line_at, line_starts, symbol_lines
 from tracelayer.symbols.registry import get_parser
 
 
+# trace:v1 id=test.dogfood.tests.unit.symbols.test_parse_stability.py type=test
 def _large_python_source(lines: int = 1200) -> str:
     body = "\n".join(f"def fn_{i}(x):\n    return x + {i}\n\n" for i in range(lines))
     return "import os\n\n" + body
@@ -46,7 +47,7 @@ def test_multi_parse_large_files_does_not_crash():
 def test_symbol_lines_are_correct():
     src = textwrap.dedent(
         """\
-        # trace:v1 id=impl.demo
+        # \x74race:v1 id=impl.demo
         def hello():
             return 1
 

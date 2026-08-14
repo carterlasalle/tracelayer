@@ -23,7 +23,7 @@ paths = [
   "generated/**",
   "docs/vendor/**",
   ".trace/**",
-  "tests/**",
+  "tests/**/__init__.py",
   ".github/**",
   "contrib/**",
   "scripts/**",

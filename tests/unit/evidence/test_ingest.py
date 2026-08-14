@@ -13,6 +13,7 @@ from tracelayer.evidence.ingest import framework_id_of, ingest
 from tracelayer.symbols.base import SymbolRef
 
 
+# trace:v1 id=test.dogfood.tests.unit.evidence.test_ingest.py type=test
 def write_file(root, name: str, content: str):
     p = root / name
     p.parent.mkdir(parents=True, exist_ok=True)

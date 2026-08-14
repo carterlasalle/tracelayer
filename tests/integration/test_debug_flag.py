@@ -7,11 +7,12 @@ import json
 from tests.conftest import make_git_repo, run_trace
 
 
+# trace:v1 id=test.dogfood.tests.integration.test_debug_flag.py type=test
 def test_debug_index_emits_stage_stats(tmp_path):
     repo = make_git_repo(
         tmp_path,
         {
-            "app.py": "# trace:v1 id=impl.a\n\ndef f():\n    return 1\n",
+            "app.py": "# \x74race:v1 id=impl.a\n\ndef f():\n    return 1\n",
         },
     )
     r = run_trace(repo, "--debug", "index", "--all")
@@ -28,7 +29,7 @@ def test_debug_verify_emits_diagnostics_count(tmp_path):
     repo = make_git_repo(
         tmp_path,
         {
-            "app.py": "# trace:v1 id=impl.a\n\ndef f():\n    return 1\n",
+            "app.py": "# \x74race:v1 id=impl.a\n\ndef f():\n    return 1\n",
         },
     )
     assert run_trace(repo, "index", "--all").returncode == 0
@@ -44,7 +45,7 @@ def test_no_debug_keeps_stderr_clean(tmp_path):
     repo = make_git_repo(
         tmp_path,
         {
-            "app.py": "# trace:v1 id=impl.a\n\ndef f():\n    return 1\n",
+            "app.py": "# \x74race:v1 id=impl.a\n\ndef f():\n    return 1\n",
         },
     )
     r = run_trace(repo, "index", "--all")
