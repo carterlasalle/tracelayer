@@ -1,4 +1,5 @@
 # Claude Code Integration
+<!-- trace:v1 id=doc.tracelayer.claude.code -->
 
 This document describes the reference Claude Code adapter. The adapter lives
 in `adapters/claude-code/` and owns harness-specific serialization; the core

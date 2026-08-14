@@ -96,6 +96,7 @@ def _apply_waiver(d: Diagnostic, policy: PolicyConfig | None) -> Diagnostic:
     )
 
 
+# trace:v1 id=impl.policy.evaluate work=WORK-TL-001
 def evaluate(
     project: Project,
     store: GraphStore,
@@ -105,6 +106,7 @@ def evaluate(
     changed_paths: set[str] | None = None,
     revision: str | None = None,
     audit_result: dict | None = None,
+    gitrepo: object | None = None,
 ) -> PolicyResult:
     """Evaluate policy for a project against the current graph store.
 
@@ -147,6 +149,7 @@ def evaluate(
         changed_paths=set(changed_paths or ()),
         revision=revision,
         audit_result=audit_result,
+        gitrepo=gitrepo,
     )
     for rule_id in sorted(enabled):
         fn = RULE_FUNCTIONS.get(rule_id)

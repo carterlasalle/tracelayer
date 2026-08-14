@@ -528,6 +528,63 @@ def update(
     _install_agents(root, targets, global_install=global_install, update=True)
 
 
+marker_app = typer.Typer(no_args_is_help=True, help="Marker authoring helpers")
+app.add_typer(marker_app, name="marker")
+
+
+@marker_app.command("suggest")
+def marker_suggest(
+    ctx: typer.Context,
+    target: str = typer.Argument(..., help="path or path:line of the boundary"),
+    root: Path | None = _root_opt(),
+    session: str | None = typer.Option(
+        None, "--session", help="Session id (default: $TRACE_SESSION or 'default')"
+    ),
+) -> None:
+    """Suggest the canonical trace marker for a behavioral boundary.
+
+    Resolves the boundary at ``path[:line]`` and prints the exact
+    ``# trace:v1`` line with the session's active work/requirement.
+    """
+    from tracelayer.config import load_project
+    from tracelayer.discovery.boundaries import extract_boundaries
+    from tracelayer.hooks.session_state import SessionState
+
+    root = _resolve_root(ctx, root)
+    path_part, _, line_part = target.partition(":")
+    line = int(line_part) if line_part.isdigit() else None
+    rel = os.path.relpath(path_part, root) if os.path.isabs(path_part) else path_part
+    file_path = root / rel
+    if not file_path.is_file():
+        typer.echo(f"no such file: {rel}", err=True)
+        raise typer.Exit(2)
+    text = file_path.read_text(encoding="utf-8")
+    boundaries = extract_boundaries(rel, text)
+    boundary = None
+    if line is not None:
+        boundary = next((b for b in boundaries if b.start_line <= line <= b.end_line), None)
+    if boundary is None and boundaries:
+        boundary = next((b for b in boundaries if b.start_line >= (line or 1)), boundaries[0])
+    if boundary is None:
+        typer.echo(f"no behavioral boundary found in {rel}", err=True)
+        raise typer.Exit(2)
+    project, _diags = load_project(root)
+    state = SessionState(project)
+    sid = session or os.environ.get("TRACE_SESSION") or "default"
+    work = state.active_work(sid)
+    req = state.active_requirement(sid)
+    work_attr = f" work={work}" if work else ""
+    req_attr = f" satisfies={req}" if req else ""
+    marker_line = f"# trace:v1 id=impl.{boundary.name}{work_attr}{req_attr}"
+    typer.echo(f"boundary: {rel}:{boundary.start_line}::{boundary.name} ({boundary.kind})")
+    if not (work or req):
+        typer.echo(
+            "note: no active work/requirement in this session; run "
+            "`trace task begin <WORK-ID>` to attach causal context"
+        )
+    typer.echo(marker_line)
+
+
 @app.command()
 def task(
     ctx: typer.Context,

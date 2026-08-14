@@ -25,11 +25,8 @@ paths = [
   ".trace/**",
   "tests/**",
   ".github/**",
-  "docs/**",
-  "skills/**",
   "contrib/**",
   "scripts/**",
-  "README.md",
   ".gitignore",
   "AGENTS.md",
   "CLAUDE.md",
@@ -41,5 +38,8 @@ paths = [
   ".omp/**",
   ".agents/**",
   "opencode.json",
-  "src/tracelayer/web/vendor/**"
+  "src/tracelayer/web/vendor/**",
+  "docs/marker-protocol.md",
+  "docs/relationships.md",
+  "skills/traceability/references/marker-protocol.md"
 ]

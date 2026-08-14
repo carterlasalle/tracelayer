@@ -212,6 +212,30 @@ def test_obligation_blocks_stop_until_resolved(tmp_path):
     assert "TRACE OBLIGATIONS PENDING" not in json.loads(r.stdout)["output"]
 
 
+def test_marker_suggest_with_session_context(tmp_path):
+    repo = _repo(tmp_path)
+    run_trace(
+        repo,
+        "task",
+        "begin",
+        "WORK-AUTH-237",
+        "--requirement",
+        "REQ-AUTH-017",
+        env={"TRACE_SESSION": "s"},
+    )
+    (repo / "src" / "billing.py").write_text("def create_invoice(total):\n    return total\n")
+    r = run_trace(
+        repo,
+        "marker",
+        "suggest",
+        "src/billing.py:1",
+        env={"TRACE_SESSION": "s"},
+    )
+    assert r.returncode == 0, r.stderr
+    assert "create_invoice" in r.stdout
+    assert "# trace:v1 id=impl.create_invoice work=WORK-AUTH-237 satisfies=REQ-AUTH-017" in r.stdout
+
+
 def test_stop_blocks_untraced_new_file_via_changed_scope(tmp_path):
     """Stop now evaluates changed scope: a brand-new untraced file blocks."""
     repo = _repo(tmp_path)

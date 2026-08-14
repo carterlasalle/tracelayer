@@ -73,7 +73,6 @@ def handle(ctx: HookContext, payload: dict) -> HookOutput:
 # ---------------------------------------------------------------------------
 
 _EXEMPT_MARK = "# trace:exempt"
-_EXEMPT_HTML_MARK = "<!-- trace:exempt -->"
 
 
 def _proposed_text(root: Path, path: str, payload: dict) -> str | None:
@@ -100,24 +99,21 @@ def _read_file(root: Path, path: str) -> str | None:
 
 
 def _new_boundaries(root: Path, path: str, current: str | None, proposed: str) -> list:
-    """(symbol, line) definitions that the proposed edit introduces."""
-    parser = _parser_for(path)
-    if parser is None:
-        return []
+    """Boundaries the proposed edit introduces (code, markdown, config)."""
+    from tracelayer.discovery.boundaries import extract_boundaries
+
     try:
-        new_symbols = parser.parse(proposed, path)
+        new_bounds = extract_boundaries(path, proposed)
     except Exception:
-        return []
-    if not new_symbols:
         return []
     if current is None:
-        return [(s, s.start_line) for s in new_symbols]
+        return new_bounds
     try:
-        old_symbols = parser.parse(current, path)
+        old_bounds = extract_boundaries(path, current) if current else []
     except Exception:
-        old_symbols = []
-    old_lines = {s.start_line for s in old_symbols}
-    return [(s, s.start_line) for s in new_symbols if s.start_line not in old_lines]
+        old_bounds = []
+    old_lines = {b.start_line for b in old_bounds}
+    return [b for b in new_bounds if b.start_line not in old_lines]
 
 
 def _parser_for(path: str):
@@ -154,20 +150,6 @@ def _relpath(root: Path, path: str) -> str:
     return path
 
 
-def _exempt_or_traced(proposed: str, symbol) -> bool:
-    """True when the new boundary carries a marker or an explicit exemption."""
-    lines = proposed.splitlines()
-    marker = False
-    exempt = False
-    for i in range(max(0, symbol.start_line - 2), min(len(lines), symbol.end_line)):
-        line = lines[i].strip()
-        if _EXEMPT_MARK in line or _EXEMPT_HTML_MARK in line:
-            exempt = True
-        if "trace:v1" in line:
-            marker = True
-    return marker or exempt
-
-
 def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput | None:
     """Block the mutation when the proposed edit adds untraced boundaries.
 
@@ -193,14 +175,17 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
     if proposed is None:
         return None
     boundaries = _new_boundaries(ctx.project.root, path, current, proposed)
-    untraced = [(s, line) for s, line in boundaries if not _exempt_or_traced(proposed, s)]
+    from tracelayer.discovery.boundaries import boundary_is_traced
+
+    untraced = [b for b in boundaries if not boundary_is_traced(proposed or "", boundaries, b)]
     if not untraced:
         return None
     work = state.active_work(ctx.session_id)
     req = state.active_requirement(ctx.session_id)
-    symbol, line = untraced[0]
+    boundary = untraced[0]
+    line = boundary.start_line
     if not (work or req):
-        text = _causal_context_block(symbol, path, line)
+        text = _causal_context_block(boundary, path, line)
         return render_blocked(
             text,
             {
@@ -208,7 +193,7 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
                 "decision": "block",
                 "path": path,
                 "line": line,
-                "new_symbol": symbol.name,
+                "new_symbol": boundary.name,
                 "output": text,
             },
         )
@@ -216,15 +201,15 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
         ctx.session_id,
         {
             "path": rel_path,
-            "symbol": symbol.name,
+            "symbol": boundary.name,
             "kind": "new_behavior",
             "work": work or "",
             "requirement": req or "",
-            "suggested_marker": _suggested_marker(symbol, work, req),
+            "suggested_marker": _suggested_marker(boundary, work, req),
             "state": "pending",
         },
     )
-    text = _authoring_block_text(symbol, path, line, work, req)
+    text = _authoring_block_text(boundary, path, line, work, req)
     return render_blocked(
         text,
         {
@@ -232,7 +217,7 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
             "decision": "block",
             "path": path,
             "line": line,
-            "new_symbol": symbol.name,
+            "new_symbol": boundary.name,
             "obligation": True,
             "output": text,
         },

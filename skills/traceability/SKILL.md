@@ -13,6 +13,7 @@ description: >-
 ---
 
 # Traceability Skill
+<!-- trace:v1 id=doc.tracelayer.skill -->
 
 Use this skill whenever you work in a repository that uses TraceLayer
 (`trace:v1` markers, `.trace/` config, or `trace` CLI). It keeps your changes
@@ -180,6 +181,7 @@ trace why <id>                       # causal path back to a root
 trace impact <id>                    # what a change to <id> affects
 trace graph <id> --depth 2           # local subgraph
 trace web                            # 3D web UI of the marker graph (markers only)
+trace marker suggest <path>[:<line>]  # exact marker for a boundary (uses session context)
 trace verify --changed               # required before completion
 trace status                         # repository health
 trace new <type> --name NAME         # mint a fresh stable ID

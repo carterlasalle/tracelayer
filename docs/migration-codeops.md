@@ -1,4 +1,5 @@
 # CodeOps Migration
+<!-- trace:v1 id=doc.tracelayer.migration.codeops -->
 
 TraceLayer can import repositories that use `codeops:trace` annotations. The
 importer preserves useful intent without pretending ambiguous fields have

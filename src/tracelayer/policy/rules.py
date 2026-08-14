@@ -19,10 +19,16 @@ without changed paths there is nothing to compare, so it emits nothing.
 
 from __future__ import annotations
 
+import subprocess
 from collections.abc import Callable
 from fnmatch import fnmatch
 
 from tracelayer.diagnostics import Diagnostic, make
+from tracelayer.discovery.boundaries import (
+    boundary_is_traced,
+    extract_boundaries,
+    supported_extension,
+)
 from tracelayer.graph.models import Node
 from tracelayer.policy.models import EvalContext
 from tracelayer.protocol.ontology import OBSERVED_EDGES, SEMANTIC_EDGES
@@ -217,6 +223,80 @@ def rule_tl011(ctx: EvalContext) -> list[Diagnostic]:
 
 
 # trace:v1 id=impl.policy.tl012 work=WORK-TL-001
+def rule_tl013(ctx: EvalContext) -> list[Diagnostic]:
+    """Behavior-boundary trace coverage (per-symbol, review P1).
+
+    TL012 verifies that a changed FILE is claimed by some node; TL013
+    verifies that every NEW or materially-changed behavioral boundary
+    (function, class, method, heading, config key) inside a changed file
+    is itself trace-accounted — marker attached, inherited from a traced
+    parent, or explicitly exempted. This closes the loop where one marker
+    in a file let any number of new untraced behaviors pass.
+    """
+    diags: list[Diagnostic] = []
+    if not ctx.changed_paths or ctx.gitrepo is None:
+        return diags
+    excluded = ctx.project.policy.exclusions.paths if ctx.project.policy else []
+    for path in sorted(ctx.changed_paths):
+        if any(fnmatch(path, pat) for pat in excluded):
+            continue
+        if not supported_extension(path):
+            continue
+        try:
+            current = (ctx.project.root / path).read_text(encoding="utf-8")
+        except OSError:
+            continue
+        baseline = _baseline_text(ctx.gitrepo, path) or ""
+        try:
+            cur_bounds = extract_boundaries(path, current)
+            base_bounds = extract_boundaries(path, baseline) if baseline else []
+        except Exception:
+            continue  # nosec B112: unparseable file -> skip (deterministic), never fail the gate
+        base_by_name = {b.name: b for b in base_bounds}
+        for boundary in cur_bounds:
+            prior = base_by_name.get(boundary.name)
+            if prior is None:
+                changed = True  # new boundary (or renamed: re-trace it)
+            elif boundary.kind == "heading":
+                changed = False  # same title; body extends, not a change
+            else:
+                changed = _boundary_fp(prior) != _boundary_fp(boundary)
+            if not changed:
+                continue
+            if boundary_is_traced(current, cur_bounds, boundary):
+                continue
+            diags.append(
+                make(
+                    "TL013",
+                    path=path,
+                    line=boundary.start_line,
+                    message=(
+                        f"Behavior boundary {boundary.kind} '{boundary.name}' is not "
+                        "trace-accounted: add a trace:v1 marker above it, inherit from "
+                        "a traced parent, or add `# trace:exempt`"
+                    ),
+                )
+            )
+    return diags
+
+
+def _baseline_text(gitrepo, path: str) -> str | None:
+    """HEAD content of ``path``, or None when the file is new."""
+    try:
+        r = gitrepo.run("show", f"HEAD:{path}")
+        if r.returncode != 0:
+            return None
+        return r.stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def _boundary_fp(boundary) -> str:
+    from tracelayer.graph.fingerprints import normalize_block, semantic_fingerprint
+
+    return semantic_fingerprint(normalize_block(boundary.source))
+
+
 def rule_tl012(ctx: EvalContext) -> list[Diagnostic]:
     """Changed path with no traced behavior.
 
@@ -559,6 +639,7 @@ RULE_FUNCTIONS: dict[str, RuleFn] = {
     "TL010": rule_tl010,
     "TL011": rule_tl011,
     "TL012": rule_tl012,
+    "TL013": rule_tl013,
     "TL020": rule_tl020,
     "TL021": rule_tl021,
     "TL022": rule_tl022,

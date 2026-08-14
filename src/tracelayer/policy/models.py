@@ -17,6 +17,7 @@ if TYPE_CHECKING:  # pragma: no cover - annotations only
     from tracelayer.graph.store import GraphStore
 
 
+# trace:exempt  # data container, no behavior
 @dataclass
 class EvalContext:
     """Per-evaluation state handed to every rule function.
@@ -35,8 +36,10 @@ class EvalContext:
     changed_paths: set[str]
     revision: str | None = None
     audit_result: dict | None = None
+    gitrepo: object | None = None  # for baseline reads (TL013)
 
 
+# trace:v1 id=impl.policy.models work=WORK-TL-001
 @dataclass
 class PolicyResult:
     """Outcome of an evaluation: pass/fail, whether it blocks, diagnostics."""

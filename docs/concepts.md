@@ -1,4 +1,5 @@
 # Concepts
+<!-- trace:v1 id=doc.tracelayer.concepts -->
 
 This document explains the core model behind TraceLayer: the three truths,
 the trace graph, stable IDs, and staleness. It is the best starting point for

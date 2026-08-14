@@ -1,4 +1,5 @@
 # Evidence
+<!-- trace:v1 id=doc.tracelayer.evidence -->
 
 TraceLayer treats evidence as immutable observation. Evidence records answer
 one question precisely: *at this revision, did this test run, and did it

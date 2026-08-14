@@ -1,6 +1,7 @@
 <div align="center">
 
 # TraceLayer
+<!-- trace:v1 id=doc.tracelayer.readme -->
 
 **Agent-native software traceability: intent, implementation, verification, provenance, and evidence as a deterministic graph.**
 

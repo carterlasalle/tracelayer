@@ -1,4 +1,5 @@
 # Hooks
+<!-- trace:v1 id=doc.tracelayer.hooks -->
 
 Hooks are a core feature, not an optional reminder layer (22). They sit in
 the agent's event loop, call deterministic trace commands, and emit either an

@@ -1,4 +1,5 @@
 # Policy
+<!-- trace:v1 id=doc.tracelayer.policy -->
 
 Policy answers the question: *is this repository state good enough for the
 current lifecycle?* It is deliberately separate from the marker schema, which

@@ -1164,6 +1164,7 @@ class Engine:
             changed_ids=changed_ids,
             changed_paths=changed_paths,
             revision=revision,
+            gitrepo=self.gitrepo,
         )
         diags = result.diagnostics + _policy_config_diags(changed_paths)
         self.store.insert_diagnostics(diags)

@@ -1,4 +1,5 @@
 # Security
+<!-- trace:v1 id=doc.tracelayer.security -->
 
 TraceLayer sits directly in the coding-agent control loop, so security
 matters (spec 32). Repository-controlled strings are always treated as

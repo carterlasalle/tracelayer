@@ -1,4 +1,5 @@
 # Large Repositories and Monorepos
+<!-- trace:v1 id=doc.tracelayer.large.repos -->
 
 TraceLayer is built to scale to large repositories without a mandatory
 daemon, vector database, or graph server (NFR-011). This document covers

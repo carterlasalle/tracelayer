@@ -80,6 +80,12 @@ RULES: dict[str, RuleDef] = {
         SEVERITY_ERROR,
         "Review downstream relationships; run `trace review <id>` after confirming they still hold.",
     ),
+    "TL013": RuleDef(
+        "TL013",
+        "behavior boundary not trace-accounted",
+        SEVERITY_ERROR,
+        "Add a trace:v1 marker above the boundary, inherit from a traced parent, or add `# trace:exempt`.",
+    ),
     "TL012": RuleDef(
         "TL012",
         "new or changed meaningful behavior not traced",
@@ -197,6 +203,7 @@ class Diagnostic:
         return d
 
 
+# trace:v1 id=impl.diagnostics.make work=WORK-TL-001
 def make(
     rule_id: str,
     *,
