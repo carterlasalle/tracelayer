@@ -20,6 +20,8 @@ from pathlib import Path
 # One-line invariant appended to AGENTS.md / CLAUDE.md by `trace init`
 # (spec 20.1). Detection is by the `trace verify --changed` token.
 AGENTS_MD_NOTE = (
+    "<!-- tracelayer-agent-invariant:v2 -->\n"
+    "This repository uses mandatory semantic traceability. Trace integrity is "
     "This repository uses mandatory semantic traceability. Trace integrity is "
     "part of the Definition of Done. Follow the repository traceability skill "
     "and any trace instructions injected by hooks. Do not invent trace fields, "
@@ -466,9 +468,14 @@ def merge_mcp_json(root: Path) -> tuple[str, Path]:
 # --------------------------------------------------------------------------
 
 
+# trace:v1 id=impl.install.invariant-version work=WORK-TL-001
 def note_present(text: str) -> bool:
-    """True when the repository invariant already appears in the file."""
-    return "trace verify --changed" in text and "traceability" in text.lower()
+    """True when the CURRENT invariant version already appears in the file.
+
+    Version-tagged: an older v1 note must not count as present, so existing
+    repositories are upgraded deterministically by init/update.
+    """
+    return "tracelayer-agent-invariant:v2" in text
 
 
 # trace:v1 id=impl.install.invariant work=WORK-TL-001

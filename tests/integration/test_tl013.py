@@ -84,9 +84,9 @@ def test_new_config_key_requires_trace(tmp_path):
     proc = _verify(repo)
     assert "TL013" in proc.stdout
     assert "new_contract" in proc.stdout
-    # A marker anywhere in the config claims the file.
+    # A marker directly above the key attaches to it (per-key, not file-level).
     (repo / "config.yaml").write_text(
-        "# \x74race:v1 id=ops.config.server work=WORK-1\nserver:\n  port: 8080\nnew_contract:\n  enabled: true\n"
+        "server:\n  port: 8080\n# trace:v1 id=ops.config.contract work=WORK-1\nnew_contract:\n  enabled: true\n"
     )
     (repo / ".trace").mkdir(parents=True, exist_ok=True)
     (repo / ".trace" / "work.toml").write_text('[work."WORK-1"]\ntitle = "Config"\n')

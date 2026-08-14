@@ -98,22 +98,42 @@ def _read_file(root: Path, path: str) -> str | None:
     return _read_text(root, path)
 
 
-def _new_boundaries(root: Path, path: str, current: str | None, proposed: str) -> list:
-    """Boundaries the proposed edit introduces (code, markdown, config)."""
+# trace:exempt reason=internal-helper
+def _classify_boundaries(path: str, current: str | None, proposed: str) -> list[tuple]:
+    """(boundary, kind) for the proposed edit, by identity not line numbers.
+
+    Identity = name + kind + parent range + semantic fingerprint, so
+    inserting a comment cannot reclassify existing functions, and a
+    rewritten body at the same position counts as MODIFIED, not NEW.
+    """
     from tracelayer.discovery.boundaries import extract_boundaries
+    from tracelayer.graph.fingerprints import normalize_block, semantic_fingerprint
+
+    # trace:exempt reason=internal-helper
+    def fp(b):
+        return semantic_fingerprint(normalize_block(b.source))
 
     try:
         new_bounds = extract_boundaries(path, proposed)
     except Exception:
         return []
     if current is None:
-        return new_bounds
+        return [(b, "NEW") for b in new_bounds]
     try:
         old_bounds = extract_boundaries(path, current) if current else []
     except Exception:
         old_bounds = []
-    old_lines = {b.start_line for b in old_bounds}
-    return [b for b in new_bounds if b.start_line not in old_lines]
+    base = {b.name: b for b in old_bounds}
+    out: list[tuple] = []
+    for b in new_bounds:
+        prior = base.get(b.name)
+        if prior is None:
+            out.append((b, "NEW"))
+        elif fp(prior) != fp(b):
+            out.append((b, "MODIFIED"))
+        else:
+            out.append((b, "UNCHANGED"))
+    return out
 
 
 def _parser_for(path: str):
@@ -137,6 +157,7 @@ def _parser_for(path: str):
         return None
 
 
+# trace:exempt reason=internal-helper
 def _relpath(root: Path, path: str) -> str:
     """Repo-relative path for obligation identity (Claude sends absolute)."""
     import os
@@ -150,6 +171,7 @@ def _relpath(root: Path, path: str) -> str:
     return path
 
 
+# trace:exempt reason=internal-helper
 def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput | None:
     """Block the mutation when the proposed edit adds untraced boundaries.
 
@@ -174,16 +196,21 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
         proposed = current
     if proposed is None:
         return None
-    boundaries = _new_boundaries(ctx.project.root, path, current, proposed)
+    classified = _classify_boundaries(path, current, proposed)
     from tracelayer.discovery.boundaries import boundary_is_traced
 
-    untraced = [b for b in boundaries if not boundary_is_traced(proposed or "", boundaries, b)]
+    untraced = [
+        (b, kind)
+        for b, kind in classified
+        if kind in ("NEW", "MODIFIED")
+        and not boundary_is_traced(proposed or "", [x[0] for x in classified], b, ctx.project.root)
+    ]
     if not untraced:
         return None
     work = state.active_work(ctx.session_id)
     req = state.active_requirement(ctx.session_id)
     plan = state.active_plan(ctx.session_id)
-    boundary = untraced[0]
+    boundary, change_kind = untraced[0]
     line = boundary.start_line
     if not (work or req):
         text = _causal_context_block(boundary, path, line)
@@ -203,14 +230,14 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
         {
             "path": rel_path,
             "symbol": boundary.name,
-            "kind": "new_behavior",
+            "kind": "new_behavior" if change_kind == "NEW" else "modified_behavior",
             "work": work or "",
             "requirement": req or "",
-            "suggested_marker": _suggested_marker(boundary, work, req, plan),
+            "suggested_marker": _suggested_marker(boundary, work, req, plan, rel_path),
             "state": "pending",
         },
     )
-    text = _authoring_block_text(boundary, path, line, work, req, plan)
+    text = _authoring_block_text(boundary, path, rel_path, line, work, req, plan, change_kind)
     return render_blocked(
         text,
         {
@@ -225,20 +252,39 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
     )
 
 
-def _suggested_marker(symbol, work: str | None, req: str | None, plan: str | None = None) -> str:
-    work_attr = f" work={work}" if work else ""
-    req_attr = f" satisfies={req}" if req else ""
-    return f"# trace:v1 id=impl.{symbol.name}{work_attr}{req_attr}"
-
-
-def _authoring_block_text(
-    symbol, path: str, line: int, work: str | None, req: str | None, plan: str | None = None
+# trace:exempt reason=internal-helper
+def _suggested_marker(
+    symbol, work: str | None, req: str | None, plan: str | None = None, path: str = ""
 ) -> str:
+    """Canonical, artifact-aware marker via the shared suggestion engine."""
+    from tracelayer.discovery.suggest import suggest_marker
+
+    suggestion = suggest_marker(symbol, path, work=work, requirement=req, plan=plan)
+    return suggestion.marker
+
+
+# trace:exempt reason=internal-helper
+def _authoring_block_text(
+    symbol,
+    path: str,
+    rel_path: str,
+    line: int,
+    work: str | None,
+    req: str | None,
+    plan: str | None = None,
+    change_kind: str = "NEW",
+) -> str:
+    heading = (
+        "TRACE AUTHORING REQUIRED — NEW BEHAVIOR"
+        if change_kind == "NEW"
+        else ("TRACE AUTHORING REQUIRED — MODIFIED UNTRACED BEHAVIOR")
+    )
+    verb = "creating a new" if change_kind == "NEW" else "modifying an existing untraced"
     lines = [
-        "TRACE AUTHORING REQUIRED — NEW BEHAVIOR",
+        heading,
         "",
-        "You are creating a new behavioral boundary:",
-        f"  {path}:{line}::{symbol.name}",
+        f"You are {verb} behavioral boundary:",
+        f"  {rel_path}:{line}::{symbol.name}",
         "",
         "Why this needs a trace:",
         "  Future agents need a stable link from this implementation back to",
@@ -257,7 +303,7 @@ def _authoring_block_text(
     lines += [
         "Retry this edit with this marker directly above the function:",
         "",
-        f"  {_suggested_marker(symbol, work, req, plan)}",
+        f"  {_suggested_marker(symbol, work, req, plan, rel_path)}",
         "",
         "Do NOT add path=, commit=, test=, or line= — TraceLayer derives",
         "those facts.",

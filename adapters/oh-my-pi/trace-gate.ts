@@ -36,14 +36,19 @@ export default function hook(pi: HookAPI): void {
     return { path, line };
   };
 
-  // Block the first edit of protected traced behavior until context is loaded.
+  // Pre-authoring gate: pass the FULL proposed mutation so TraceLayer can
+  // simulate the edit (new boundaries, modified untraced behavior).
   pi.on("tool_call", async (event, ctx) => {
     if (event.toolName !== "edit" && event.toolName !== "write") return;
     const { path, line } = fileInfo(event.input);
     if (!path) return;
+    const input = (event.input ?? {}) as Record<string, unknown>;
     const payload = JSON.stringify({
       path,
       line,
+      content: input.content,
+      old_string: input.old_string,
+      new_string: input.new_string,
       session_id: sessionId(ctx),
     });
     const res = run(["hook", "pre-mutation", "--format", "json"], payload);
@@ -56,6 +61,25 @@ export default function hook(pi: HookAPI): void {
         // keep default reason
       }
       return { block: true, reason };
+    }
+  });
+
+  // Post-edit coaching: run post-mutation so obligations resolve and the
+  // model sees the trace guidance appended to the tool result.
+  pi.on("tool_result", async (event, ctx) => {
+    if (event.toolName !== "edit" && event.toolName !== "write") return;
+    const { path } = fileInfo(event.input);
+    if (!path) return;
+    const payload = JSON.stringify({ path, session_id: sessionId(ctx) });
+    const res = run(["hook", "post-mutation", "--format", "json"], payload);
+    if (res.code !== 0) return;
+    try {
+      const d = JSON.parse(res.out) as { output?: string };
+      if (typeof d.output === "string" && d.output) {
+        pi.log(`trace: ${d.output.split("\n")[0]}`);
+      }
+    } catch {
+      // guidance is advisory post-edit; ignore render errors
     }
   });
 

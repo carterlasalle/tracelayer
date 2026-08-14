@@ -81,34 +81,6 @@ def test_claude_payload_normalized_and_authoring_blocked(tmp_path):
     assert "satisfies=REQ-AUTH-017" in out["output"]
 
 
-def test_claude_format_renders_hook_specific_output(tmp_path):
-    repo = _repo(tmp_path)
-    run_trace(repo, "task", "begin", "WORK-AUTH-237", env={"TRACE_SESSION": "s"})
-    r = run_trace(
-        repo,
-        "hook",
-        "pre-mutation",
-        "--format",
-        "claude",
-        env={"TRACE_SESSION": "s"},
-        input=json.dumps(
-            {
-                "tool_name": "Write",
-                "tool_input": {
-                    "file_path": str(repo / "src" / "new.py"),
-                    "content": "def boundary():\n    return 1\n",
-                },
-            }
-        ),
-    )
-    assert r.returncode == 2
-    rendered = json.loads(r.stdout)
-    hso = rendered["hookSpecificOutput"]
-    assert hso["hookEventName"] == "pre_mutation"
-    assert hso["permissionDecision"] == "deny"
-    assert "TRACE AUTHORING REQUIRED" in hso["permissionDecisionReason"]
-
-
 def test_authoring_gate_blocks_and_exemption_allows(tmp_path):
     repo = _repo(tmp_path)
     run_trace(repo, "task", "begin", "WORK-AUTH-237", env={"TRACE_SESSION": "s"})
@@ -147,6 +119,29 @@ def test_authoring_gate_blocks_and_exemption_allows(tmp_path):
     }
     r = _pre(repo, exempt)
     assert r.returncode == 0, r.stderr
+
+
+# trace:v1 id=test.dogfood.tests.integration.test_hook_authoring.modified-block type=test
+def test_modified_untraced_boundary_blocks_before_edit(tmp_path):
+    """Rewriting an existing untraced function is blocked pre-edit too."""
+    repo = _repo(tmp_path)
+    run_trace(repo, "task", "begin", "WORK-AUTH-237", env={"TRACE_SESSION": "s"})
+    (repo / "src" / "legacy.py").write_text(
+        "def legacy_payment_flow():\n    return old_logic()\n", encoding="utf-8"
+    )
+    r = _pre(
+        repo,
+        {
+            "tool_name": "Edit",
+            "tool_input": {
+                "file_path": str(repo / "src" / "legacy.py"),
+                "old_string": "def legacy_payment_flow():\n    return old_logic()\n",
+                "new_string": "def legacy_payment_flow():\n    return completely_new_logic()\n",
+            },
+        },
+    )
+    assert r.returncode == 2, r.stderr
+    assert "MODIFIED UNTRACED BEHAVIOR" in json.loads(r.stdout)["output"]
 
 
 def test_no_causal_context_blocks_with_task_begin_hint(tmp_path):

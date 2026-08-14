@@ -242,11 +242,6 @@ def rule_tl013(ctx: EvalContext) -> list[Diagnostic]:
             continue
         if not supported_extension(path):
             continue
-        if any(
-            n.active and n.canonical_path == path and n.node_type == "test"
-            for n in ctx.store.all_nodes(active_only=True)
-        ):
-            continue  # test files are trace-accounted at file level
         try:
             current = (ctx.project.root / path).read_text(encoding="utf-8")
         except OSError:
@@ -268,7 +263,7 @@ def rule_tl013(ctx: EvalContext) -> list[Diagnostic]:
                 changed = _boundary_fp(prior) != _boundary_fp(boundary)
             if not changed:
                 continue
-            if boundary_is_traced(current, cur_bounds, boundary):
+            if boundary_is_traced(current, cur_bounds, boundary, ctx.project.root):
                 continue
             diags.append(
                 make(

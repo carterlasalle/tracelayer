@@ -15,6 +15,7 @@ node-inferring id token).
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 _EXT_LANG = {
     "py": "python",
@@ -40,6 +41,7 @@ class Boundary:
     end_line: int
     source: str
     language: str
+    path: str = ""
 
 
 # trace:exempt  # public predicate helper, no behavior of its own
@@ -55,25 +57,34 @@ def extract_boundaries(path: str, text: str) -> list[Boundary]:
     if suffix in _EXT_LANG:
         return _code_boundaries(_EXT_LANG[suffix], path, text)
     if suffix in _CONFIG_EXTS:
-        return _config_boundaries(suffix, text)
+        return _config_boundaries(suffix, path, text)
     if suffix in _DOC_EXTS:
-        return _markdown_boundaries(text)
+        return _markdown_boundaries(path, text)
     return []
 
 
-def boundary_is_traced(text: str, boundaries: list[Boundary], boundary: Boundary) -> bool:
-    """True when the boundary is trace-accounted by any mechanism."""
+# trace:v1 id=impl.policy.boundary-traced work=WORK-TL-001
+def boundary_is_traced(
+    text: str, boundaries: list[Boundary], boundary: Boundary, root: Path | None = None
+) -> bool:
+    """True when the boundary is trace-accounted by any mechanism.
+
+    No naming shortcuts: a private helper is not automatically traced (it
+    must inherit from a traced parent or carry an explicit exemption), and
+    a config file's single marker does not cover unrelated keys (each key
+    attaches to its own marker, or a JSON sidecar anchor).
+    """
     lines = text.splitlines()
-    if boundary.kind in ("function", "method") and boundary.name.startswith("_"):
-        return True  # private helpers are internal by convention (not boundaries)
     if _exempt(lines, boundary):
         return True
     if _marker_in(lines, boundary.start_line, boundary.end_line):
         return True
     if boundary.language == "markdown" and _heading_is_node(boundary):
         return True  # id-token heading infers a node without a marker
-    if boundary.language in ("yaml", "toml", "json") and any("trace:v1" in ln for ln in lines):
-        return True  # config files are claimed at file level
+    if boundary.language in ("yaml", "toml") and _config_key_traced(lines, boundary):
+        return True  # a marker directly above the key attaches to it
+    if boundary.language == "json" and _json_sidecar_traced(boundary, root):
+        return True  # JSON uses the sidecar anchor (.trace/sidecars/<path>.json)
     # Inherited: inside an already-traced parent boundary.
     for parent in boundaries:
         if parent is boundary:
@@ -81,6 +92,35 @@ def boundary_is_traced(text: str, boundaries: list[Boundary], boundary: Boundary
         if parent.start_line <= boundary.start_line <= parent.end_line:
             if _marker_in(lines, parent.start_line, parent.end_line):
                 return True
+    return False
+
+
+def _config_key_traced(lines: list[str], boundary: Boundary) -> bool:
+    """A config-key boundary is traced by a marker directly above it."""
+    for i in range(max(0, boundary.start_line - 2), boundary.start_line):
+        if "trace:v1" in lines[i]:
+            return True
+    return False
+
+
+# trace:exempt reason=internal-helper
+def _json_sidecar_traced(boundary: Boundary, root: Path | None) -> bool:
+    """JSON config keys are traced via the sidecar anchor (no comments)."""
+    if root is None or not boundary.path:
+        return False
+    try:
+        import json as _json
+
+        sidecar = root / ".trace" / "sidecars" / f"{boundary.path}.json"
+        data = _json.loads(sidecar.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    for entry in data.get("markers", []):
+        if (
+            entry.get("key") == boundary.name
+            and abs(int(entry.get("line", 0)) - boundary.start_line) <= 1
+        ):
+            return True
     return False
 
 
@@ -109,11 +149,12 @@ def _code_boundaries(language: str, path: str, text: str) -> list[Boundary]:
     return out
 
 
-def _config_boundaries(ext: str, text: str) -> list[Boundary]:
+# trace:exempt reason=internal-helper
+def _config_boundaries(ext: str, path: str, text: str) -> list[Boundary]:
     """Top-level keys of a config file are boundaries (contracts)."""
     out: list[Boundary] = []
     if ext == "json":
-        return _json_boundaries(text)
+        return _json_boundaries(path, text)
     lines = text.splitlines()
     indent = None
     for i, raw in enumerate(lines, start=1):
@@ -121,7 +162,7 @@ def _config_boundaries(ext: str, text: str) -> list[Boundary]:
         if not line or line.startswith(("#", "//", "[", "---")):
             continue
         if ext == "toml" and line.startswith("["):
-            out.append(Boundary(line.strip("[]"), "config-key", i, i, raw, ext))
+            out.append(Boundary(line.strip("[]"), "config-key", i, i, raw, ext, path))
             continue
         if ":" not in line and "=" not in line:
             continue
@@ -131,11 +172,12 @@ def _config_boundaries(ext: str, text: str) -> list[Boundary]:
             indent = cur_indent
         if cur_indent > indent:
             continue  # nested keys are covered by the parent boundary
-        out.append(Boundary(key, "config-key", i, i, raw, ext))
+        out.append(Boundary(key, "config-key", i, i, raw, ext, path))
     return out
 
 
-def _json_boundaries(text: str) -> list[Boundary]:
+# trace:exempt reason=internal-helper
+def _json_boundaries(path: str, text: str) -> list[Boundary]:
     try:
         import json
 
@@ -149,11 +191,12 @@ def _json_boundaries(text: str) -> list[Boundary]:
         stripped = raw.strip()
         for key in data:
             if stripped.startswith(f'"{key}"') or stripped.startswith(f"'{key}'"):
-                out.append(Boundary(str(key), "config-key", i, i, raw, "json"))
+                out.append(Boundary(str(key), "config-key", i, i, raw, "json", path))
     return out
 
 
-def _markdown_boundaries(text: str) -> list[Boundary]:
+# trace:exempt reason=internal-helper
+def _markdown_boundaries(path: str, text: str) -> list[Boundary]:
     """Headings are boundaries; body extends to the next same-or-higher heading."""
     import re
 
@@ -172,7 +215,7 @@ def _markdown_boundaries(text: str) -> list[Boundary]:
                 end = nxt_line - 1
                 break
         body = "\n".join(lines[line : end + 1]) if line <= end else raw
-        out.append(Boundary(title, "heading", line, end, body, "markdown"))
+        out.append(Boundary(title, "heading", line, end, body, "markdown", path))
     return out
 
 

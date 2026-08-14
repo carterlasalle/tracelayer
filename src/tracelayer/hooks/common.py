@@ -24,6 +24,17 @@ if TYPE_CHECKING:
 
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 
+# Internal hook event -> real Claude Code hook event name (docs require the
+# actual event names in hookSpecificOutput).
+_CLAUDE_EVENT_NAMES: dict[str, str] = {
+    "session_start": "SessionStart",
+    "prompt_context": "UserPromptSubmit",
+    "pre_mutation": "PreToolUse",
+    "post_mutation": "PostToolUse",
+    "post_batch": "PostToolBatch",
+    "stop": "Stop",
+}
+
 # Predicates marking behavior as protected (spec 22.3).
 PROTECTING_PREDICATES = ("satisfies", "work")
 
@@ -40,6 +51,7 @@ class HookContext:
 
 
 @dataclass
+# trace:exempt reason=data-container
 class HookOutput:
     """Decision plus bounded text plus machine JSON for one hook event."""
 
@@ -55,22 +67,56 @@ class HookOutput:
             return self._render_claude()
         return self.output
 
+    # trace:v1 id=impl.hooks.claude-render work=WORK-TL-001
     def _render_claude(self) -> str:
-        """Claude Code hook contract: ``hookSpecificOutput`` JSON on stdout.
+        """Claude Code hook contract, per event (docs: code.claude.com/hooks).
 
-        Blocks carry ``permissionDecision: deny`` + reason; guidance goes in
-        ``additionalContext`` (docs: PreToolUse honors both fields).
+        - PreToolUse: decision inside ``hookSpecificOutput`` —
+          ``permissionDecision: deny`` + reason (shown to Claude); guidance
+          via ``additionalContext``. JSON is printed with exit 0 (the
+          sanctioned way to return a structured decision).
+        - Stop: top-level ``decision: "block"`` + ``reason``; non-error
+          feedback that continues the conversation goes in
+          ``hookSpecificOutput.additionalContext``.
+        - All other events: ``hookSpecificOutput.additionalContext``.
         """
         event = self.json.get("event", "")
-        out: dict[str, object] = {"hookEventName": event}
-        if self.decision == "block":
-            out["permissionDecision"] = "deny"
-            out["permissionDecisionReason"] = self.output
-        else:
-            out["permissionDecision"] = "allow"
+        claude_event = _CLAUDE_EVENT_NAMES.get(event, event)
+        if event == "pre_mutation":
+            out: dict[str, object] = {"hookEventName": claude_event}
+            if self.decision == "block":
+                out["permissionDecision"] = "deny"
+                out["permissionDecisionReason"] = self.output
+            else:
+                out["permissionDecision"] = "allow"
+                if self.output:
+                    out["additionalContext"] = self.output
+            return json.dumps({"hookSpecificOutput": out}, sort_keys=True)
+        if event == "stop":
+            if self.decision == "block":
+                return json.dumps({"decision": "block", "reason": self.output}, sort_keys=True)
             if self.output:
-                out["additionalContext"] = self.output
-        return json.dumps({"hookSpecificOutput": out}, sort_keys=True)
+                return json.dumps(
+                    {
+                        "hookSpecificOutput": {
+                            "hookEventName": claude_event,
+                            "additionalContext": self.output,
+                        }
+                    },
+                    sort_keys=True,
+                )
+            return ""
+        if self.output:
+            return json.dumps(
+                {
+                    "hookSpecificOutput": {
+                        "hookEventName": claude_event,
+                        "additionalContext": self.output,
+                    }
+                },
+                sort_keys=True,
+            )
+        return ""
 
 
 def sanitize_text(text: str, max_chars: int = 200) -> str:

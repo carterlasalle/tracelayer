@@ -1,3 +1,4 @@
+<!-- trace:v1 id=impl.claude.settings-adapter work=WORK-TL-001 -->
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "hooks": {
@@ -37,6 +38,15 @@
     "PostToolUse": [
       {
         "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run trace hook post-mutation --format claude"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",

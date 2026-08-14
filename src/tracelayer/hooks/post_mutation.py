@@ -45,6 +45,7 @@ _EXT_LANG = {
 UPSTREAM_TYPES = frozenset({"requirement", "prd", "decision", "plan"})
 
 
+# trace:v1 id=impl.hooks.post-mutation-handle work=WORK-TL-001
 def handle(ctx: HookContext, payload: dict) -> HookOutput:
     """PostToolUse Write/Edit hook (spec 22.4-22.8, FR-026).
 
@@ -69,6 +70,8 @@ def handle(ctx: HookContext, payload: dict) -> HookOutput:
     }
     if ctx.store is None or ctx.state is None:
         return render_allowed("", json_data)
+    if not path:
+        return _scan_changed_files(ctx, json_data)
     text = _read_text(ctx.project.root, path)
     if text is None:
         return _deleted_path_output(
@@ -101,7 +104,7 @@ def handle(ctx: HookContext, payload: dict) -> HookOutput:
         )
     downstream = _stale_downstream(ctx.store, changed)
     text_out = (
-        _guidance(ctx, changed, deleted, linked, untraced, is_new_file, downstream)
+        _guidance(ctx, path, changed, deleted, linked, untraced, is_new_file, downstream)
         if (changed or deleted or untraced or downstream)
         else ""
     )
@@ -287,6 +290,81 @@ def _untraced_added_symbols(root: Path, path: str, text: str) -> tuple[list[str]
 
 
 # trace:v1 id=impl.hooks.obligation-resolution work=WORK-TL-001
+def _untraced_boundaries(root: Path, path: str, text: str) -> list:
+    """Boundary objects for added symbols without markers (for suggestions)."""
+    from tracelayer.discovery.boundaries import boundary_is_traced, extract_boundaries
+
+    try:
+        boundaries = extract_boundaries(path, text)
+    except Exception:
+        return []
+    return [b for b in boundaries if not boundary_is_traced(text, boundaries, b)]
+
+
+# trace:v1 id=impl.hooks.post-bash-scan work=WORK-TL-001
+def _scan_changed_files(ctx: HookContext, json_data: dict) -> HookOutput:
+    """Bash/generator mode: no path was given, so diff the working tree.
+
+    Every changed file with untraced behavioral boundaries becomes a durable
+    obligation (the same authoring loop the Write/Edit gate enforces), so
+    opaque mutations cannot escape coaching.
+    """
+    from tracelayer.discovery.boundaries import boundary_is_traced, extract_boundaries
+    from tracelayer.git.repo import GitRepo
+
+    repo = GitRepo.open(ctx.project.root)
+    if repo is None:
+        return render_allowed("", json_data)
+    files = repo.changed_files()
+    work = ctx.state.active_work(ctx.session_id) if ctx.state else None
+    req = ctx.state.active_requirement(ctx.session_id) if ctx.state else None
+    plan = ctx.state.active_plan(ctx.session_id) if ctx.state else None
+    created: list[str] = []
+    for f in sorted(files, key=lambda x: x.path)[:20]:
+        if f.change == "deleted":
+            continue
+        text = _read_text(ctx.project.root, f.path)
+        if text is None:
+            continue
+        try:
+            boundaries = extract_boundaries(f.path, text)
+            untraced = [
+                b
+                for b in boundaries
+                if not boundary_is_traced(text, boundaries, b, ctx.project.root)
+            ]
+        except Exception:
+            untraced = []
+        for b in untraced:
+            from tracelayer.discovery.suggest import suggest_marker
+
+            suggestion = suggest_marker(b, f.path, work=work, requirement=req, plan=plan)
+            ctx.state.add_obligation(
+                ctx.session_id,
+                {
+                    "path": f.path,
+                    "symbol": b.name,
+                    "kind": "new_behavior",
+                    "work": work or "",
+                    "requirement": req or "",
+                    "suggested_marker": suggestion.marker,
+                    "state": "pending",
+                },
+            )
+            created.append(f"{f.path}::{b.name}")
+    if not created:
+        return render_allowed("", json_data)
+    lines = ["BASH MUTATION DETECTED — TRACE OBLIGATIONS CREATED", ""]
+    for item in created[:10]:
+        lines.append(f"- {item}")
+    lines.append("")
+    lines.append("Resolve each before completing (or `trace verify --changed`).")
+    text = "\n".join(lines)
+    json_data["output"] = text
+    json_data["created_obligations"] = created
+    return render_allowed(text, json_data)
+
+
 def _resolve_obligations(ctx: HookContext, path: str, text: str) -> None:
     """Mark pending trace obligations satisfied once the marker exists.
 
@@ -430,6 +508,7 @@ def _stale_downstream(store: GraphStore, changed: list[Node]) -> dict[str, list[
 
 def _guidance(
     ctx: HookContext,
+    path: str,
     changed: list[Node],
     deleted: list[Node],
     linked: dict[str, list[str]],
@@ -492,10 +571,34 @@ def _guidance(
                 "helpers.",
             ]
         else:
+            from tracelayer.discovery.suggest import suggest_marker
+
             lines = ["NEW UNTRACED BEHAVIOR", ""]
             for name in untraced:
-                lines.append(f"Add a trace marker above `{name}` (e.g. for python):")
-                lines.append(f"  {example}")
+                file_text = _read_text(ctx.project.root, path) or ""
+                b = next(
+                    (
+                        x
+                        for x in _untraced_boundaries(ctx.project.root, path, file_text)
+                        if x.name == name
+                    ),
+                    None,
+                )
+                if b is not None:
+                    suggestion = suggest_marker(
+                        b,
+                        path,
+                        work=work,
+                        requirement=req,
+                        plan=ctx.state.active_plan(ctx.session_id) if ctx.state else None,
+                    )
+                    lines.append(f"Add a trace marker above `{name}` ({suggestion.role}):")
+                    lines.append(f"  {suggestion.marker}")
+                    if suggestion.sidecar:
+                        lines.append(f"  sidecar: {suggestion.sidecar}")
+                else:
+                    lines.append(f"Add a trace marker above `{name}`:")
+                    lines.append(f"  {example}")
             lines.append("See the traceability skill for valid fields and formats.")
         blocks.append("\n".join(lines))
     return fit("\n\n".join(blocks), ctx.project.config.hooks.max_context_chars)

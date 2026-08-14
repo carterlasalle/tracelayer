@@ -674,16 +674,30 @@ def task(
                 "usage: trace task begin <WORK-ID> [--requirement REQ-X] [--plan PLAN-X]", err=True
             )
             raise typer.Exit(2)
+        engine, _diags = _open(root)
+        try:
+            work_node = engine.store.get_node(trace_id=work_id)
+            if work_node is None or not work_node.active:
+                typer.echo(
+                    f"no active work node {work_id} in the trace graph; "
+                    "create it (requirement/work markers, or .trace/work.toml) first",
+                    err=True,
+                )
+                raise typer.Exit(2)
+            resolved_req = requirement or _resolve_requirement_for(engine, work_id)
+            resolved_plan = plan or _resolve_plan_for(engine, work_id)
+        finally:
+            engine.close()
         state.set_active_work(sid, work_id)
-        if requirement:
-            state.set_active_requirement(sid, requirement)
-        if plan:
-            state.set_active_plan(sid, plan)
+        if resolved_req:
+            state.set_active_requirement(sid, resolved_req)
+        if resolved_plan:
+            state.set_active_plan(sid, resolved_plan)
         lines = [f"active work: {work_id}"]
-        if requirement:
-            lines.append(f"active requirement: {requirement}")
-        if plan:
-            lines.append(f"active plan: {plan}")
+        if resolved_req:
+            lines.append(f"active requirement: {resolved_req}")
+        if resolved_plan:
+            lines.append(f"active plan: {resolved_plan}")
         lines.append("Hooks will attach new behavior to this work item automatically.")
         typer.echo("\n".join(lines))
         return
@@ -695,7 +709,42 @@ def task(
     raise typer.Exit(2)
 
 
-# trace:v1 id=impl.cli.task-summary work=WORK-TL-001
+# trace:exempt reason=internal-helper
+def _resolve_requirement_for(engine, work_id: str) -> str | None:
+    """The single requirement reachable from the work item, if unambiguous."""
+    work = engine.store.get_node(trace_id=work_id)
+    if work is None:
+        return None
+    requirements: set[str] = set()
+    for edge in engine.store.edges_to(work.entity_uid):
+        src = engine.store.get_node(uid=edge.from_uid)
+        if src is None or src.node_type != "implementation":
+            continue
+        for sat in engine.store.edges_from(src.entity_uid, "satisfies"):
+            target = engine.store.get_node(uid=sat.to_uid)
+            if target is not None and target.node_type == "requirement":
+                requirements.add(target.trace_id)
+    return next(iter(requirements)) if len(requirements) == 1 else None
+
+
+# trace:exempt reason=internal-helper
+def _resolve_plan_for(engine, work_id: str) -> str | None:
+    """The single plan implemented by the work item's artifacts, if unambiguous."""
+    work = engine.store.get_node(trace_id=work_id)
+    if work is None:
+        return None
+    plans: set[str] = set()
+    for edge in engine.store.edges_to(work.entity_uid):
+        src = engine.store.get_node(uid=edge.from_uid)
+        if src is None or src.node_type != "implementation":
+            continue
+        for imp in engine.store.edges_from(src.entity_uid, "implements"):
+            target = engine.store.get_node(uid=imp.to_uid)
+            if target is not None and target.node_type == "plan":
+                plans.add(target.trace_id)
+    return next(iter(plans)) if len(plans) == 1 else None
+
+
 # trace:v1 id=impl.cli.plan-sync work=WORK-TL-001
 @plan_app.command("sync")
 def plan_sync(
@@ -1639,14 +1688,16 @@ def docs_generate(
         engine.close()
 
 
+# trace:v1 id=impl.cli.hook-payload work=WORK-TL-001
 def _normalize_hook_payload(raw: dict) -> dict:
     """Map harness-specific hook payloads onto the canonical hook shape.
 
     Claude Code sends ``{"tool_name": "Edit", "tool_input": {"file_path":
-    ..., "old_string": ..., "new_string": ...}}``; other harnesses use
-    ``file_path`` or top-level ``path``. Everything is normalized to
-    ``path`` plus the mutation text (``content`` / ``old_string`` +
-    ``new_string``) so hook handlers see one contract (adapter drift fix).
+    ..., "old_string": ..., "new_string": ...}}`` with **absolute** paths;
+    other harnesses use ``file_path`` or top-level ``path``. Everything is
+    normalized to a repo-relative ``path`` plus the mutation text
+    (``content`` / ``old_string`` + ``new_string``) so hook handlers see
+    one contract (adapter drift fix).
     """
     out = dict(raw)
     ti = raw.get("tool_input")
@@ -1660,6 +1711,22 @@ def _normalize_hook_payload(raw: dict) -> dict:
     return out
 
 
+# trace:v1 id=impl.cli.hook-path work=WORK-TL-001
+def _canonicalize_path(payload: dict, root: Path) -> dict:
+    """Convert absolute mutation paths to repo-relative (Claude sends absolute)."""
+    path = payload.get("path")
+    if not path or not os.path.isabs(path):
+        return payload
+    try:
+        rel = os.path.relpath(path, root)
+        if not rel.startswith(".."):
+            payload["path"] = rel
+    except ValueError:
+        pass
+    return payload
+
+
+# trace:v1 id=impl.cli.hook-dispatch work=WORK-TL-001
 @app.command()
 def hook(
     ctx: typer.Context,
@@ -1671,20 +1738,22 @@ def hook(
 ) -> None:
     """Run a hook event with the payload JSON from stdin (spec Section 22).
 
-    Exit 0 on allow, 2 on block (Claude Code blocks on exit 2; exit 1 is a
-    non-blocking error there).
+    The ``claude`` format prints the structured hookSpecificOutput JSON and
+    exits 0 (the sanctioned way to return a decision; exit 2 is an
+    error-style block there). Other formats exit 2 on block.
     """
     root = _resolve_root(ctx, root)
     engine, _diags = _open(root)
     try:
-        out = engine.hook(event, _normalize_hook_payload(_read_payload()))
+        payload = _canonicalize_path(_normalize_hook_payload(_read_payload()), root)
+        out = engine.hook(event, payload)
     except ValueError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(2) from exc
     finally:
         engine.close()
     typer.echo(out.render(fmt))
-    if out.decision == "block":
+    if out.decision == "block" and fmt != "claude":
         raise typer.Exit(2)
 
 

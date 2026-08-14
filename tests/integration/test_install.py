@@ -65,14 +65,23 @@ def test_init_appends_agents_note_without_overwriting(tmp_path):
     assert (repo / "AGENTS.md").read_text() == content  # no duplicate note
 
 
+# trace:v1 id=test.dogfood.tests.integration.test_install.note-skip type=test
 def test_init_skips_agents_note_when_present(tmp_path):
     repo = make_git_repo(tmp_path, {"a.py": "x = 1\n"})
     (repo / "AGENTS.md").write_text(
-        "already: trace verify --changed must pass under traceability\n", encoding="utf-8"
+        "<!-- tracelayer-agent-invariant:v2 -->\n"
+        "already: trace verify --changed must pass under traceability\n",
+        encoding="utf-8",
     )
     run_trace(repo, "init", env=_env(tmp_path))
     content = (repo / "AGENTS.md").read_text()
-    assert content.count("trace verify --changed") == 1
+    assert content.count("tracelayer-agent-invariant:v2") == 1
+    # a v1-era note is upgraded (version-tagged, never silently stale)
+    (repo / "AGENTS.md").write_text(
+        "trace verify --changed must pass under the active policy\n", encoding="utf-8"
+    )
+    run_trace(repo, "init", env=_env(tmp_path))
+    assert "tracelayer-agent-invariant:v2" in (repo / "AGENTS.md").read_text()
 
 
 def test_first_run_hint_on_unconfigured_repo(tmp_path):
