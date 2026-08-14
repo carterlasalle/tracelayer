@@ -347,6 +347,8 @@ paths = [
   ".gitignore",
   "AGENTS.md",
   "CLAUDE.md",
-  ".mcp.json"
+  ".mcp.json",
+  "junit.xml",
+  "coverage.xml"
 ]
 """
