@@ -922,6 +922,12 @@ class Engine:
 
         changed_files = gitrepo.changed_files()
         if not changed_files:
+            # Clean working tree (CI / post-commit): index the committed
+            # change set vs the default-branch merge base (or HEAD~1).
+            base = gitrepo.default_base()
+            if base is not None:
+                changed_files = gitrepo.changed_files(base=base)
+        if not changed_files:
             return IndexReport(
                 nodes=0,
                 edges=0,
