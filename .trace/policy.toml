@@ -32,6 +32,7 @@ paths = [
   "CLAUDE.md",
   "pyproject.toml",
   "uv.lock",
+  "vulture_whitelist.py",
   "src/tracelayer/__init__.py",
   "adapters/**/package.json",
   ".mcp.json",

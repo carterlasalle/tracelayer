@@ -17,3 +17,4 @@ TypeScriptParser = typescript.TypeScriptParser
 # Consumed by frameworks rather than our code.
 scan = None  # typer option parameter (migrate subcommands)
 main = None  # console-script entry point (pyproject [project.scripts])
+json_flag = None  # typer option (task bootstrap): documented stdin-bundle form

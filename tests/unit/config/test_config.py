@@ -273,6 +273,7 @@ def test_default_trace_toml_roundtrip(tmp_path: Path) -> None:
     assert project.config.markers.prefix == "\x74race:v1"
 
 
+# trace:v1 id=test.dogfood.tests.unit.config.test_config.test_default_policy_toml_roundtrip type=test
 def test_default_policy_toml_roundtrip(tmp_path: Path) -> None:
     _write(tmp_path, ".trace/policy.toml", default_policy_toml())
     policy = load_policy(tmp_path)
@@ -293,6 +294,13 @@ def test_default_policy_toml_roundtrip(tmp_path: Path) -> None:
         ".mcp.json",
         "junit.xml",
         "coverage.xml",
+        ".agents/**",
+        ".claude/**",
+        ".codex/**",
+        ".pi/**",
+        ".omp/**",
+        ".hermes/**",
+        "opencode.json",
     ]
 
 

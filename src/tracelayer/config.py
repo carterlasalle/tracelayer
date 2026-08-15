@@ -349,6 +349,13 @@ paths = [
   "CLAUDE.md",
   ".mcp.json",
   "junit.xml",
-  "coverage.xml"
+  "coverage.xml",
+  ".agents/**",
+  ".claude/**",
+  ".codex/**",
+  ".pi/**",
+  ".omp/**",
+  ".hermes/**",
+  "opencode.json"
 ]
 """

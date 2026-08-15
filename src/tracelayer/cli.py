@@ -709,6 +709,11 @@ def task(
     lifecycle: str | None = typer.Option(
         None, "--lifecycle", help="Finish gate lifecycle (default: merge)"
     ),
+    json_flag: bool = typer.Option(
+        False,
+        "--json",
+        help="bootstrap: read the semantic bundle from stdin (the documented form)",
+    ),
     root: Path | None = _root_opt(),
 ) -> None:
     """Manage the session's active trace context (review P1).
@@ -732,10 +737,25 @@ def task(
         if prompt:
             bundle = bundle_from_prompt(prompt)
         else:
+            payload_text = _read_payload_text()
+            if not payload_text.strip():
+                form = "`--json < bundle.json`" if json_flag else "stdin"
+                typer.echo(
+                    f"no bootstrap bundle: pipe a JSON bundle on {form}, or"
+                    " derive one from the user's request with"
+                    ' `trace task bootstrap --prompt "<request>"`',
+                    err=True,
+                )
+                raise typer.Exit(2)
             try:
-                bundle = json.loads(_read_payload_text())
+                bundle = json.loads(payload_text)
             except json.JSONDecodeError as exc:
-                typer.echo(f"bootstrap bundle is not valid JSON: {exc}", err=True)
+                typer.echo(
+                    f"bootstrap bundle is not valid JSON: {exc} "
+                    "(bundle = title, kind, intent, requirements with titles "
+                    "+ statements, optional plan steps)",
+                    err=True,
+                )
                 raise typer.Exit(2) from exc
         try:
             result = ambient_bootstrap(project, bundle, session_id=sid)

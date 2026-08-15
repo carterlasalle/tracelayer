@@ -489,7 +489,7 @@ def test_bash_scan_respects_policy_exclusions(tmp_path):
     repo = make_git_repo(tmp_path, {"README.md": "# home\n"})
     run_trace(repo, "init", "--no-skill", "--no-mcp")
     pol = (repo / ".trace" / "policy.toml").read_text(encoding="utf-8")
-    pol = pol.replace('  "coverage.xml"\n]', '  "coverage.xml",\n  "pyproject.toml"\n]')
+    pol = pol.replace('"coverage.xml"', '"coverage.xml",\n  "pyproject.toml"')
     (repo / ".trace" / "policy.toml").write_text(pol, encoding="utf-8")
     run_trace(repo, "task", "bootstrap", env={"TRACE_SESSION": "s"}, input=json.dumps(BUNDLE))
     (repo / "pyproject.toml").write_text("[project]\nname = 'x'\n", encoding="utf-8")
@@ -679,3 +679,66 @@ def test_finish_idle_without_active_work(tmp_path):
     run_trace(repo, "init", "--no-skill", "--no-mcp")
     r = run_trace(repo, "task", "finish", env={"TRACE_SESSION": "nobody"})
     assert json.loads(r.stdout)["status"] == "idle"
+
+
+# trace:v1 id=test.dogfood.tests.integration.test_ambient_intake.test_bootstrap_json_flag_and_empty_stdin type=test
+def test_bootstrap_json_flag_and_empty_stdin(tmp_path):
+    """The documented `--json` form must work, and empty stdin must fail
+    with a helpful message — not a cryptic JSON traceback."""
+    repo = make_git_repo(tmp_path, {"README.md": "# home\n"})
+    run_trace(repo, "init", "--no-skill", "--no-mcp")
+    r = run_trace(
+        repo,
+        "task",
+        "bootstrap",
+        "--json",
+        env={"TRACE_SESSION": "s"},
+        input=json.dumps(BUNDLE),
+    )
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout)["work"].startswith("WORK-")
+    # empty stdin -> actionable guidance, never "Expecting value: line 1"
+    r = run_trace(repo, "task", "bootstrap", env={"TRACE_SESSION": "s"})
+    assert r.returncode == 2
+    assert "--prompt" in r.stderr
+    assert "pipe a JSON bundle on stdin" in r.stderr
+    assert "Expecting value" not in r.stderr
+    # the --json form names the documented pipe exactly
+    r = run_trace(repo, "task", "bootstrap", "--json", env={"TRACE_SESSION": "s"})
+    assert r.returncode == 2
+    assert "bundle.json" in r.stderr
+
+
+# trace:v1 id=test.dogfood.tests.integration.test_ambient_intake.test_init_policy_excludes_agent_dirs type=test
+def test_init_policy_excludes_agent_dirs(tmp_path):
+    """Fresh-init policy excludes agent install dirs so the installed skill
+    copy can never create spurious Bash-scan obligations."""
+    repo = make_git_repo(tmp_path, {"README.md": "# home\n"})
+    run_trace(repo, "init", env={"HOME": str(tmp_path / "home")})
+    pol = (repo / ".trace" / "policy.toml").read_text(encoding="utf-8")
+    for entry in (
+        ".agents/**",
+        ".claude/**",
+        ".codex/**",
+        ".pi/**",
+        ".omp/**",
+        ".hermes/**",
+        "opencode.json",
+    ):
+        assert entry in pol, entry
+    run_trace(repo, "install", "--agent", "generic", "--yes", env={"HOME": str(tmp_path / "home")})
+    run_trace(repo, "task", "bootstrap", env={"TRACE_SESSION": "s"}, input=json.dumps(BUNDLE))
+    r = run_trace(
+        repo,
+        "hook",
+        "post-mutation",
+        "--format",
+        "json",
+        env={"TRACE_SESSION": "s"},
+        input=json.dumps({"tool_name": "Bash", "tool_input": {"command": "ls"}}),
+    )
+    out = json.loads(r.stdout)
+    assert not any(".agents" in o for o in out.get("created_obligations", []))
+    assert not any(
+        ".claude" in o or ".omp" in o or ".pi" in o for o in out.get("created_obligations", [])
+    )
