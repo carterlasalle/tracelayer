@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from tests.conftest import make_git_repo, run_trace
 
@@ -334,3 +335,43 @@ def test_omp_package_manifest_version_tracks_release(tmp_path):
         (repo / ".omp" / "extensions" / "tracelayer" / "package.json").read_text(encoding="utf-8")
     )
     assert manifest["version"] == tracelayer.__version__
+
+
+# trace:v1 id=test.dogfood.tests.integration.test_install.test_source_adapter_is_valid_omp_plugin_package type=test
+def test_source_adapter_is_valid_omp_plugin_package(tmp_path):
+    """The SOURCE adapter directory itself must be a valid OMP extension
+    package: a package.json with name/version and both manifest keys
+    pointing at an existing factory — so `omp install ./adapters/oh-my-pi`
+    works from a checkout (the reviewer-flagged gap)."""
+    import json as _json
+
+    import tracelayer
+
+    pkg_dir = Path(__file__).resolve().parents[2] / "adapters" / "oh-my-pi"
+    manifest = _json.loads((pkg_dir / "package.json").read_text(encoding="utf-8"))
+    assert manifest["name"] == "tracelayer"
+    # version synchronized with the Python package (release tooling + CI)
+    assert manifest["version"] == tracelayer.__version__
+    for key in ("pi", "omp"):
+        entries = manifest[key]["extensions"]
+        assert entries == ["./trace-gate.ts"], key
+        for entry in entries:
+            assert (pkg_dir / entry).is_file(), entry
+    assert manifest.get("license") == "Apache-2.0"
+
+
+# trace:v1 id=test.dogfood.tests.integration.test_install.test_installed_manifest_matches_source type=test
+def test_installed_manifest_matches_source(tmp_path):
+    """`trace install` copies the source manifest verbatim — the installed
+    package is byte-identical to the checkout's, never a generated drift."""
+    import json as _json
+
+    repo = make_git_repo(tmp_path, {"README.md": "# home\n"})
+    run_trace(repo, "install", "--agent", "omp", "--yes", env=_env(tmp_path))
+    installed = (repo / ".omp" / "extensions" / "tracelayer" / "package.json").read_text(
+        encoding="utf-8"
+    )
+    source = (
+        Path(__file__).resolve().parents[2] / "adapters" / "oh-my-pi" / "package.json"
+    ).read_text(encoding="utf-8")
+    assert _json.loads(installed) == _json.loads(source)

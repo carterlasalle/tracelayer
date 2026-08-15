@@ -407,24 +407,17 @@ def install_omp_extension_package(base: Path, *, force: bool = False) -> tuple[s
     ``package.json`` declaring ``pi.extensions`` (the runtime's manifest
     key; ``omp.extensions`` is the docs' new key — both are emitted). The
     legacy raw ``extensions/trace-gate.ts`` file is removed so the factory
-    cannot register twice. The manifest version tracks the tracelayer
-    release so plugin listings/updates observe new versions.
-    """
-    from tracelayer import __version__
+    cannot register twice.
 
+    The manifest is the SOURCE manifest (adapters/oh-my-pi/package.json),
+    copied verbatim — the same directory is the source of truth for
+    ``trace install`` and for ``omp install ./adapters/oh-my-pi``. The
+    version tracks the tracelayer release; a drift test enforces
+    sync with ``tracelayer.__version__``.
+    """
     pkg_dir = base / "extensions" / "tracelayer"
+    manifest_src = bundled_file("adapters/oh-my-pi/package.json")
     factory_src = bundled_file("adapters/oh-my-pi/trace-gate.ts")
-    manifest = {
-        "name": "tracelayer",
-        "version": __version__,
-        "description": (
-            "TraceLayer ambient trace gates for omp: pre-mutation authoring "
-            "gate, post-edit coaching, and the fail-closed stop gate."
-        ),
-        "license": "Apache-2.0",
-        "pi": {"extensions": ["./trace-gate.ts"]},
-        "omp": {"extensions": ["./trace-gate.ts"]},
-    }
     manifest_path = pkg_dir / "package.json"
     factory_dst = pkg_dir / "trace-gate.ts"
     if manifest_path.exists() and factory_dst.exists() and not force:
@@ -432,7 +425,7 @@ def install_omp_extension_package(base: Path, *, force: bool = False) -> tuple[s
         _remove_legacy_omp_files(base)
         return "already-installed", manifest_path
     pkg_dir.mkdir(parents=True, exist_ok=True)
-    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    shutil.copy2(manifest_src, manifest_path)
     shutil.copy2(factory_src, factory_dst)
     _remove_legacy_omp_files(base)
     return "installed", manifest_path

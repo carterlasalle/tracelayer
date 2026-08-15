@@ -32,6 +32,8 @@ paths = [
   "CLAUDE.md",
   "pyproject.toml",
   "uv.lock",
+  "src/tracelayer/__init__.py",
+  "adapters/**/package.json",
   ".mcp.json",
   "junit.xml",
   "coverage.xml",
