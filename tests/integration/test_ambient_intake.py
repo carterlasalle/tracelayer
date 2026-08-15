@@ -475,3 +475,207 @@ def test_black_box_prose_only_lifecycle(tmp_path):
     # the whole causal chain exists: work, requirement, plan, impl, test
     v = run_trace(repo, "verify", "--all", "--lifecycle", "merge")
     assert v.returncode == 0, v.stdout
+
+
+# ---------------------------------------------------------------------------
+# Adversarial review v3 (self-audit) regressions
+# ---------------------------------------------------------------------------
+
+
+# trace:v1 id=test.dogfood.tests.integration.test_ambient_intake.test_bash_scan_respects_policy_exclusions type=test
+def test_bash_scan_respects_policy_exclusions(tmp_path):
+    """A path the verify gate excludes (policy.toml [exclusions]) must never
+    get a Bash-scan obligation — gate and hooks classify identically."""
+    repo = make_git_repo(tmp_path, {"README.md": "# home\n"})
+    run_trace(repo, "init", "--no-skill", "--no-mcp")
+    pol = (repo / ".trace" / "policy.toml").read_text(encoding="utf-8")
+    pol = pol.replace('  "coverage.xml"\n]', '  "coverage.xml",\n  "pyproject.toml"\n]')
+    (repo / ".trace" / "policy.toml").write_text(pol, encoding="utf-8")
+    run_trace(repo, "task", "bootstrap", env={"TRACE_SESSION": "s"}, input=json.dumps(BUNDLE))
+    (repo / "pyproject.toml").write_text("[project]\nname = 'x'\n", encoding="utf-8")
+    r = run_trace(
+        repo,
+        "hook",
+        "post-mutation",
+        "--format",
+        "json",
+        env={"TRACE_SESSION": "s"},
+        input=json.dumps({"tool_name": "Bash", "tool_input": {"command": "touch pyproject.toml"}}),
+    )
+    out = json.loads(r.stdout)
+    assert not any("pyproject.toml" in o for o in out.get("created_obligations", []))
+    ctx = json.loads(run_trace(repo, "task", "context", env={"TRACE_SESSION": "s"}).stdout)
+    assert ctx["pending_obligations"] == []
+
+
+# trace:v1 id=test.dogfood.tests.integration.test_ambient_intake.test_bash_authored_marker_resolves_obligation type=test
+def test_bash_authored_marker_resolves_obligation(tmp_path):
+    """A marker authored via Bash (sed) resolves the scan-created obligation
+    on the NEXT scan — the stop gate is not stuck forever."""
+    repo = make_git_repo(tmp_path, {"README.md": "# home\n"})
+    run_trace(repo, "init", "--no-skill", "--no-mcp")
+    run_trace(repo, "task", "bootstrap", env={"TRACE_SESSION": "s"}, input=json.dumps(BUNDLE))
+    (repo / "scanner.py").write_text("def discover():\n    return []\n", encoding="utf-8")
+    r = run_trace(
+        repo,
+        "hook",
+        "post-mutation",
+        "--format",
+        "json",
+        env={"TRACE_SESSION": "s"},
+        input=json.dumps({"tool_name": "Bash", "tool_input": {"command": "cat > scanner.py"}}),
+    )
+    assert json.loads(r.stdout).get("created_obligations") == ["scanner.py::discover"]
+    (repo / "scanner.py").write_text(
+        "# \x74race:v1 id=impl.scanner.discover work=WORK-repository-size-scanner "
+        "satisfies=REQ-repository-discovery\n"
+        "def discover():\n    return []\n",
+        encoding="utf-8",
+    )
+    r = run_trace(
+        repo,
+        "hook",
+        "post-mutation",
+        "--format",
+        "json",
+        env={"TRACE_SESSION": "s"},
+        input=json.dumps({"tool_name": "Bash", "tool_input": {"command": "sed -i"}}),
+    )
+    assert r.returncode == 0, r.stderr
+    ctx = json.loads(run_trace(repo, "task", "context", env={"TRACE_SESSION": "s"}).stdout)
+    assert ctx["pending_obligations"] == []
+    r = run_trace(
+        repo,
+        "hook",
+        "stop",
+        "--format",
+        "json",
+        env={"TRACE_SESSION": "s"},
+        input=json.dumps({"lifecycle": "wip"}),
+    )
+    assert r.returncode == 0, r.stdout  # obligations resolved, stop not stuck
+
+
+# trace:v1 id=test.dogfood.tests.integration.test_ambient_intake.test_bootstrap_rejects_duplicate_requirement_titles type=test
+def test_bootstrap_rejects_duplicate_requirement_titles(tmp_path):
+    """Identical requirement titles would collapse to one REQ id — rejected."""
+    repo = make_git_repo(tmp_path, {"README.md": "# home\n"})
+    run_trace(repo, "init", "--no-skill", "--no-mcp")
+    r = run_trace(
+        repo,
+        "task",
+        "bootstrap",
+        env={"TRACE_SESSION": "s"},
+        input=json.dumps(
+            {
+                "title": "Limits",
+                "kind": "new_feature",
+                "intent": "limit",
+                "requirements": [
+                    {"title": "API Rate Limit", "statement": "a"},
+                    {"title": "API Rate Limit", "statement": "b"},
+                ],
+            }
+        ),
+    )
+    assert r.returncode != 0
+    assert "must be unique" in r.stderr
+
+
+# trace:v1 id=test.dogfood.tests.integration.test_ambient_intake.test_bootstrap_rejects_non_list_plan_steps type=test
+def test_bootstrap_rejects_non_list_plan_steps(tmp_path):
+    """plan.steps must be a list of strings — a bare string would render
+    one step per character."""
+    repo = make_git_repo(tmp_path, {"README.md": "# home\n"})
+    run_trace(repo, "init", "--no-skill", "--no-mcp")
+    r = run_trace(
+        repo,
+        "task",
+        "bootstrap",
+        env={"TRACE_SESSION": "s"},
+        input=json.dumps(
+            {
+                "title": "Limits",
+                "kind": "new_feature",
+                "intent": "limit",
+                "requirements": [{"title": "Rate", "statement": "a"}],
+                "plan": {"recommended": True, "steps": "P1 rate"},
+            }
+        ),
+    )
+    assert r.returncode != 0
+    assert "plan.steps" in r.stderr
+
+
+# trace:v1 id=test.dogfood.tests.integration.test_ambient_intake.test_referential_prompt_with_stopwords_resumes type=test
+def test_referential_prompt_with_stopwords_resumes(tmp_path):
+    """ "fix it" under an active session resumes — the demonstrative check
+    uses word boundaries, not bare substring matching."""
+    repo = make_git_repo(tmp_path, {"README.md": "# scanner\n"})
+    run_trace(repo, "init", "--no-skill", "--no-mcp")
+    run_trace(
+        repo,
+        "task",
+        "bootstrap",
+        env={"TRACE_SESSION": "s"},
+        input=json.dumps(BUNDLE),
+    )
+    for prompt in ("fix it", "do that now", "make this work"):
+        r = run_trace(
+            repo,
+            "task",
+            "resolve",
+            "--prompt",
+            prompt,
+            env={"TRACE_SESSION": "s"},
+        )
+        assert json.loads(r.stdout)["resolution"] == "resume", prompt
+
+
+# trace:v1 id=test.dogfood.tests.integration.test_ambient_intake.test_activate_clears_pending_bootstrap type=test
+def test_activate_clears_pending_bootstrap(tmp_path):
+    """A resumed work has causal context: activation clears a stale
+    pending-bootstrap marker."""
+    repo = make_git_repo(tmp_path, {"README.md": "# scanner\n"})
+    run_trace(repo, "init", "--no-skill", "--no-mcp")
+    run_trace(
+        repo,
+        "task",
+        "bootstrap",
+        env={"TRACE_SESSION": "creator"},
+        input=json.dumps(BUNDLE),
+    )
+    # new intent in a fresh session -> pending bootstrap
+    run_trace(
+        repo,
+        "hook",
+        "prompt-context",
+        "--format",
+        "json",
+        env={"TRACE_SESSION": "other"},
+        input=json.dumps({"prompt": PROSE}),
+    )
+    ctx = json.loads(run_trace(repo, "task", "context", env={"TRACE_SESSION": "other"}).stdout)
+    assert ctx["pending_bootstrap"]
+    # then the user says "continue the scanner" -> resolve + activate clears it
+    run_trace(
+        repo,
+        "hook",
+        "prompt-context",
+        "--format",
+        "json",
+        env={"TRACE_SESSION": "other"},
+        input=json.dumps({"prompt": "continue the scanner"}),
+    )
+    ctx = json.loads(run_trace(repo, "task", "context", env={"TRACE_SESSION": "other"}).stdout)
+    assert ctx["work"] == "WORK-repository-size-scanner"
+    assert not ctx["pending_bootstrap"]
+
+
+# trace:v1 id=test.dogfood.tests.integration.test_ambient_intake.test_finish_idle_without_active_work type=test
+def test_finish_idle_without_active_work(tmp_path):
+    """finish with no active task reports idle — never a misleading 'done'."""
+    repo = make_git_repo(tmp_path, {"README.md": "# home\n"})
+    run_trace(repo, "init", "--no-skill", "--no-mcp")
+    r = run_trace(repo, "task", "finish", env={"TRACE_SESSION": "nobody"})
+    assert json.loads(r.stdout)["status"] == "idle"

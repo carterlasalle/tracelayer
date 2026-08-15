@@ -353,14 +353,44 @@ def _scan_changed_files(ctx: HookContext, json_data: dict) -> HookOutput:
     req = reqs[0] if reqs and len(reqs) == 1 else None
     plan = ctx.state.active_plan(ctx.session_id) if ctx.state else None
     created: list[str] = []
+    try:
+        from tracelayer.discovery.ignore import build_ignored
+
+        ignored = build_ignored(ctx.project.root, ctx.project.config, ctx.gitrepo)
+    except Exception:
+        ignored = None
+    try:
+        from tracelayer.hooks.common import policy_excluded
+    except Exception:
+        policy_excluded = None
     for f in sorted(files, key=lambda x: x.path)[:20]:
         if f.change == "deleted":
             continue
         if f.path.startswith(".trace/") or f.path.startswith(".git/") or f.path in ("AGENTS.md",):
             continue  # internal TraceLayer state is not scanned behavior
+        if policy_excluded is not None:
+            try:
+                if policy_excluded(ctx.project, f.path):
+                    continue  # verify-gate-excluded paths never get obligations
+            except Exception:
+                pass
+        if ignored is not None:
+            try:
+                if ignored(f.path):
+                    continue  # discovery/gitignore-excluded paths
+            except Exception:
+                pass
         text = _read_text(ctx.project.root, f.path)
         if text is None:
             continue
+        _resolve_obligations(ctx, f.path, text)  # Bash-authored markers resolve here too
+        if ctx.state.pending_spec_update(ctx.session_id) and ctx.store is not None:
+            try:
+                from tracelayer.tasks import _reconcile_spec_updates
+
+                _reconcile_spec_updates(ctx.project, ctx.store, ctx.session_id)
+            except Exception:
+                pass  # intake reconciliation never breaks the edit loop
         try:
             boundaries = extract_boundaries(f.path, text)
             untraced = [

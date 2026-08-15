@@ -132,6 +132,23 @@ class HookOutput:
         return ""
 
 
+# trace:exempt reason=internal-helper
+def policy_excluded(project, rel_path: str) -> bool:
+    """True when the repo-relative path is in the policy exclusions list.
+
+    Mirrors the TL012/TL013 rule matching (fnmatch over policy.toml
+    ``[exclusions] paths``) so the authoring gates and the verify gate
+    classify the same paths identically: a file the gate never flags must
+    not be blocked by the hooks either.
+    """
+    import fnmatch
+
+    if project.policy is None:
+        return False
+    p = str(rel_path).replace("\\", "/")
+    return any(fnmatch.fnmatch(p, pat) for pat in project.policy.exclusions.paths)
+
+
 def sanitize_text(text: str, max_chars: int = 200) -> str:
     """Flatten untrusted repository text (T1): collapse whitespace, strip
     control characters, hard-bound, and delimit as repository data."""

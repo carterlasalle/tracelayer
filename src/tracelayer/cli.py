@@ -582,18 +582,46 @@ def marker_suggest(
     state = SessionState(project)
     sid = session or os.environ.get("TRACE_SESSION") or "default"
     work = state.active_work(sid)
-    req = state.active_requirement(sid)
+    reqs = state.active_requirements(sid)
+    req = reqs[0] if len(reqs) == 1 else None
     plan = state.active_plan(sid)
-    work_attr = f" work={work}" if work else ""
-    req_attr = f" satisfies={req}" if req else ""
-    plan_attr = f" implements={plan}" if plan else ""
-    marker_line = f"# trace:v1 id=impl.{boundary.name}{work_attr}{req_attr}{plan_attr}"
+    # The ONE canonical renderer: qualified ids, role classification, and
+    # collision avoidance against ids already in the file (review P0) —
+    # never a hand-assembled marker line.
+    from tracelayer.discovery.suggest import resolve_exercised, suggest_marker
+
+    existing_ids: set[str] = set()
+    try:
+        from tracelayer.protocol import iter_marker_hits, parse_marker_hit
+
+        for hit in iter_marker_hits(text, rel):
+            res = parse_marker_hit(hit, unknown_keys="warn")
+            if res.marker is not None and res.marker.trace_id:
+                existing_ids.add(res.marker.trace_id)
+    except Exception:
+        pass
+    eng, _d = _open(root)
+    try:
+        suggestion = suggest_marker(
+            boundary,
+            rel,
+            work=work,
+            requirement=req,
+            plan=plan,
+            exercised=resolve_exercised(eng.store, req),
+            existing_ids=existing_ids,
+        )
+    finally:
+        eng.close()
+    marker_line = suggestion.marker
     typer.echo(f"boundary: {rel}:{boundary.start_line}::{boundary.name} ({boundary.kind})")
     if not (work or req):
         typer.echo(
             "note: no active work/requirement in this session; run "
             "`trace task begin <WORK-ID>` to attach causal context"
         )
+    if suggestion.sidecar:
+        typer.echo(suggestion.note, err=True)
     typer.echo(marker_line)
 
 
@@ -704,8 +732,16 @@ def task(
         if prompt:
             bundle = bundle_from_prompt(prompt)
         else:
-            bundle = json.loads(_read_payload_text())
-        result = ambient_bootstrap(project, bundle, session_id=sid)
+            try:
+                bundle = json.loads(_read_payload_text())
+            except json.JSONDecodeError as exc:
+                typer.echo(f"bootstrap bundle is not valid JSON: {exc}", err=True)
+                raise typer.Exit(2) from exc
+        try:
+            result = ambient_bootstrap(project, bundle, session_id=sid)
+        except ValueError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(2) from exc
         typer.echo(json.dumps(result, indent=2, sort_keys=True))
         return
     if command == "activate":

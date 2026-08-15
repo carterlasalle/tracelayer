@@ -215,6 +215,7 @@ def test_obligation_blocks_stop_until_resolved(tmp_path):
     assert "TRACE OBLIGATIONS PENDING" not in json.loads(r.stdout)["output"]
 
 
+# trace:v1 id=test.dogfood.tests.integration.test_hook_authoring.test_marker_suggest_with_session_context type=test
 def test_marker_suggest_with_session_context(tmp_path):
     repo = _repo(tmp_path)
     run_trace(
@@ -236,8 +237,10 @@ def test_marker_suggest_with_session_context(tmp_path):
     )
     assert r.returncode == 0, r.stderr
     assert "create_invoice" in r.stdout
+    # the canonical renderer: QUALIFIED id (owner scope + name), kebab-cased
     assert (
-        "# \x74race:v1 id=impl.create_invoice work=WORK-AUTH-237 satisfies=REQ-AUTH-017" in r.stdout
+        "# \x74race:v1 id=impl.src-billing.create-invoice work=WORK-AUTH-237 satisfies=REQ-AUTH-017"
+        in r.stdout
     )
 
 

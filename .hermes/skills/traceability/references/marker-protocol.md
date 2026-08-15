@@ -25,6 +25,8 @@ Node-defining markers require `id=<trace-id>`.
 - `type` — optional artifact type; inferred from the ID namespace when absent.
 - `title` — optional descriptive metadata; not a graph edge.
 - `policy` — rare policy override reference, not an arbitrary exemption.
+- `expects` — plan-only: comma-separated artifact IDs the plan commits
+  to producing; TL014 enforces each exists and links back via `implements`.
 
 ## Convenience keys
 

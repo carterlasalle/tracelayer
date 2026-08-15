@@ -150,6 +150,7 @@ def validate_bundle(bundle: object) -> list[str]:
     if not isinstance(requirements, list):
         errors.append("requirements: must be a list")
         requirements = []
+    seen_titles: set[str] = set()
     for idx, req in enumerate(requirements):
         if not isinstance(req, dict):
             errors.append(f"requirements[{idx}]: must be an object with a title")
@@ -157,6 +158,13 @@ def validate_bundle(bundle: object) -> list[str]:
         rtitle = req.get("title")
         if not isinstance(rtitle, str) or not rtitle.strip():
             errors.append(f"requirements[{idx}]: title: non-empty string required")
+        elif rtitle.strip() in seen_titles:
+            errors.append(
+                f"requirements[{idx}]: duplicate requirement title {rtitle.strip()!r} — "
+                "titles must be unique (each requirement gets its own REQ id)"
+            )
+        else:
+            seen_titles.add(rtitle.strip())
         statement = req.get("statement")
         if statement is not None and not isinstance(statement, str):
             errors.append(f"requirements[{idx}]: statement must be a string")
@@ -173,6 +181,12 @@ def validate_bundle(bundle: object) -> list[str]:
     plan = bundle.get("plan")
     if plan is not None and not isinstance(plan, dict):
         errors.append("plan: must be an object with optional 'recommended' and 'steps'")
+    elif isinstance(plan, dict):
+        steps = plan.get("steps")
+        if steps is not None and (
+            not isinstance(steps, list) or not all(isinstance(st, str) for st in steps)
+        ):
+            errors.append("plan.steps: must be a list of strings")
     intent = bundle.get("intent")
     if intent is not None and not isinstance(intent, str):
         errors.append("intent: must be a string")
@@ -201,7 +215,10 @@ def bundle_from_prompt(prompt: str) -> dict:
                 "statement": text,
             }
         ],
-        "plan": {"recommended": True, "steps": [f"Implement: {text}"]},
+        "plan": {
+            "recommended": True,
+            "steps": [("Implement: " + text[:200]) + ("…" if len(text) > 200 else "")],
+        },
     }
 
 
@@ -331,6 +348,7 @@ def activate(project: Project, store: GraphStore, work_id: str, session_id: str)
                     plan_id = target.trace_id
     state = SessionState(project)
     state.set_active_work(session_id, work_id)
+    state.clear_pending_bootstrap(session_id)
     if requirements:
         state.set_active_requirements(session_id, sorted(set(requirements)))
     if plan_id:
@@ -413,6 +431,8 @@ def finish(
     state = SessionState(project)
     work = state.active_work(session_id)
     pending = state.pending_obligations(session_id)
+    if work is None and not pending:
+        return {"status": "idle", "work": None, "lifecycle": lifecycle}
     engine = Engine(project, GitRepo.open(project.root))
     try:
         changed = engine.verify(scope="changed", lifecycle=lifecycle)
@@ -650,7 +670,10 @@ def resolve(
         referential = bool(prompt_tokens & active_tokens) or bool(prompt_tokens & req_tokens)
         continuity = any(w in prompt_tokens for w in ("continue", "keep", "again"))
         low = prompt.lower()
-        demonstrative = any(w in low for w in ("this", "that", " it ")) or low.endswith(" it")
+        demonstrative = bool(
+            re.search(r"\b(this|that|it)\b", low)
+            and not re.search(r"\b(its|itself|this_|that_)\b", low)
+        )
         if referential or continuity or demonstrative:
             return {
                 "resolution": "resume",
