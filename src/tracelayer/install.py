@@ -52,7 +52,7 @@ AGENTS: dict[str, dict[str, str]] = {
         "hooks": "codex",
     },
     "pi": {"global": "~/.pi/agent/skills", "project": ".pi/skills"},
-    "omp": {"global": "~/.omp/skills", "project": ".omp/skills"},
+    "omp": {"global": "~/.omp/agent/skills", "project": ".omp/skills"},
     "hermes-agent": {"global": "~/.hermes/skills", "project": ".hermes/skills"},
     "opencode": {"global": "~/.config/opencode/skills", "project": ".agents/skills"},
     "cursor": {"global": "~/.cursor/skills", "project": ".agents/skills"},
@@ -350,13 +350,13 @@ HOOK_ASSETS: dict[str, dict[str, object]] = {
         "note": "activate: pi install npm:@hsingjui/pi-hooks",
     },
     "omp": {
-        "global": "~/.omp",
+        "global": "~/.omp/agent",
         "project": ".omp",
         "files": [
             ("adapters/oh-my-pi/hooks.yaml", "hook/hooks.yaml"),
-            ("adapters/oh-my-pi/trace-gate.ts", "extensions/trace-gate.ts"),
         ],
-        "note": "activate: /hooks-trust in omp",
+        "extension_package": True,
+        "note": "activate: /hooks-trust in omp; extension package auto-loaded from extensions/tracelayer/",
     },
     "opencode": {
         "global": "~/.config/opencode",
@@ -369,6 +369,7 @@ HOOK_ASSETS: dict[str, dict[str, object]] = {
 }
 
 
+# trace:exempt reason=internal-helper
 def install_hook_assets(
     agent: str, root: Path | None = None, *, force: bool = False
 ) -> list[tuple[str, Path]]:
@@ -392,7 +393,77 @@ def install_hook_assets(
         shutil.copy2(src, dst)
         os.chmod(dst, 0o755 if src_rel.endswith(".sh") else 0o644)
         rows.append(("installed", dst))
+    if spec.get("extension_package"):
+        pkg_status, pkg_dst = install_omp_extension_package(base, force=force)
+        rows.append((pkg_status, pkg_dst))
     return rows
+
+
+# trace:exempt reason=internal-helper
+def install_omp_extension_package(base: Path, *, force: bool = False) -> tuple[str, Path]:
+    """Install TraceLayer's omp extension as a proper extension PACKAGE.
+
+    omp's extension discovery (v17+): ``<scope>/extensions/<dir>/`` with a
+    ``package.json`` declaring ``pi.extensions`` (the runtime's manifest
+    key; ``omp.extensions`` is the docs' new key — both are emitted). The
+    legacy raw ``extensions/trace-gate.ts`` file is removed so the factory
+    cannot register twice. The manifest version tracks the tracelayer
+    release so plugin listings/updates observe new versions.
+    """
+    from tracelayer import __version__
+
+    pkg_dir = base / "extensions" / "tracelayer"
+    factory_src = bundled_file("adapters/oh-my-pi/trace-gate.ts")
+    manifest = {
+        "name": "tracelayer",
+        "version": __version__,
+        "description": (
+            "TraceLayer ambient trace gates for omp: pre-mutation authoring "
+            "gate, post-edit coaching, and the fail-closed stop gate."
+        ),
+        "license": "Apache-2.0",
+        "pi": {"extensions": ["./trace-gate.ts"]},
+        "omp": {"extensions": ["./trace-gate.ts"]},
+    }
+    manifest_path = pkg_dir / "package.json"
+    factory_dst = pkg_dir / "trace-gate.ts"
+    if manifest_path.exists() and factory_dst.exists() and not force:
+        # already installed; still drop a legacy stray file if present
+        _remove_legacy_omp_files(base)
+        return "already-installed", manifest_path
+    pkg_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    shutil.copy2(factory_src, factory_dst)
+    _remove_legacy_omp_files(base)
+    return "installed", manifest_path
+
+
+# trace:exempt reason=internal-helper
+def _remove_legacy_omp_files(base: Path) -> None:
+    """Remove the pre-package layout so nothing registers twice or loads
+    from dead directories.
+
+    Project scope: only the raw ``extensions/trace-gate.ts`` file at the
+    same base is removed (the package replaces it). Global scope: the old
+    global installs under ``~/.omp/{extensions,hook,skills}`` are removed
+    too — the runtime's global dirs are ``~/.omp/agent/...``, so those
+    paths were never scanned and must not linger as duplicates.
+    """
+    legacy = [base / "extensions" / "trace-gate.ts"]
+    if base.name == "agent":  # global scope: ~/.omp/agent
+        legacy += [
+            base.parent / "extensions" / "trace-gate.ts",
+            base.parent / "hook" / "hooks.yaml",
+            base.parent / "skills" / "traceability",
+        ]
+    for path in legacy:
+        try:
+            if path.is_dir():
+                shutil.rmtree(path)
+            elif path.is_file():
+                path.unlink()
+        except OSError:
+            pass
 
 
 def hook_note(agent: str) -> str | None:

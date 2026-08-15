@@ -93,6 +93,7 @@ def test_first_run_hint_on_unconfigured_repo(tmp_path):
     assert "trace init" not in r2.stderr  # no hint for init itself
 
 
+# trace:v1 id=test.dogfood.tests.integration.test_install.test_install_pi_omp_opencode_hook_assets type=test
 def test_install_pi_omp_opencode_hook_assets(tmp_path):
     repo = make_git_repo(tmp_path, {"a.py": "x = 1\n"})
     r = run_trace(
@@ -111,7 +112,7 @@ def test_install_pi_omp_opencode_hook_assets(tmp_path):
     assert (repo / ".pi" / "hooks.json").is_file()
     assert (repo / ".pi" / "trace-hook.sh").is_file()
     assert (repo / ".omp" / "hook" / "hooks.yaml").is_file()
-    assert (repo / ".omp" / "extensions" / "trace-gate.ts").is_file()
+    assert (repo / ".omp" / "extensions" / "tracelayer" / "trace-gate.ts").is_file()
     assert (repo / "opencode.json").is_file()
     assert "activate" in r.stdout
 
@@ -249,10 +250,84 @@ def test_omp_adapter_contract(tmp_path):
     """
     repo = make_git_repo(tmp_path, {"README.md": "# home\n"})
     run_trace(repo, "install", "--agent", "omp", "--yes", env=_env(tmp_path))
-    adapter = (repo / ".omp" / "extensions" / "trace-gate.ts").read_text(encoding="utf-8")
+    adapter = (repo / ".omp" / "extensions" / "tracelayer" / "trace-gate.ts").read_text(
+        encoding="utf-8"
+    )
     assert "pi.log" not in adapter  # the crash: pi.log is not a function
     assert "pi." in adapter  # the extension API surface is still used
     assert 'from "node:child_process"' in adapter  # payload delivery, not Bun.spawnSync
     assert "Bun.spawnSync([" not in adapter  # the broken input-dropping variant
     assert "oldText" in adapter and "newText" in adapter  # current OMP Edit shape
     assert "session_stop" in adapter  # stop-gate event wiring preserved
+
+
+# trace:v1 id=test.dogfood.tests.integration.test_install.test_omp_extension_package_layout type=test
+def test_omp_extension_package_layout(tmp_path):
+    """omp installs TraceLayer as an extension PACKAGE (manifest + factory)
+    in the runtime's discovery locations, and removes the legacy raw file
+    so the factory cannot register twice."""
+    repo = make_git_repo(tmp_path, {"README.md": "# home\n"})
+    env = _env(tmp_path)
+    run_trace(repo, "install", "--agent", "omp", "--yes", env=env)
+    pkg = repo / ".omp" / "extensions" / "tracelayer"
+    assert (pkg / "package.json").is_file()
+    manifest = json.loads((pkg / "package.json").read_text(encoding="utf-8"))
+    assert manifest["name"] == "tracelayer"
+    assert manifest["pi"]["extensions"] == ["./trace-gate.ts"]
+    assert manifest["omp"]["extensions"] == ["./trace-gate.ts"]
+    assert (pkg / "trace-gate.ts").is_file()
+    assert not (repo / ".omp" / "extensions" / "trace-gate.ts").exists()  # legacy removed
+    assert (repo / ".omp" / "hook" / "hooks.yaml").is_file()
+    assert (repo / ".omp" / "skills" / "traceability" / "SKILL.md").is_file()
+
+
+# trace:v1 id=test.dogfood.tests.integration.test_install.test_omp_global_installs_into_agent_dir type=test
+def test_omp_global_installs_into_agent_dir(tmp_path):
+    """Global omp installs land in ~/.omp/agent/... — the runtime's global
+    dirs — never the dead ~/.omp/{extensions,hook,skills} paths."""
+    repo = make_git_repo(tmp_path, {"README.md": "# home\n"})
+    home = tmp_path / "home"
+    r = run_trace(
+        repo, "install", "--agent", "omp", "--global", "--yes", env=_env(tmp_path, "home")
+    )
+    assert r.returncode == 0, r.stderr
+    agent = home / ".omp" / "agent"
+    assert (agent / "extensions" / "tracelayer" / "package.json").is_file()
+    assert (agent / "hook" / "hooks.yaml").is_file()
+    assert (agent / "skills" / "traceability" / "SKILL.md").is_file()
+    # the old dead global locations are gone
+    assert not (home / ".omp" / "extensions").exists()
+    assert not (home / ".omp" / "hook").exists()
+    assert not (home / ".omp" / "skills").exists()
+
+
+# trace:v1 id=test.dogfood.tests.integration.test_install.test_tracelayer_update_refreshes_omp_package type=test
+def test_tracelayer_update_refreshes_omp_package(tmp_path):
+    """`trace update` must ACTUALLY update the omp extension package:
+    modified content is restored and the legacy file stays removed."""
+    repo = make_git_repo(tmp_path, {"README.md": "# home\n"})
+    env = _env(tmp_path)
+    run_trace(repo, "install", "--agent", "omp", "--yes", env=env)
+    factory = repo / ".omp" / "extensions" / "tracelayer" / "trace-gate.ts"
+    orig = factory.read_text(encoding="utf-8")
+    factory.write_text(orig.replace("trace-gate", "STALE-trace-gate"), encoding="utf-8")
+    r = run_trace(repo, "update", env=env)
+    assert r.returncode == 0, r.stderr
+    refreshed = factory.read_text(encoding="utf-8")
+    assert "STALE" not in refreshed
+    assert refreshed == orig
+    assert not (repo / ".omp" / "extensions" / "trace-gate.ts").exists()
+
+
+# trace:v1 id=test.dogfood.tests.integration.test_install.test_omp_package_manifest_version_tracks_release type=test
+def test_omp_package_manifest_version_tracks_release(tmp_path):
+    """The package manifest version tracks the tracelayer release so plugin
+    listings/updates observe new versions."""
+    import tracelayer
+
+    repo = make_git_repo(tmp_path, {"README.md": "# home\n"})
+    run_trace(repo, "install", "--agent", "omp", "--yes", env=_env(tmp_path))
+    manifest = json.loads(
+        (repo / ".omp" / "extensions" / "tracelayer" / "package.json").read_text(encoding="utf-8")
+    )
+    assert manifest["version"] == tracelayer.__version__

@@ -1,29 +1,96 @@
 # TraceLayer × Oh My Pi (omp)
+<!-- trace:v1 id=doc.tracelayer.omp-adapter -->
 
-[Oh My Pi](https://github.com/can1357/oh-my-pi) is a batteries-included fork of
-Pi with an in-process LSP, DAP debugging, role-based models, and a rich hook
-subsystem. This adapter provides:
+[Oh My Pi](https://github.com/earendil-works/pi) (package
+`@earendil-works/pi-coding-agent`) provides a native extension API
+(`pi.on("tool_call" | "tool_result" | "session_stop", ...)`). This adapter
+enforces TraceLayer's authoring gate, post-edit coaching, and the
+fail-closed completion gate inside omp:
 
-- a **YAML hooks** template (`hooks.yaml`) for the `pi-yaml-hooks` plugin —
-  declarative, non-blocking events (session lifecycle, prompt intake, file
-  changes);
-- a **native TypeScript hook** (`trace-gate.ts`) that implements the blocking
-  pre-mutation guard and the fail-closed Stop gate via the `HookAPI`
-  (`pi.on("tool_call", ...)`).
+- **`trace-gate.ts`** — the extension factory: pre-mutation blocking gate
+  (`tool_call`), post-edit coaching + obligation resolution
+  (`tool_result`), and the stop gate (`session_stop`). Installed as a
+  proper extension **package** (`extensions/tracelayer/` with a
+  `package.json` manifest) so omp's discovery loads it by manifest and
+  plugin tooling sees the version.
+- **`hooks.yaml`** — the `pi-yaml-hooks` template: declarative,
+  non-blocking events (session lifecycle, prompt intake, file-change
+  indexing).
 
-## Install
+<!-- trace:exempt reason=document-structure -->
+## Install (TraceLayer-managed, recommended)
 
-```bash
-omp plugin install pi-yaml-hooks        # for the YAML template (optional)
-mkdir -p .omp/hook .omp/extensions
-cp adapters/oh-my-pi/hooks.yaml .omp/hook/hooks.yaml          # project-level YAML
-cp adapters/oh-my-pi/trace-gate.ts .omp/extensions/trace-gate.ts   # native gate
+`trace install --agent omp` (project scope) / `trace install --agent omp
+--global` writes everything into the runtime's real discovery locations:
+
+| Artifact | Project | Global |
+|---|---|---|
+| Extension package (factory + manifest) | `.omp/extensions/tracelayer/` | `~/.omp/agent/extensions/tracelayer/` |
+| YAML hooks | `.omp/hook/hooks.yaml` | `~/.omp/agent/hook/hooks.yaml` |
+| Skill | `.omp/skills/traceability/` | `~/.omp/agent/skills/traceability/` |
+
+The manifest version tracks the tracelayer release, so
+`omp list`/`omp plugin list` show the installed version.
+
+<!-- trace:exempt reason=document-structure -->
+## Updates
+
+- **`tracelayer update`** (or `trace update`) is the canonical refresh:
+  it force-re-copies every omp artifact (extension package, YAML hooks,
+  skill) and removes the legacy pre-package layout
+  (`extensions/trace-gate.ts` raw file, dead `~/.omp/{extensions,hook,
+  skills}` globals) so nothing registers twice. Run it after upgrading the
+  tool.
+- **Plugin flow** (`omp install`): the package is also a valid omp
+  extension package, so `omp install ./adapters/oh-my-pi` (or the bundled
+  copy at `<site-packages>/tracelayer/_adapters/oh-my-pi/`) works. Local
+  paths are symlinked and watched — content updates flow live; re-run
+  `omp install <path> --force` to re-record the version, or use
+  `omp update --plugins` for npm/marketplace sources.
+
+<!-- trace:exempt reason=document-structure -->
+## Extension package
+
+`trace install` generates `extensions/tracelayer/package.json`:
+
+```json
+{
+  "name": "tracelayer",
+  "version": "0.2.5",
+  "pi":   { "extensions": ["./trace-gate.ts"] },
+  "omp":  { "extensions": ["./trace-gate.ts"] }
+}
 ```
 
-Trust project hooks the first time with `/hooks-trust` (project hooks can run
-arbitrary bash). Validate with `/hooks-validate` and inspect with
-`/hooks-status`.
+omp's loader (`discoverExtensionsInDir`) reads `pi.extensions` from a
+subdirectory `package.json`; `omp.extensions` is the docs' new key — both
+are emitted. The factory is the single source
+(`adapters/oh-my-pi/trace-gate.ts`).
 
+<!-- trace:exempt reason=document-structure -->
+## Runtime contract (`trace-gate.ts`)
+
+- Uses `node:child_process` `spawnSync` — **not** `Bun.spawnSync`, whose
+  `input` option is ignored and would silently drop every hook payload
+  (the gate would run with an empty body and never block).
+- `tool_call` (write/edit): sends the full proposed mutation
+  (`path`, `content` or `old_string`/`new_string`, session id); the engine
+  simulates the edit, classifies NEW/MODIFIED boundaries, and either
+  returns `allow` + `updatedInput` (single-requirement Write injection) or
+  blocks with the authoring plan. Current omp Edit inputs
+  (`edits: [{oldText, newText}]`) are mapped onto the engine contract;
+  Claude-style `old_string`/`new_string` is still accepted.
+- `tool_result`: runs post-mutation (obligation resolution, receipts,
+  coaching); Bash/patch results run the working-tree scan. Guidance is
+  appended to the tool result the model sees.
+- `session_stop`: runs the stop gate (verify + obligations) and blocks
+  with the failures; the engine's stop hook also runs the merge-grade
+  auto-finalizer internally. The extension API has no `log` method —
+  diagnostics go to stderr.
+- Session ids resolve from `ctx.session.id` (legacy) or
+  `ctx.sessionManager.getSessionId()` (current `ExtensionContext`).
+
+<!-- trace:exempt reason=document-structure -->
 ## YAML template (`hooks.yaml`)
 
 ```yaml
@@ -45,75 +112,18 @@ hooks:
       - bash: uv run trace index --changed
 ```
 
-YAML bash hooks are informational: they surface TraceLayer guidance and keep
-the index fresh, but they do not block tool calls. Blocking enforcement lives
-in the TypeScript hook.
+YAML bash hooks are informational (guidance + index freshness); blocking
+enforcement lives in the extension factory. Trust project hooks the first
+time with `/hooks-trust`, validate with `/hooks-validate`.
 
-## Native TypeScript gate (`trace-gate.ts`)
-
-The native hook intercepts `tool_call` before every tool, resolves the target
-file from the tool input, and consults the TraceLayer pre-mutation hook:
-
-- first edit of protected traced behavior without loaded context → `block`
-  with the exact `trace context` command;
-- after `trace context` was loaded (recorded in session state), edits proceed;
-- `stop`-equivalent enforcement is provided by the `Stop` hook event wiring
-  (`pi.on("session_shutdown", ...)` runs `trace verify --changed` and blocks
-  the shutdown on blocking failures — configure your harness to treat it as
-  the completion gate).
-
-```typescript
-import type { HookAPI } from "@oh-my-pi/pi-coding-agent/extensibility/hooks";
-
-export default function hook(pi: HookAPI): void {
-  const run = (args: string[], input: string): { code: number; out: string } => {
-    // Bun ships with the omp runtime; fall back to child_process for node.
-    const res = Bun.spawnSync(["uv", "run", "trace", ...args], {
-      stdin: "pipe",
-      input,
-    });
-    return { code: res.exitCode ?? -1, out: res.stdout.toString() };
-  };
-
-  pi.on("tool_call", async (event, ctx) => {
-    if (event.toolName !== "edit" && event.toolName !== "write") return;
-    const filePath = String(event.input?.file_path ?? event.input?.path ?? "");
-    if (!filePath) return;
-    const payload = JSON.stringify({
-      path: filePath,
-      line: event.input?.line ?? null,
-      session_id: ctx.session?.id ?? "default",
-    });
-    const res = run(["hook", "pre-mutation", "--format", "json"], payload);
-    if (res.code !== 0) {
-      try {
-        const d = JSON.parse(res.out);
-        return { block: true, reason: d.output ?? "trace policy blocks this edit" };
-      } catch {
-        return { block: true, reason: "trace policy blocks this edit" };
-      }
-    }
-  });
-
-  pi.on("session_shutdown", async (event, ctx) => {
-    const payload = JSON.stringify({ lifecycle: "wip", session_id: ctx.session?.id ?? "default" });
-    const res = run(["hook", "stop", "--format", "json"], payload);
-    if (res.code !== 0) {
-      // Surface blocking trace failures; the harness should treat this as a
-      // completion gate. Set lifecycle per your policy (e.g. "merge").
-      pi.log(`trace verify: ${res.out}`);
-      return { block: true, reason: "trace verification has blocking failures" };
-    }
-  });
-}
-```
-
+<!-- trace:exempt reason=document-structure -->
 ## Notes
 
-- The YAML and TypeScript hooks assume `trace` is reachable via `uv run` from
-  the repository root. For global setup, install TraceLayer as a tool
-  (`uv tool install tracelayer`) and call `trace` directly.
-- Block-once semantics are stored in `.trace/cache/session/` (git-ignored);
-  `trace context <id>` records context-load acknowledgement per session.
-- The `Stop` gate is authoritative: it runs the same `trace verify` policy
-  evaluation as CI, so hook coverage gaps cannot silently weaken enforcement.
+- Hooks assume `trace` is reachable via `uv run` from the repository root
+  (or `trace` on PATH for a global tool install).
+- Block-once semantics are stored in `.trace/cache/session/`
+  (git-ignored); `trace context <id>` records context-load acknowledgement
+  per session.
+- The stop gate is authoritative: it runs the same `trace verify` policy
+  evaluation as CI, so hook coverage gaps cannot silently weaken
+  enforcement.
