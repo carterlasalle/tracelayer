@@ -234,3 +234,25 @@ def test_bundled_skill_dir_found():
     assert (skill / "SKILL.md").is_file()
     assert (skill / "README.md").is_file()
     assert (skill / "references" / "marker-protocol.md").is_file()
+
+
+# trace:v1 id=test.dogfood.tests.integration.test_install.test_omp_adapter_contract type=test
+def test_omp_adapter_contract(tmp_path):
+    """The shipped OMP extension must not regress on two runtime failures:
+
+    1. pi.log does not exist in the OMP extension API (crash at runtime);
+    2. Bun.spawnSync ignores the `input` option, silently dropping every
+       hook payload — the gate must use node:child_process spawnSync so
+       paths/content/sessions actually reach the engine.
+    It must also map the CURRENT OMP Edit input shape (edits[{oldText,
+    newText}]) onto the engine's old_string/new_string contract.
+    """
+    repo = make_git_repo(tmp_path, {"README.md": "# home\n"})
+    run_trace(repo, "install", "--agent", "omp", "--yes", env=_env(tmp_path))
+    adapter = (repo / ".omp" / "extensions" / "trace-gate.ts").read_text(encoding="utf-8")
+    assert "pi.log" not in adapter  # the crash: pi.log is not a function
+    assert "pi." in adapter  # the extension API surface is still used
+    assert 'from "node:child_process"' in adapter  # payload delivery, not Bun.spawnSync
+    assert "Bun.spawnSync([" not in adapter  # the broken input-dropping variant
+    assert "oldText" in adapter and "newText" in adapter  # current OMP Edit shape
+    assert "session_stop" in adapter  # stop-gate event wiring preserved
