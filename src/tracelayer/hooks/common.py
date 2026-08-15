@@ -50,8 +50,8 @@ class HookContext:
     state: SessionState | None = None
 
 
-@dataclass
 # trace:exempt reason=data-container
+@dataclass
 class HookOutput:
     """Decision plus bounded text plus machine JSON for one hook event."""
 
@@ -84,7 +84,20 @@ class HookOutput:
         claude_event = _CLAUDE_EVENT_NAMES.get(event, event)
         if event == "pre_mutation":
             out: dict[str, object] = {"hookEventName": claude_event}
-            if self.decision == "block":
+            rewrite = self.json.get("suggested_rewrite")
+            if self.decision == "block" and isinstance(rewrite, dict):
+                # Ambient §19: the markers are deterministic, so the mutation
+                # executes WITH them already injected via updatedInput —
+                # no second model mutation needed.
+                out["permissionDecision"] = "allow"
+                out["updatedInput"] = rewrite
+                out["permissionDecisionReason"] = (
+                    "trace markers injected automatically; review the semantic "
+                    "requirement mapping in the edit"
+                )
+                if self.output:
+                    out["additionalContext"] = self.output
+            elif self.decision == "block":
                 out["permissionDecision"] = "deny"
                 out["permissionDecisionReason"] = self.output
             else:

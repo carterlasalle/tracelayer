@@ -98,7 +98,6 @@ def _read_file(root: Path, path: str) -> str | None:
     return _read_text(root, path)
 
 
-# trace:exempt reason=internal-helper
 def _classify_boundaries(path: str, current: str | None, proposed: str) -> list[tuple]:
     """(boundary, kind) for the proposed edit, by identity not line numbers.
 
@@ -157,7 +156,6 @@ def _parser_for(path: str):
         return None
 
 
-# trace:exempt reason=internal-helper
 def _relpath(root: Path, path: str) -> str:
     """Repo-relative path for obligation identity (Claude sends absolute)."""
     import os
@@ -228,6 +226,9 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
                 "output": text,
             },
         )
+    rewrite = _deterministic_rewrite(
+        state, ctx.session_id, rel_path, path, payload, proposed, untraced
+    )
     for boundary, change_kind in untraced[:20]:
         state.add_obligation(
             ctx.session_id,
@@ -244,21 +245,20 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
             },
         )
     text = _authoring_plan_text(untraced, rel_path, work, req, plan, exercised)
-    return render_blocked(
-        text,
-        {
-            "event": "pre_mutation",
-            "decision": "block",
-            "path": path,
-            "line": line,
-            "new_symbol": boundary.name,
-            "obligation": True,
-            "output": text,
-        },
-    )
+    payload_out = {
+        "event": "pre_mutation",
+        "decision": "block",
+        "path": path,
+        "line": line,
+        "new_symbol": boundary.name,
+        "obligation": True,
+        "output": text,
+    }
+    if rewrite is not None:
+        payload_out["suggested_rewrite"] = rewrite
+    return render_blocked(text, payload_out)
 
 
-# trace:exempt reason=internal-helper
 def _suggested_marker(
     symbol,
     work: str | None,
@@ -277,6 +277,59 @@ def _suggested_marker(
 
 
 # trace:exempt reason=internal-helper
+def _deterministic_rewrite(
+    state,
+    session_id: str,
+    rel_path: str,
+    path: str,
+    payload: dict,
+    proposed: str | None,
+    untraced: list,
+):
+    """The mutation input rewritten with markers injected (Ambient §19).
+
+    Deterministic only: a single active requirement (so the semantic
+    mapping is unambiguous) and a language that supports in-file markers
+    (JSON uses the sidecar and must fall back to block/retry). The harness
+    adapter may then return ``updatedInput`` and let the mutation execute
+    WITH the markers already present.
+    """
+    from tracelayer.discovery.suggest import suggest_marker
+
+    if proposed is None:
+        return None
+    if len(state.active_requirements(session_id)) != 1:
+        return None  # ambiguous requirement mapping: agent must decide
+    work = state.active_work(session_id)
+    req = state.active_requirements(session_id)[0]
+    plan = state.active_plan(session_id)
+    insertions: list[tuple[int, str]] = []
+    for boundary, _kind in untraced:
+        suggestion = suggest_marker(boundary, path, work=work, requirement=req, plan=plan)
+        if not suggestion.marker:
+            return None
+        if suggestion.sidecar:
+            return None  # JSON cannot be rewritten in place
+        if boundary.language == "markdown":
+            insertions.append((boundary.start_line, suggestion.marker))
+        else:
+            insertions.append((boundary.start_line - 1, suggestion.marker))
+    lines = proposed.splitlines()
+    for index, marker in sorted(insertions, reverse=True):
+        if 0 <= index <= len(lines):
+            lines.insert(index, marker)
+    rewritten = "\n".join(lines)
+    if "content" in payload:
+        return {"file_path": rel_path, "content": rewritten}
+    if "old_string" in payload:
+        return {
+            "file_path": rel_path,
+            "old_string": payload.get("old_string"),
+            "new_string": rewritten,
+        }
+    return None
+
+
 def _authoring_plan_text(
     untraced: list,
     rel_path: str,
@@ -313,21 +366,27 @@ def _authoring_plan_text(
     return fit("\n".join(lines), 6000)
 
 
+# trace:exempt reason=internal-helper
 def _causal_context_block(symbol, path: str, line: int) -> str:
     lines = [
-        "TRACE CAUSAL CONTEXT REQUIRED",
+        "AMBIENT TRACE BOOTSTRAP REQUIRED",
         "",
-        "You are creating product behavior, but this session has no active",
-        "work item or requirement:",
+        "This mutation introduces new product behavior and no causal",
+        "context exists:",
         f"  {path}:{line}::{symbol.name}",
         "",
-        "Future agents must be able to answer why this behavior exists.",
-        "Before creating it, either:",
+        "Before retrying:",
         "",
-        "  trace task begin <existing-work-id>",
+        "1. search existing intent (`trace search`);",
+        "2. if none exists, bootstrap a work item and minimal specification",
+        "   from the user's current request:",
+        "     trace task bootstrap --json < <bundle>",
+        "   (title, kind, intent, requirements with titles + statements,",
+        "   optional plan steps);",
+        "3. activate the resulting requirements;",
+        "4. retry this mutation with boundary-local traces.",
         "",
-        "or create the appropriate trace root (requirement/work item) and",
-        "establish it with `trace task begin`.",
+        "Do not ask the user for TraceLayer IDs.",
     ]
     return fit("\n".join(lines), 4000)
 

@@ -49,7 +49,6 @@ class MarkerSuggestion:
     relationships: list[str] = field(default_factory=list)
 
 
-# trace:exempt reason=internal-helper
 def _slug(name: str) -> str:
     """kebab-case slug safe for trace ids.
 
@@ -61,7 +60,6 @@ def _slug(name: str) -> str:
     return slug or "boundary"
 
 
-# trace:exempt reason=internal-helper
 def _host_language(path: str) -> str:
     suffix = path.rsplit(".", 1)[-1].lower() if "." in path else ""
     return {
@@ -81,7 +79,6 @@ def _host_language(path: str) -> str:
     }.get(suffix, "python")
 
 
-# trace:exempt reason=internal-helper
 def resolve_exercised(store, requirement: str | None) -> str | None:
     """The unique implementation satisfying the requirement, if unambiguous."""
     if requirement is None:

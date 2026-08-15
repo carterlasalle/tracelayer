@@ -85,6 +85,7 @@ def test_clear_resets_session(state):
     assert (state.session_dir / "s1.json").exists()
 
 
+# trace:v1 id=test.dogfood.tests.unit.hooks.test_session_state.atomic-writes type=test
 def test_atomic_writes_leave_no_temp_files(state):
     for _ in range(5):
         state.mark_dirty("s1", {"impl.one"})
@@ -100,6 +101,7 @@ def test_atomic_writes_leave_no_temp_files(state):
         "dirty": [],
         "active_work": None,
         "active_requirement": None,
+        "active_requirements": [],
         "active_plan": None,
         "obligations": [],
     }

@@ -9,6 +9,7 @@ repo-root-relative; the repository root is resolved via ``rev-parse
 
 from __future__ import annotations
 
+import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -116,6 +117,7 @@ class GitRepo:
         out = r.stdout.strip()
         return out if r.returncode == 0 and out else None
 
+    # trace:v1 id=impl.git.changed-files work=WORK-TL-001
     def changed_files(self, base: str | None = None) -> list[ChangedFile]:
         """Files changed vs the working tree (default) or a base revision.
 
@@ -177,7 +179,24 @@ class GitRepo:
             changed.append(
                 ChangedFile(path=path, change=change, old_path=old_path, diff_ranges=ranges)
             )
-        return changed
+        # Expand untracked DIRECTORY entries into their contained files:
+        # git status reports "docs/" for an untracked tree, but the indexer
+        # needs the individual files (spec 18.2; Ambient bootstrap writes
+        # whole untracked trees).
+        expanded: list[ChangedFile] = []
+        for entry in changed:
+            if entry.change == "untracked":
+                full = self._root / entry.path
+                if full.is_dir():
+                    for rel in _walk_files(full, self._root):
+                        expanded.append(
+                            ChangedFile(
+                                path=rel, change="untracked", old_path=None, diff_ranges=None
+                            )
+                        )
+                    continue
+            expanded.append(entry)
+        return expanded
 
     def latest_modifying_commit(self, path: str) -> str | None:
         """Newest commit touching ``path`` (``git log -1``), or None."""
@@ -216,3 +235,17 @@ class GitRepo:
         except (OSError, subprocess.SubprocessError):
             return False
         return r.returncode == 0
+
+
+# trace:exempt reason=internal-helper
+def _walk_files(directory: Path, root: Path) -> list[str]:
+    """Repo-relative paths of every file under ``directory`` (deterministic)."""
+    out: list[str] = []
+    for dirpath, dirnames, filenames in os.walk(directory):
+        dirnames.sort()
+        for fname in sorted(filenames):
+            full = Path(dirpath) / fname
+            rel = os.path.relpath(full, root).replace(os.sep, "/")
+            if not full.is_symlink():
+                out.append(rel)
+    return out

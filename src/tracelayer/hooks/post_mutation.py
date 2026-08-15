@@ -90,6 +90,27 @@ def handle(ctx: HookContext, payload: dict) -> HookOutput:
     if dirty:
         ctx.state.mark_dirty(ctx.session_id, dirty)
     _resolve_obligations(ctx, path, text)
+    if ctx.state.active_work(ctx.session_id):
+        try:
+            from tracelayer.tasks import record_receipt
+
+            targets = [n.trace_id for n in changed + deleted]
+            if not targets:
+                targets = [
+                    n.trace_id
+                    for n in ctx.store.all_nodes(active_only=True)
+                    if n.canonical_path == path
+                ]
+            record_receipt(
+                ctx.project,
+                ctx.session_id,
+                path=path,
+                operation="modify",
+                targets=targets,
+                harness="hook",
+            )
+        except Exception:
+            pass  # receipts are derived history; never break the edit loop
     block = _deleted_block(ctx.store, deleted, ctx.project.config.hooks.max_context_chars)
     if block is not None:
         return render_blocked(
@@ -412,7 +433,6 @@ def _resolve_obligations(ctx: HookContext, path: str, text: str) -> None:
             ctx.state.resolve_obligation(ctx.session_id, path, symbol_name)
 
 
-# trace:exempt reason=internal-helper
 def _attachment_gap_ok(text: str, marker_line: int, symbol_start: int) -> bool:
     """Only blank/comment/decorator lines may separate marker and symbol."""
     for i in range(marker_line + 1, symbol_start):

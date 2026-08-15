@@ -118,16 +118,50 @@ class SessionState:
     def active_plan(self, session_id: str) -> str | None:
         return self._read(session_id).get("active_plan")
 
+    # trace:exempt reason=internal-helper
     def set_active_requirement(self, session_id: str, req_id: str | None) -> None:
-        """Record the requirement the session is operating under (spec 22.4)."""
+        """Record the (single) primary requirement the session operates under."""
         if req_id is None:
             return
         data = self._read(session_id)
         data["active_requirement"] = req_id
+        requirements = data.setdefault("active_requirements", [])
+        if req_id not in requirements:
+            requirements.append(req_id)
         self._write(session_id, data)
 
     def active_requirement(self, session_id: str) -> str | None:
         return self._read(session_id).get("active_requirement")
+
+    # trace:exempt reason=internal-helper
+    def set_active_requirements(self, session_id: str, req_ids: list[str]) -> None:
+        """Record the full set of requirements the task implements (Ambient §16)."""
+        if not req_ids:
+            return
+        data = self._read(session_id)
+        ordered: list[str] = []
+        for rid in req_ids:
+            if rid not in ordered:
+                ordered.append(rid)
+        data["active_requirements"] = ordered
+        data["active_requirement"] = ordered[0]  # primary for back-compat
+        self._write(session_id, data)
+
+    # trace:exempt reason=internal-helper
+    def active_requirements(self, session_id: str) -> list[str]:
+        """All requirements active for the task (plural; Ambient §16)."""
+        data = self._read(session_id)
+        return list(data.get("active_requirements") or [])
+
+    # trace:exempt reason=internal-helper
+    def add_active_requirement(self, session_id: str, req_id: str) -> None:
+        data = self._read(session_id)
+        requirements = data.setdefault("active_requirements", [])
+        if req_id not in requirements:
+            requirements.append(req_id)
+        if not data.get("active_requirement"):
+            data["active_requirement"] = req_id
+        self._write(session_id, data)
 
     # -- pending trace obligations (durable authoring, not ephemeral prose) --
 
@@ -163,6 +197,7 @@ class SessionState:
             if o.get("state") != "satisfied"
         ]
 
+    # trace:exempt reason=internal-helper
     def clear(self, session_id: str) -> None:
         """Reset the session to a clean slate (empty file, not deleted)."""
         self._write(
@@ -173,6 +208,7 @@ class SessionState:
                 "dirty": [],
                 "active_work": None,
                 "active_requirement": None,
+                "active_requirements": [],
                 "active_plan": None,
                 "obligations": [],
             },

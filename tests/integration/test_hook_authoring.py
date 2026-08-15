@@ -148,6 +148,7 @@ def test_modified_untraced_boundary_blocks_before_edit(tmp_path):
     assert "modified untraced" in out
 
 
+# trace:v1 id=test.dogfood.tests.integration.test_hook_authoring.no-causal type=test
 def test_no_causal_context_blocks_with_task_begin_hint(tmp_path):
     repo = _repo(tmp_path)  # session has no active work/requirement
     r = _pre(
@@ -162,8 +163,9 @@ def test_no_causal_context_blocks_with_task_begin_hint(tmp_path):
     )
     assert r.returncode == 2
     out = json.loads(r.stdout)
-    assert "TRACE CAUSAL CONTEXT REQUIRED" in out["output"]
-    assert "trace task begin" in out["output"]
+    assert "AMBIENT TRACE BOOTSTRAP REQUIRED" in out["output"]
+    assert "trace task bootstrap" in out["output"]
+    assert "Do not ask the user for TraceLayer IDs" in out["output"]
 
 
 # trace:v1 id=test.dogfood.tests.integration.test_hook_authoring.obligation-stop type=test

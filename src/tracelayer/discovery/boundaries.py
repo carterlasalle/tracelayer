@@ -123,7 +123,6 @@ def _config_key_traced(lines: list[str], boundary: Boundary) -> bool:
     return False
 
 
-# trace:exempt reason=internal-helper
 def _json_sidecar_traced(boundary: Boundary, root: Path | None) -> bool:
     """JSON config keys are traced via the sidecar anchor (no comments)."""
     if root is None or not boundary.path:
@@ -171,7 +170,6 @@ def _code_boundaries(language: str, path: str, text: str) -> list[Boundary]:
     return out
 
 
-# trace:exempt reason=internal-helper
 def _config_boundaries(ext: str, path: str, text: str) -> list[Boundary]:
     """Top-level keys of a config file are boundaries (contracts)."""
     out: list[Boundary] = []
@@ -200,6 +198,8 @@ def _config_boundaries(ext: str, path: str, text: str) -> list[Boundary]:
 
 # trace:exempt reason=internal-helper
 def _json_boundaries(path: str, text: str) -> list[Boundary]:
+    """Top-level JSON keys are boundaries; located by text position so
+    single-line JSON works (the key's line = newlines before it + 1)."""
     try:
         import json
 
@@ -208,16 +208,18 @@ def _json_boundaries(path: str, text: str) -> list[Boundary]:
         return []
     if not isinstance(data, dict):
         return []
+    lines = text.splitlines()
     out: list[Boundary] = []
-    for i, raw in enumerate(text.splitlines(), start=1):
-        stripped = raw.strip()
-        for key in data:
-            if stripped.startswith(f'"{key}"') or stripped.startswith(f"'{key}'"):
-                out.append(Boundary(str(key), "config-key", i, i, raw, "json", path))
+    for key in data:
+        idx = text.find(f'"{key}"')
+        if idx < 0:
+            continue
+        line = text.count("\n", 0, idx) + 1
+        raw = lines[line - 1] if line - 1 < len(lines) else ""
+        out.append(Boundary(str(key), "config-key", line, line, raw, "json", path))
     return out
 
 
-# trace:exempt reason=internal-helper
 def _markdown_boundaries(path: str, text: str) -> list[Boundary]:
     """Headings are boundaries; body extends to the next same-or-higher heading."""
     import re
@@ -253,7 +255,6 @@ def _heading_is_node(boundary: Boundary) -> bool:
     return infer_node_type(token) is not None
 
 
-# trace:exempt reason=internal-helper
 def _exempt(lines: list[str], boundary: Boundary) -> bool:
     """Explicit exemption directly above the boundary, with a reason.
 
@@ -270,7 +271,6 @@ def _exempt(lines: list[str], boundary: Boundary) -> bool:
     return False
 
 
-# trace:exempt reason=internal-helper
 def _inherit_target(lines: list[str], boundary: Boundary) -> str | None:
     """The declared inheritance target id, or None.
 
@@ -304,7 +304,6 @@ def _inherit_target(lines: list[str], boundary: Boundary) -> str | None:
     return None
 
 
-# trace:exempt reason=internal-helper
 def _inherit_valid(
     lines: list[str], boundary: Boundary, boundaries: list[Boundary], store: Any
 ) -> bool:
@@ -344,7 +343,6 @@ def _inherit_valid(
     return attached == target_id
 
 
-# trace:exempt reason=internal-helper
 def _attached_marker_id(lines: list[str], boundary: Boundary) -> str | None:
     """The trace id of the marker attached to a boundary (indexer placement)."""
     import re
@@ -386,7 +384,6 @@ _COMMENT_PREFIX = {
 _MAX_GAP = 3  # mirrors the indexer's marker->symbol attachment window
 
 
-# trace:exempt reason=internal-helper
 def _marker_attached(lines: list[str], boundary: Boundary) -> bool:
     """The indexer's attachment rule, not a body scan.
 
@@ -417,7 +414,6 @@ def _marker_attached(lines: list[str], boundary: Boundary) -> bool:
     return False
 
 
-# trace:exempt reason=internal-helper
 def _gap_ok(lines: list[str], start: int, end: int, prefixes: tuple[str, ...]) -> bool:
     for i in range(start, end):
         stripped = lines[i].strip()

@@ -74,6 +74,7 @@ def _callback(
     _maybe_hint_unconfigured(root)
 
 
+# trace:exempt reason=internal-helper
 def _maybe_hint_unconfigured(root: Path) -> None:
     """First-run guidance: printing install next steps when the repo isn't traced.
 
@@ -87,6 +88,8 @@ def _maybe_hint_unconfigured(root: Path) -> None:
         return
     if os.environ.get("TRACE_NO_HINT"):
         return
+    if args[0] == "hook":
+        return  # ambient infrastructure: hooks bootstrap silently
     if any(a in ("init", "install", "--help", "-h", "--version") for a in args):
         return
     if (root / ".trace" / "trace.toml").exists():
@@ -270,6 +273,12 @@ def _plan_from_json(data: dict[str, Any]) -> MigrationPlan:
         items=items,
         summary=data.get("summary", {}),
     )
+
+
+# trace:exempt reason=internal-helper
+def _read_payload_text() -> str:
+    """Raw stdin text (task bootstrap bundle)."""
+    return sys.stdin.read() if not sys.stdin.isatty() else ""
 
 
 def _read_payload() -> dict[str, Any]:
@@ -641,10 +650,15 @@ def plan_status(
 @app.command()
 def task(
     ctx: typer.Context,
-    command: str = typer.Argument(..., help="begin | end"),
+    command: str = typer.Argument(
+        ..., help="begin | end | bootstrap | resolve | activate | context | finish"
+    ),
     work_id: str | None = typer.Argument(None, help="WORK-... id (for begin)"),
     requirement: str | None = typer.Option(
         None, "--requirement", "-r", help="Active requirement (REQ-...) for the task"
+    ),
+    prompt: str | None = typer.Option(
+        None, "--prompt", "-p", help="Natural-language request (for resolve)"
     ),
     plan: str | None = typer.Option(
         None, "--plan", "-p", help="Active plan (PLAN-...) the task implements"
@@ -668,6 +682,60 @@ def task(
     project, _diags = load_project(root)
     state = SessionState(project)
     sid = session or os.environ.get("TRACE_SESSION") or "default"
+    if command == "bootstrap":
+        from tracelayer.tasks import bootstrap as ambient_bootstrap
+
+        bundle = json.loads(_read_payload_text())
+        result = ambient_bootstrap(project, bundle, session_id=sid)
+        typer.echo(json.dumps(result, indent=2, sort_keys=True))
+        return
+    if command == "activate":
+        if not work_id:
+            typer.echo("usage: trace task activate <WORK-ID>", err=True)
+            raise typer.Exit(2)
+        from tracelayer.tasks import activate as ambient_activate
+
+        eng2, _d2 = _open(root)
+        try:
+            result = ambient_activate(project, eng2.store, work_id, sid)
+        finally:
+            eng2.close()
+        typer.echo(json.dumps(result, indent=2, sort_keys=True))
+        return
+    if command == "resolve":
+        from tracelayer.git.repo import GitRepo
+        from tracelayer.tasks import resolve as ambient_resolve
+
+        eng2, _d2 = _open(root)
+        try:
+            result = ambient_resolve(
+                project,
+                eng2.store,
+                prompt or _read_payload_text(),
+                session_id=sid,
+                gitrepo=GitRepo.open(root),
+            )
+        finally:
+            eng2.close()
+        typer.echo(json.dumps(result, indent=2, sort_keys=True))
+        return
+    if command == "finish":
+        from tracelayer.tasks import finish as ambient_finish
+
+        eng3, _d3 = _open(root)
+        try:
+            result = ambient_finish(project, eng3.store, session_id=sid)
+        finally:
+            eng3.close()
+        typer.echo(json.dumps(result, indent=2, sort_keys=True))
+        if result.get("status") == "blocked":
+            raise typer.Exit(1)
+        return
+    if command == "context":
+        from tracelayer.tasks import context as ambient_context
+
+        typer.echo(json.dumps(ambient_context(project, sid), indent=2, sort_keys=True))
+        return
     if command == "begin":
         if not work_id:
             typer.echo(
@@ -709,7 +777,6 @@ def task(
     raise typer.Exit(2)
 
 
-# trace:exempt reason=internal-helper
 def _resolve_requirement_for(engine, work_id: str) -> str | None:
     """The single requirement reachable from the work item, if unambiguous."""
     work = engine.store.get_node(trace_id=work_id)
@@ -727,7 +794,6 @@ def _resolve_requirement_for(engine, work_id: str) -> str | None:
     return next(iter(requirements)) if len(requirements) == 1 else None
 
 
-# trace:exempt reason=internal-helper
 def _resolve_plan_for(engine, work_id: str) -> str | None:
     """The single plan implemented by the work item's artifacts, if unambiguous."""
     work = engine.store.get_node(trace_id=work_id)
@@ -1689,6 +1755,21 @@ def docs_generate(
 
 
 # trace:v1 id=impl.cli.hook-payload work=WORK-TL-001
+def _ambient_bootstrap_repo(root: Path) -> None:
+    """Ambient (spec §5): when a hook fires in an unconfigured git repo,
+    initialize TraceLayer silently — config, policy, gitignore, invariant.
+    The user never runs `trace init`; the harness does it for them.
+    """
+    if (root / ".trace" / "trace.toml").exists():
+        return
+    if not (root / ".git").exists():
+        return
+    try:
+        _run_init(root, observe=False, skill=False, agents_note=True, mcp=False)
+    except Exception:
+        pass  # ambient bootstrap must never break the agent loop
+
+
 def _normalize_hook_payload(raw: dict) -> dict:
     """Map harness-specific hook payloads onto the canonical hook shape.
 
@@ -1743,6 +1824,7 @@ def hook(
     error-style block there). Other formats exit 2 on block.
     """
     root = _resolve_root(ctx, root)
+    _ambient_bootstrap_repo(root)
     engine, _diags = _open(root)
     try:
         payload = _canonicalize_path(_normalize_hook_payload(_read_payload()), root)
