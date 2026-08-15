@@ -124,7 +124,7 @@ def test_auto_init_from_repo_subdirectory(tmp_path):
     """FINDING 5: a hook fired from a subdir cwd bootstraps the repo root."""
     repo = make_git_repo(tmp_path, {"src/deep/x.py": "x = 1\n"})
     subdir = repo / "src" / "deep"
-    r = subprocess.run(
+    subprocess.run(
         ["uv", "run", "trace", "hook", "pre-mutation", "--format", "json"],
         input=json.dumps({"path": "x.py"}),
         capture_output=True,

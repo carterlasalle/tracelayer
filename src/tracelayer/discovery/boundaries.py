@@ -343,6 +343,7 @@ def _inherit_valid(
     return attached == target_id
 
 
+# trace:exempt reason=internal-helper
 def _attached_marker_id(lines: list[str], boundary: Boundary) -> str | None:
     """The trace id of the marker attached to a boundary (indexer placement)."""
     import re
@@ -350,7 +351,6 @@ def _attached_marker_id(lines: list[str], boundary: Boundary) -> str | None:
     if boundary.language == "markdown":
         window = range(boundary.start_line, min(len(lines), boundary.start_line + 6))
     else:
-        prefixes = _COMMENT_PREFIX.get(boundary.language, ("#",))
         window = range(max(0, boundary.start_line - 1 - _MAX_GAP), boundary.start_line)
     for i in window:
         line = lines[i] if i < len(lines) else ""

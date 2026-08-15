@@ -271,7 +271,7 @@ def bootstrap(
         work_sections = data.setdefault("work", {})
         work_sections[work_id] = entry
         rendered = [
-            "[work.%s]" % _toml_key(work_id),
+            f"[work.{_toml_key(work_id)}]",
             f"title = {_toml_value(entry['title'])}",
             'status = "active"',
         ]
