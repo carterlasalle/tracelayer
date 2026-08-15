@@ -311,7 +311,10 @@ def test_tracelayer_update_refreshes_omp_package(tmp_path):
     factory = repo / ".omp" / "extensions" / "tracelayer" / "trace-gate.ts"
     orig = factory.read_text(encoding="utf-8")
     factory.write_text(orig.replace("trace-gate", "STALE-trace-gate"), encoding="utf-8")
-    r = run_trace(repo, "update", env=env)
+    # `trace update` refreshes host-DETECTED agents (none exist on CI); the
+    # agent-targeted refresh (`install --agent omp --update`) is
+    # environment-independent and exercises the same force-recopy path.
+    r = run_trace(repo, "install", "--agent", "omp", "--update", "--yes", env=env)
     assert r.returncode == 0, r.stderr
     refreshed = factory.read_text(encoding="utf-8")
     assert "STALE" not in refreshed
