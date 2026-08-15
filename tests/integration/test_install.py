@@ -375,3 +375,22 @@ def test_installed_manifest_matches_source(tmp_path):
         Path(__file__).resolve().parents[2] / "adapters" / "oh-my-pi" / "package.json"
     ).read_text(encoding="utf-8")
     assert _json.loads(installed) == _json.loads(source)
+
+
+# trace:v1 id=test.dogfood.tests.integration.test_install.test_generated_omp_install_not_tracked type=test
+def test_generated_omp_install_not_tracked():
+    """The installed OMP package is GENERATED install state, never committed:
+    the canonical source (adapters/oh-my-pi/) is the only tracked copy, so a
+    second copy can never drift into being another source of truth."""
+    import subprocess as _subprocess
+
+    repo_root = Path(__file__).resolve().parents[2]
+    r = _subprocess.run(
+        ["git", "-C", str(repo_root), "ls-files", ".omp"],
+        capture_output=True,
+        text=True,
+    )
+    assert r.returncode == 0, r.stderr
+    assert "extensions/tracelayer" not in r.stdout
+    assert "hook/hooks.yaml" not in r.stdout
+    assert "skills/" not in r.stdout

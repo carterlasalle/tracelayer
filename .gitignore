@@ -19,6 +19,8 @@ node_modules/
 # Local agent skill copies from `tracelayer init` (canonical: skills/traceability).
 .claude/skills/
 .omp/skills/
+.omp/extensions/
+.omp/hook/
 .pi/skills/
 
 .DS_Store
