@@ -58,8 +58,45 @@ def handle(ctx: HookContext, payload: dict) -> HookOutput:
         if obligations
         else ""
     )
+    finalize_note = _auto_finalize(ctx)
+    if finalize_note:
+        text = text + "\n" + finalize_note
     json_data["output"] = text
     return render_allowed(text, json_data)
+
+
+# trace:exempt reason=internal-helper
+def _auto_finalize(ctx: HookContext) -> str:
+    """Safe finalizer: on a successful stop, attempt to finalize the active
+    work under merge-grade policy (adversarial review P0: task completion
+    must be automatic, and ``done`` must mean merge-grade verified).
+
+    Failure is non-blocking here — the stop gate's own decision already
+    passed at the session lifecycle — but the agent is told exactly which
+    merge-grade items are still missing.
+    """
+    if ctx.state is None or ctx.store is None:
+        return ""
+    work = ctx.state.active_work(ctx.session_id)
+    if not work:
+        return ""
+    try:
+        from tracelayer.tasks import finish as ambient_finish
+
+        result = ambient_finish(ctx.project, ctx.store, session_id=ctx.session_id)
+    except Exception:
+        return ""
+    if result.get("status") == "done":
+        return (
+            f"Ambient: work {work} finalized (status=done, receipts bound to the current commit)."
+        )
+    diags = ", ".join(str(d) for d in (result.get("diagnostics") or [])[:6])
+    return (
+        f"Ambient: work {work} is NOT yet done — the merge-grade completion "
+        f"gate requires more before finalization: {diags or 'pending obligations'}. "
+        "Run linked tests, ingest evidence, resolve the diagnostics, then "
+        "`trace task finish --auto`."
+    )
 
 
 def _verify_both(ctx: HookContext, lifecycle: str) -> dict:

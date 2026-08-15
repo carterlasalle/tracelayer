@@ -176,6 +176,11 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
     Deterministic: parse the simulated result, compare symbol lines against
     the current file, and require a marker (or ``# trace:exempt reason=internal-detail``) on every
     new boundary. Discovery-excluded paths (tests/**, vendor/**) are free.
+
+    Intake gates run first (adversarial review P0): a pending bootstrap
+    blocks the first code mutation with a semantic-bootstrap instruction,
+    and a pending spec update blocks implementation edits until the
+    governing requirement's text actually changes.
     """
     if not path or ctx.state is None:
         return None
@@ -194,6 +199,28 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
         proposed = current
     if proposed is None:
         return None
+    # -- intake gate: spec update before implementation -------------------
+    if ctx.store is not None and state.pending_spec_update(ctx.session_id):
+        from tracelayer.tasks import _reconcile_spec_updates
+
+        remaining = _reconcile_spec_updates(ctx.project, ctx.store, ctx.session_id)
+        if remaining:
+            is_spec = any(
+                node.canonical_path == rel_path
+                for node in ctx.store.all_nodes(active_only=True)
+                if node.node_type in ("requirement", "prd") and node.trace_id in remaining
+            )
+            if not is_spec:
+                text = _spec_update_block(rel_path, remaining)
+                return render_blocked(
+                    text,
+                    {
+                        "event": "pre_mutation",
+                        "decision": "block",
+                        "path": path,
+                        "output": text,
+                    },
+                )
     classified = _classify_boundaries(path, current, proposed)
     from tracelayer.discovery.boundaries import boundary_is_traced
 
@@ -201,12 +228,15 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
         (b, kind)
         for b, kind in classified
         if kind in ("NEW", "MODIFIED")
-        and not boundary_is_traced(proposed or "", [x[0] for x in classified], b, ctx.project.root)
+        and not boundary_is_traced(
+            proposed or "", [x[0] for x in classified], b, ctx.project.root, ctx.store
+        )
     ]
     if not untraced:
         return None
     work = state.active_work(ctx.session_id)
-    req = state.active_requirement(ctx.session_id)
+    reqs = state.active_requirements(ctx.session_id)
+    req = reqs[0] if len(reqs) == 1 else None
     plan = state.active_plan(ctx.session_id)
     from tracelayer.discovery.suggest import resolve_exercised
 
@@ -214,7 +244,10 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
     boundary, change_kind = untraced[0]
     line = boundary.start_line
     if not (work or req):
-        text = _causal_context_block(boundary, path, line)
+        if state.pending_bootstrap(ctx.session_id):
+            text = _bootstrap_block(boundary, path, line)
+        else:
+            text = _causal_context_block(boundary, path, line)
         return render_blocked(
             text,
             {
@@ -226,9 +259,15 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
                 "output": text,
             },
         )
-    rewrite = _deterministic_rewrite(
-        state, ctx.session_id, rel_path, path, payload, proposed, untraced
-    )
+    rewrite = None
+    if "content" in payload:
+        # Automatic updatedInput rewriting is Write-only (review P0): an
+        # Edit's old_string/new_string cannot carry a whole-file rewrite
+        # without corrupting the target, so Edits fall back to deny + plan.
+        rewrite = _deterministic_rewrite(
+            state, ctx.session_id, rel_path, path, payload, proposed, untraced
+        )
+    existing_ids = _file_marker_ids(proposed)
     for boundary, change_kind in untraced[:20]:
         state.add_obligation(
             ctx.session_id,
@@ -239,12 +278,12 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
                 "work": work or "",
                 "requirement": req or "",
                 "suggested_marker": _suggested_marker(
-                    boundary, work, req, plan, rel_path, exercised
+                    boundary, work, req, plan, rel_path, exercised, existing_ids
                 ),
                 "state": "pending",
             },
         )
-    text = _authoring_plan_text(untraced, rel_path, work, req, plan, exercised)
+    text = _authoring_plan_text(untraced, rel_path, work, reqs, plan, exercised)
     payload_out = {
         "event": "pre_mutation",
         "decision": "block",
@@ -259,6 +298,7 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
     return render_blocked(text, payload_out)
 
 
+# trace:exempt reason=internal-helper
 def _suggested_marker(
     symbol,
     work: str | None,
@@ -266,12 +306,19 @@ def _suggested_marker(
     plan: str | None = None,
     path: str = "",
     exercised: str | None = None,
+    existing_ids: set[str] | None = None,
 ) -> str:
     """Canonical, artifact-aware marker via the shared suggestion engine."""
     from tracelayer.discovery.suggest import suggest_marker
 
     suggestion = suggest_marker(
-        symbol, path, work=work, requirement=req, plan=plan, exercised=exercised
+        symbol,
+        path,
+        work=work,
+        requirement=req,
+        plan=plan,
+        exercised=exercised,
+        existing_ids=existing_ids,
     )
     return suggestion.marker
 
@@ -286,26 +333,37 @@ def _deterministic_rewrite(
     proposed: str | None,
     untraced: list,
 ):
-    """The mutation input rewritten with markers injected (Ambient §19).
+    """The WRITE input rewritten with markers injected (Ambient §19).
 
     Deterministic only: a single active requirement (so the semantic
     mapping is unambiguous) and a language that supports in-file markers
-    (JSON uses the sidecar and must fall back to block/retry). The harness
-    adapter may then return ``updatedInput`` and let the mutation execute
-    WITH the markers already present.
+    (JSON uses the sidecar and must fall back to block/retry). Edits are
+    NEVER rewritten: an Edit's old_string/new_string cannot carry a
+    whole-file rewrite without corrupting the target (adversarial review
+    P0) — they fall back to deny + the authoring plan.
     """
     from tracelayer.discovery.suggest import suggest_marker
 
     if proposed is None:
         return None
+    if "old_string" in payload:
+        return None  # Edit: deny -> agent retries with the marker
     if len(state.active_requirements(session_id)) != 1:
         return None  # ambiguous requirement mapping: agent must decide
     work = state.active_work(session_id)
     req = state.active_requirements(session_id)[0]
     plan = state.active_plan(session_id)
+    existing_ids = _file_marker_ids(proposed)
     insertions: list[tuple[int, str]] = []
     for boundary, _kind in untraced:
-        suggestion = suggest_marker(boundary, path, work=work, requirement=req, plan=plan)
+        suggestion = suggest_marker(
+            boundary,
+            path,
+            work=work,
+            requirement=req,
+            plan=plan,
+            existing_ids=existing_ids,
+        )
         if not suggestion.marker:
             return None
         if suggestion.sidecar:
@@ -321,24 +379,26 @@ def _deterministic_rewrite(
     rewritten = "\n".join(lines)
     if "content" in payload:
         return {"file_path": rel_path, "content": rewritten}
-    if "old_string" in payload:
-        return {
-            "file_path": rel_path,
-            "old_string": payload.get("old_string"),
-            "new_string": rewritten,
-        }
     return None
 
 
+# trace:exempt reason=internal-helper
 def _authoring_plan_text(
     untraced: list,
     rel_path: str,
     work: str | None,
-    req: str | None,
+    reqs: list[str],
     plan: str | None,
     exercised: str | None,
 ) -> str:
-    """One mutation -> the FULL authoring plan (every boundary, not just one)."""
+    """One mutation -> the FULL authoring plan (every boundary, not just one).
+
+    With more than one active requirement the engine refuses to attribute a
+    single arbitrary requirement (adversarial review P0): the candidate
+    list is injected and the agent picks the correct one per boundary —
+    the LLM selects semantics, TraceLayer validates the IDs.
+    """
+    req = reqs[0] if len(reqs) == 1 else None
     lines = [
         "TRACE AUTHORING REQUIRED",
         "",
@@ -350,6 +410,16 @@ def _authoring_plan_text(
         lines.append(f"{idx}. {boundary.qualified_name or boundary.name} ({verb})")
         lines.append(
             f"   Add above it: {_suggested_marker(boundary, work, req, plan, rel_path, exercised)}"
+        )
+    if len(reqs) > 1:
+        lines += [
+            "",
+            "Candidate requirements (choose the correct one(s) per boundary):",
+        ]
+        lines += [f"  - {rid}" for rid in reqs]
+        lines.append(
+            "  Add the chosen satisfies= to each boundary's marker (or omit it "
+            "when the boundary serves the work as a whole)."
         )
     if len(untraced) > 8:
         lines.append(f"   ... and {len(untraced) - 8} more")
@@ -364,6 +434,81 @@ def _authoring_plan_text(
         f"explicit `{_EXEMPT_MARK} reason=<why>` for genuinely trivial code.",
     ]
     return fit("\n".join(lines), 6000)
+
+
+# trace:exempt reason=internal-helper
+def _bootstrap_block(symbol, path: str, line: int) -> str:
+    """Pending-bootstrap gate: the prompt hook already resolved this request
+    as new intent, so the FIRST code mutation must be preceded by a
+    semantic bootstrap — not by a generic search-and-hope recovery
+    (adversarial review P0: natural-language intake).
+    """
+    lines = [
+        "AMBIENT TRACE BOOTSTRAP REQUIRED — NEW INTENT, NO CAUSAL CONTEXT",
+        "",
+        "Your session resolved this request as new intent, and no work item",
+        "or requirement exists yet. Before writing implementation code:",
+        f"  {path}:{line}::{symbol.name}",
+        "",
+        "1. Run a semantic bootstrap derived from the user's request:",
+        "",
+        '     trace task bootstrap --prompt "<the user\'s request>"',
+        "",
+        "   or author the semantic bundle yourself (title, kind, intent,",
+        "   requirements with titles + statements, optional plan steps):",
+        "",
+        "     trace task bootstrap --json < <bundle>",
+        "",
+        "2. Confirm the session context (`trace task context`): the work,",
+        "   requirements, and plan are now active.",
+        "3. Retry this mutation with boundary-local traces.",
+        "",
+        "If this request actually continues an existing task, run",
+        '`trace task resolve --prompt "<request>"` and `trace task activate',
+        "<WORK-ID>` instead — never ask the user for TraceLayer IDs.",
+    ]
+    return fit("\n".join(lines), 4000)
+
+
+# trace:exempt reason=internal-helper
+def _spec_update_block(rel_path: str, req_ids: list[str]) -> str:
+    """Intake gate: the user changed a requirement's contract; implementation
+    edits are blocked until the governing requirement text actually changes
+    (adversarial review P0: spec evolution is enforced, not voluntary)."""
+    lines = [
+        "SPEC UPDATE REQUIRED",
+        "",
+        "This request changes the contract of an existing requirement, so the",
+        "requirement must change BEFORE the implementation does:",
+    ]
+    lines += [f"  - {rid}" for rid in req_ids[:8]]
+    lines += [
+        "",
+        "1. Edit the requirement (its statement or acceptance criteria) in",
+        "   its source document so the spec reflects the new contract.",
+        "2. Re-run `trace index --changed` (or let the hooks index it).",
+        "3. Reclassify with `trace task intake --kind implementation-only`",
+        "   once the spec matches the new intent.",
+        "",
+        "This mutation (to a non-spec path) stays blocked until then.",
+    ]
+    return fit("\n".join(lines), 4000)
+
+
+# trace:exempt reason=internal-helper
+def _file_marker_ids(text: str) -> set[str]:
+    """Trace ids already present in the proposed file (id collision guard)."""
+    try:
+        from tracelayer.protocol import iter_marker_hits, parse_marker_hit
+
+        ids: set[str] = set()
+        for hit in iter_marker_hits(text, "proposed"):
+            res = parse_marker_hit(hit, unknown_keys="warn")
+            if res.marker is not None and res.marker.trace_id:
+                ids.add(res.marker.trace_id)
+        return ids
+    except Exception:
+        return set()
 
 
 # trace:exempt reason=internal-helper

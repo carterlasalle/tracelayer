@@ -347,3 +347,86 @@ def parse_json(proc: subprocess.CompletedProcess[str]) -> dict:
     """Parse a --json CLI invocation result."""
     assert proc.returncode in (0, 1), f"rc={proc.returncode}\n{proc.stdout}\n{proc.stderr}"
     return json.loads(proc.stdout)
+
+
+# trace:exempt reason=test helper, no behavior
+def complete_work(
+    repo,
+    session: str,
+    *,
+    work_id: str,
+    req_id: str,
+    impl_path: str,
+    impl_id: str,
+    impl_code: str,
+    test_path: str,
+    test_id: str,
+    test_code: str,
+) -> dict:
+    """Drive a merge-grade completion: impl + test markers, evidence, finish.
+
+    Every requirement of the work needs a verifies edge at merge policy, so
+    one test file per requirement is written (same implementation). Returns
+    the finish result. Used by Ambient acceptance tests to model the
+    agent's side of the loop (markers authored per the gate, evidence
+    ingested, then the merge-grade finalizer).
+    """
+    import json as _json
+    import subprocess as _subprocess
+
+    from tests.conftest import run_trace
+
+    reqs = [r.strip() for r in req_id.split(",") if r.strip()]
+    # implementation with its trace marker
+    (repo / impl_path).write_text(
+        f"# trace:v1 id={impl_id} work={work_id} satisfies={reqs[0]}\n{impl_code}",
+        encoding="utf-8",
+    )
+    tests_json = []
+    for i, req in enumerate(reqs):
+        tid = test_id if i == 0 else f"{test_id}-{i + 1}"
+        tpath = test_path if i == 0 else f"{test_path.rsplit('.', 1)[0]}_{i + 1}.py"
+        (repo / tpath).write_text(
+            f"# trace:v1 id={tid} verifies={req} exercises={impl_id}\n{test_code}",
+            encoding="utf-8",
+        )
+        tests_json.append({"framework_id": tid, "outcome": "pass", "trace_id": tid})
+    # evidence (inside .trace/ so it never pollutes the changed scope)
+    ev = repo / ".trace" / "evidence.json"
+    ev.parent.mkdir(parents=True, exist_ok=True)
+    head = _subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True, text=True
+    ).stdout.strip()
+    ev.write_text(
+        _json.dumps(
+            {
+                "schema": "tracelayer-evidence/v1",
+                "run_id": "local-run",
+                "status": "pass",
+                "revision": head,
+                "tests": tests_json,
+                "execution_edges": [
+                    {
+                        "test_uid": entry["trace_id"],
+                        "implementation_uid": impl_id,
+                        "coverage_kind": "per_test",
+                    }
+                    for entry in tests_json
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    r = run_trace(
+        repo,
+        "evidence",
+        "ingest",
+        "--normalized",
+        str(ev),
+        "--revision",
+        head,
+        env={"TRACE_SESSION": session},
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    fin = run_trace(repo, "task", "finish", env={"TRACE_SESSION": session})
+    return _json.loads(fin.stdout)

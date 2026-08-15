@@ -23,16 +23,18 @@ SPEC_PATH = "docs/spec.md"
 
 
 # trace:exempt reason=internal-helper
-def _mint_id(kind: str, title: str, store: GraphStore) -> str:
+def _mint_id(kind: str, title: str, store: GraphStore, allocated: set[str] | None = None) -> str:
     """Deterministic stable ID: ``WORK-<slug>`` / ``REQ-<slug>`` / ``PLAN-<slug>``.
 
-    Uniqueness: when the id already exists in the graph, append ``-2``,
-    ``-3``... so repeated bootstrap calls never collide.
+    Uniqueness: when the id already exists in the graph (or was already
+    allocated earlier in this bootstrap transaction), append ``-2``, ``-3``...
+    so repeated bootstrap calls — and same-transaction slug collisions like
+    "API Rate Limit" vs "API-Rate-Limit" — never collide (review P0).
     """
     base = f"{kind}-{_slug(title)}"
     candidate = base
     counter = 2
-    while store.get_node(trace_id=candidate) is not None:
+    while store.get_node(trace_id=candidate) is not None or (allocated and candidate in allocated):
         candidate = f"{base}-{counter}"
         counter += 1
     return candidate
@@ -99,6 +101,110 @@ def _plan_markdown(bundle: dict, work_id: str, plan_id: str) -> str:
     return "\n".join(lines)
 
 
+# Behavioral task kinds must carry at least one requirement; refactor-like
+# kinds may legitimately add none (adversarial review P0).
+_BEHAVIORAL_KINDS = frozenset(
+    {
+        "GREENFIELD_PROJECT",
+        "NEW_FEATURE",
+        "FEATURE_EXTENSION",
+        "BEHAVIOR_CHANGE",
+        "BUG_CONTRACT_BACKFILL",
+    }
+)
+_NON_BEHAVIORAL_KINDS = frozenset({"REFACTOR", "MAINTENANCE", "NON_BEHAVIORAL_EDIT"})
+_VALID_KINDS = _BEHAVIORAL_KINDS | _NON_BEHAVIORAL_KINDS
+
+
+# trace:exempt reason=internal-helper
+def _normalize_kind(kind: object) -> str | None:
+    """Accept 'greenfield_project', 'GREENFIELD_PROJECT', 'greenfield-project',
+    'new feature'... -> canonical UPPER_SNAKE; None when unrecognized."""
+    if not isinstance(kind, str) or not kind.strip():
+        return None
+    canon = kind.strip().upper().replace("-", "_").replace(" ", "_")
+    return canon if canon in _VALID_KINDS else None
+
+
+# trace:exempt reason=internal-helper
+def validate_bundle(bundle: object) -> list[str]:
+    """Schema-validate a TaskBootstrapBundle; return human errors (review P0).
+
+    A behavioral task kind with zero requirements must be rejected — the
+    causal gate must never allow new product behavior with only ``work=``.
+    """
+    errors: list[str] = []
+    if not isinstance(bundle, dict):
+        return ["bundle must be a JSON object (title, kind, intent, requirements, plan)"]
+    title = bundle.get("title")
+    if not isinstance(title, str) or not title.strip():
+        errors.append("title: non-empty string required")
+    kind = _normalize_kind(bundle.get("kind"))
+    if kind is None:
+        errors.append(
+            "kind: one of " + ", ".join(sorted(k.lower() for k in _VALID_KINDS)) + " required"
+        )
+    requirements = bundle.get("requirements", [])
+    if requirements is None:
+        requirements = []
+    if not isinstance(requirements, list):
+        errors.append("requirements: must be a list")
+        requirements = []
+    for idx, req in enumerate(requirements):
+        if not isinstance(req, dict):
+            errors.append(f"requirements[{idx}]: must be an object with a title")
+            continue
+        rtitle = req.get("title")
+        if not isinstance(rtitle, str) or not rtitle.strip():
+            errors.append(f"requirements[{idx}]: title: non-empty string required")
+        statement = req.get("statement")
+        if statement is not None and not isinstance(statement, str):
+            errors.append(f"requirements[{idx}]: statement must be a string")
+        acceptance = req.get("acceptance")
+        if acceptance is not None and (
+            not isinstance(acceptance, list) or not all(isinstance(a, str) for a in acceptance)
+        ):
+            errors.append(f"requirements[{idx}]: acceptance must be a list of strings")
+    if kind in _BEHAVIORAL_KINDS and not requirements:
+        errors.append(
+            f"requirements: at least one requirement is required for kind {kind.lower()} — "
+            "new behavioral product intent gets a spec before implementation"
+        )
+    plan = bundle.get("plan")
+    if plan is not None and not isinstance(plan, dict):
+        errors.append("plan: must be an object with optional 'recommended' and 'steps'")
+    intent = bundle.get("intent")
+    if intent is not None and not isinstance(intent, str):
+        errors.append("intent: must be a string")
+    return errors
+
+
+# trace:exempt reason=internal-helper
+def bundle_from_prompt(prompt: str) -> dict:
+    """Deterministic minimal bundle derived from the user's prose.
+
+    The semantic agent may refine this (``--json``) later; this primitive
+    makes the zero-ceremony path real: prose alone yields work + spec +
+    requirement + plan with no user-facing TraceLayer input (review P0).
+    """
+    text = " ".join(str(prompt).split())
+    title = (text[:72] + "…") if len(text) > 72 else text
+    if not title:
+        title = "Task"
+    return {
+        "title": title,
+        "kind": "new_feature",
+        "intent": text,
+        "requirements": [
+            {
+                "title": "Implement " + (title[:60] + "…" if len(title) > 60 else title),
+                "statement": text,
+            }
+        ],
+        "plan": {"recommended": True, "steps": [f"Implement: {text}"]},
+    }
+
+
 # trace:v1 id=impl.ambient.bootstrap work=WORK-TL-001
 def bootstrap(
     project: Project,
@@ -111,16 +217,23 @@ def bootstrap(
 
     Returns the resulting graph slice (the agent's handle on the task).
     """
+    errors = validate_bundle(bundle)
+    if errors:
+        raise ValueError("invalid bootstrap bundle: " + "; ".join(errors))
     from tracelayer.engine import Engine
 
     engine = Engine(project)
     try:
         store = engine.store
-        work_id = _mint_id("WORK", bundle.get("title") or "task", store)
+        allocated: set[str] = set()
+        work_id = _mint_id("WORK", bundle.get("title") or "task", store, allocated)
+        allocated.add(work_id)
         req_ids: dict[str, str] = {}
         for req in bundle.get("requirements", []) or []:
             title = str(req.get("title") or "Requirement")
-            req_ids[title] = _mint_id("REQ", title, store)
+            rid = _mint_id("REQ", title, store, allocated)
+            allocated.add(rid)
+            req_ids[title] = rid
 
         root: Path = project.root
         spec_rel = spec_path or _artifact_path(root, SPEC_PATH, work_id)
@@ -156,7 +269,8 @@ def bootstrap(
 
         plan_id = None
         if bundle.get("plan", {}).get("recommended"):
-            plan_id = _mint_id("PLAN", bundle.get("title") or "task", store)
+            plan_id = _mint_id("PLAN", bundle.get("title") or "task", store, allocated)
+            allocated.add(plan_id)
             plan_file = root / _artifact_path(
                 root, f"docs/plan-{_slug(bundle.get('title') or 'task')}.md", work_id, suffix="plan"
             )
@@ -172,6 +286,8 @@ def bootstrap(
     state.set_active_requirements(session_id, list(req_ids.values()))
     if plan_id:
         state.set_active_plan(session_id, plan_id)
+    state.clear_pending_bootstrap(session_id)
+    state.clear_pending_spec_update(session_id)
 
     return {
         "work": work_id,
@@ -280,10 +396,17 @@ def finish(
     store: GraphStore,
     *,
     session_id: str,
-    lifecycle: str = "wip",
+    lifecycle: str = "merge",
 ) -> dict:
     """Task finalization (Ambient §32-33): run the completion gate; when it
-    passes, mark the work item done and clear the session context."""
+    passes, mark the work item done and clear the session context.
+
+    Work becomes ``done`` only under merge-grade policy (requirement
+    ancestry, verifying test, passed evidence, no stale blockers) — "the
+    agent may stop coding" and "WORK status = done" are deliberately
+    separated (adversarial review P0). On success, mutation receipts are
+    bound to the commit that now contains the work's changes.
+    """
     from tracelayer.engine import Engine
     from tracelayer.git.repo import GitRepo
 
@@ -302,19 +425,129 @@ def finish(
         return {
             "status": "blocked",
             "work": work,
+            "lifecycle": lifecycle,
             "pending_obligations": len(pending),
             "diagnostics": [d.rule_id for d in diagnostics if d.severity == "ERROR"][:10],
         }
     if work:
         _set_work_status(project, work, "done")
+        _bind_receipts(project, work)
     state.clear(session_id)
-    receipts = _receipt_count(project, work)
+    receipts = _receipt_count(project, work) if work else 0
     return {
         "status": "done",
         "work": work,
+        "lifecycle": lifecycle,
         "verify": "pass",
         "receipts": receipts,
     }
+
+
+# trace:exempt reason=internal-helper
+def _bind_receipts(project: Project, work_id: str) -> int:
+    """Bind the work's mutation receipts to the commit that contains them.
+
+    Receipts are recorded at post-mutation time, when HEAD is the OLD
+    commit; the change lands in the NEXT commit. At finalization the
+    work's changes are in HEAD, so every receipt for the work is rebound
+    to ``git rev-parse HEAD`` (adversarial review P0: receipts must bind
+    to the eventual commit, not the pre-mutation SHA).
+    """
+    from tracelayer.git.repo import GitRepo
+
+    path = project.root / ".trace" / "receipts" / "receipts.jsonl"
+    if not path.exists():
+        return 0
+    import json as _json
+
+    repo = GitRepo.open(project.root)
+    head = repo.rev() if repo is not None else None
+    if head is None:
+        return 0
+    bound = 0
+    lines = path.read_text(encoding="utf-8").splitlines()
+    out: list[str] = []
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            rec = _json.loads(line)
+        except ValueError:
+            out.append(line)
+            continue
+        if rec.get("work") == work_id and rec.get("commit") != head:
+            rec["commit"] = head
+            rec["bound"] = True
+            bound += 1
+        out.append(_json.dumps(rec, sort_keys=True))
+    if bound:
+        path.write_text("\n".join(out) + "\n", encoding="utf-8")
+    return bound
+
+
+# trace:v1 id=impl.ambient.intake work=WORK-TL-001
+def intake(
+    project: Project,
+    store: GraphStore,
+    *,
+    session_id: str,
+    kind: str,
+    work: str | None = None,
+    requirements: list[str] | None = None,
+) -> dict:
+    """Semantic intake classification (adversarial review P0: spec evolution).
+
+    The agent classifies the user request after resolution; TraceLayer then
+    ENFORCES the consequence deterministically:
+
+    - behavior_change: implementation edits are gated until the governing
+      requirement's text actually changes (fingerprint) or intake is
+      re-run with kind=implementation_only;
+    - new_feature/greenfield_project/bug_contract_backfill: equivalent to
+      the prompt hook's pending-bootstrap state;
+    - refactor/maintenance/non_behavioral_edit: implementation_only —
+      clears all pending intake state.
+    """
+    canon = _normalize_kind(kind)
+    if canon is None:
+        raise ValueError(
+            "kind: one of " + ", ".join(sorted(k.lower() for k in _VALID_KINDS)) + " required"
+        )
+    state = SessionState(project)
+    resolved: dict = {"kind": canon, "work": None, "requirements": []}
+    if work:
+        node = store.get_node(trace_id=work)
+        if node is None or node.node_type != "work":
+            raise ValueError(f"unknown work item: {work}")
+        state.set_active_work(session_id, work)
+        resolved["work"] = work
+    reqs: list[str] = []
+    for rid in requirements or []:
+        node = store.get_node(trace_id=rid)
+        if node is None or node.node_type != "requirement":
+            raise ValueError(f"unknown requirement: {rid}")
+        if rid not in reqs:
+            reqs.append(rid)
+    if reqs:
+        state.set_active_requirements(session_id, reqs)
+        resolved["requirements"] = reqs
+    if canon in _BEHAVIORAL_KINDS:
+        state.clear_pending_bootstrap(session_id)
+        if canon == "BEHAVIOR_CHANGE" and reqs:
+            state.set_pending_spec_update(session_id, reqs)
+        elif canon == "BEHAVIOR_CHANGE" and not reqs and work:
+            req_ids = _requirements_for(store, work)
+            if req_ids:
+                state.set_pending_spec_update(session_id, req_ids)
+                resolved["requirements"] = req_ids
+    else:
+        state.clear_pending_bootstrap(session_id)
+        state.clear_pending_spec_update(session_id)
+    resolved["state"] = {
+        "pending_bootstrap": state.pending_bootstrap(session_id),
+        "pending_spec_update": state.pending_spec_update(session_id),
+    }
+    return resolved
 
 
 # trace:exempt reason=internal-helper
@@ -365,6 +598,8 @@ def context(project: Project, session_id: str) -> dict:
         "requirements": state.active_requirements(session_id),
         "plan": state.active_plan(session_id),
         "pending_obligations": state.pending_obligations(session_id),
+        "pending_bootstrap": state.pending_bootstrap(session_id),
+        "pending_spec_update": state.pending_spec_update(session_id),
     }
 
 
@@ -444,6 +679,13 @@ def resolve(
             branch = None
     branch_tokens = set(_tokenize(branch or ""))
 
+    # Continuity beyond titles (adversarial review P0): mutation receipts,
+    # changed-boundary ownership, and recent Git history let a fresh
+    # session resolve "continue what I was changing on this branch".
+    receipt_paths = _receipt_paths_by_work(project)
+    changed_work_owners = _work_owners_for_paths(store, _changed_paths(gitrepo))
+    history_work_owners = _work_owners_for_paths(store, _recent_history_paths(gitrepo))
+
     open_works = _open_work_statuses(project)
     works = sorted(
         (n for n in store.all_nodes(active_only=True) if n.node_type == "work"),
@@ -480,6 +722,23 @@ def resolve(
         if branch_tokens & (set(_tokenize(work.trace_id)) | title_tokens):
             score += 0.4
             sources.append("branch")
+        # Ownership signals: paths this work mutated (receipts), paths that
+        # are changed right now, and paths in the most recent commit.
+        work_paths = receipt_paths.get(work.trace_id, set())
+        work_boundary_tokens = _boundary_tokens_for_paths(store, work_paths)
+        overlap = prompt_tokens & work_boundary_tokens
+        if overlap and work_paths:
+            score += 0.5 * len(overlap) / len(prompt_tokens)
+            if "receipts" not in sources:
+                sources.append("receipts")
+        if work.trace_id in changed_work_owners:
+            score += 0.4
+            if "changed_boundaries" not in sources:
+                sources.append("changed_boundaries")
+        if work.trace_id in history_work_owners:
+            score += 0.3
+            if "git_history" not in sources:
+                sources.append("git_history")
         if open_works.get(work.trace_id) == "done":
             continue  # completed work is not resumable; follow-ups create new work (§45)
         if open_works.get(work.trace_id) == "active":
@@ -505,6 +764,131 @@ def resolve(
         "requirements": [],
         "source": best[3],
     }
+
+
+# trace:exempt reason=internal-helper
+def _receipt_paths_by_work(project: Project) -> dict[str, set[str]]:
+    """work id -> set of mutated paths from .trace/receipts/receipts.jsonl."""
+    path = project.root / ".trace" / "receipts" / "receipts.jsonl"
+    if not path.exists():
+        return {}
+    import json as _json
+
+    out: dict[str, set[str]] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            rec = _json.loads(line)
+        except ValueError:
+            continue
+        work = rec.get("work")
+        rel = rec.get("path")
+        if work and isinstance(rel, str) and rel:
+            out.setdefault(work, set()).add(rel)
+    return out
+
+
+# trace:exempt reason=internal-helper
+def _changed_paths(gitrepo) -> list[str]:
+    """Repo-relative paths of the current working-tree change set."""
+    if gitrepo is None:
+        return []
+    try:
+        return [f.path for f in gitrepo.changed_files() if f.path]
+    except Exception:
+        return []
+
+
+# trace:exempt reason=internal-helper
+def _recent_history_paths(gitrepo, max_commits: int = 3) -> list[str]:
+    """Paths touched by the most recent commits (newest first)."""
+    if gitrepo is None:
+        return []
+    try:
+        r = gitrepo.run("log", f"-{max_commits}", "--name-only", "--format=")
+    except Exception:
+        return []
+    if r.returncode != 0:
+        return []
+    return [ln for ln in r.stdout.splitlines() if ln.strip()]
+
+
+# trace:exempt reason=internal-helper
+def _work_owners_for_paths(store: GraphStore, paths: list[str]) -> set[str]:
+    """Work ids owning traced nodes at ``paths`` (via declared work edges)."""
+    owners: set[str] = set()
+    for n in store.all_nodes(active_only=True):
+        if not n.canonical_path or n.canonical_path not in paths:
+            continue
+        for edge in store.edges_to(n.entity_uid):
+            if edge.predicate != "work":
+                continue
+            src = store.get_node(uid=edge.from_uid)
+            if src is not None:
+                owners.add(src.trace_id)
+    return owners
+
+
+# trace:exempt reason=internal-helper
+def _boundary_tokens_for_paths(store: GraphStore, paths: set[str]) -> set[str]:
+    """Tokens of boundary names at ``paths`` (work ownership vocabulary)."""
+    tokens: set[str] = set()
+    for n in store.all_nodes(active_only=True):
+        if not n.canonical_path or n.canonical_path not in paths:
+            continue
+        label = n.symbol_qualified_name or n.title or n.trace_id
+        tokens |= set(_tokenize(str(label)))
+    return tokens
+
+
+# trace:exempt reason=internal-helper
+def _req_fingerprint_changed(project: Project, store: GraphStore, req_id: str) -> bool:
+    """True when the requirement's current file text differs from the index.
+
+    Compares the live Markdown block (fingerprint + title) against the
+    indexed node's stored fingerprint — no reindex needed, so the authoring
+    gate can tell "the agent updated the requirement" from "the requirement
+    is untouched" deterministically (adversarial review P0: spec evolution
+    enforcement).
+    """
+    node = store.get_node(trace_id=req_id)
+    if node is None or not node.canonical_path:
+        return False
+    path = project.root / node.canonical_path
+    if not path.is_file():
+        return True  # the requirement's file is gone: it changed
+    try:
+        from tracelayer.artifacts.markdown import extract_markdown_blocks
+
+        text = path.read_text(encoding="utf-8")
+        blocks = extract_markdown_blocks(node.canonical_path, text, project.config)
+    except (OSError, UnicodeDecodeError, Exception):
+        return False
+    block = next((b for b in blocks if b.trace_id == req_id), None)
+    if block is None:
+        return True  # marker removed from the file: it changed
+    if node.artifact_fingerprint is None:
+        return False  # no indexed baseline to compare; other gates apply
+    return block.fingerprint != node.artifact_fingerprint or block.title != node.title
+
+
+# trace:exempt reason=internal-helper
+def _reconcile_spec_updates(project: Project, store: GraphStore, session_id: str) -> list[str]:
+    """Drop spec-update requirements whose text actually changed; return the rest."""
+    state = SessionState(project)
+    pending = state.pending_spec_update(session_id)
+    if not pending:
+        return []
+    remaining = [rid for rid in pending if not _req_fingerprint_changed(project, store, rid)]
+    resolved = [rid for rid in pending if rid not in remaining]
+    for rid in resolved:
+        data = state._read(session_id)
+        pending_list = data.get("pending_spec_update", [])
+        if rid in pending_list:
+            pending_list.remove(rid)
+        state._write(session_id, data)
+    return remaining
 
 
 # trace:exempt reason=internal-helper

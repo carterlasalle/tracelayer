@@ -6,6 +6,7 @@ import json
 import subprocess
 
 from tests.conftest import make_git_repo, run_trace
+from tests.integration._fixtures import complete_work
 
 BUNDLE = {
     "title": "Local repository dependency scanner",
@@ -174,8 +175,13 @@ def test_activate_returns_the_plan(tmp_path):
 
 # trace:v1 id=test.dogfood.tests.integration.test_ambient_regressions.test_obligation_resolves_by_marker_id_despite_symbol_mismatch type=test
 def test_obligation_resolves_by_marker_id_despite_symbol_mismatch(tmp_path):
-    """FINDING 8: an obligation resolves when the suggested marker id is
-    present, even if the symbol lookup would miss (path-form mismatch)."""
+    """FINDING 8 (v2): an obligation tracks the EXPECTED semantic boundary.
+
+    The suggested marker id attached to a DIFFERENTLY-NAMED boundary must
+    NOT auto-resolve (a marker string anywhere in the file is not proof of
+    authoring) — the rename is confirmed explicitly, and a same-name
+    boundary with the marker resolves even across a path-form mismatch.
+    """
     repo = _bootstrapped(tmp_path, "s")
     # pre-mutation creates an obligation for new_behavior (absolute path)
     r = run_trace(
@@ -203,7 +209,8 @@ def test_obligation_resolves_by_marker_id_despite_symbol_mismatch(tmp_path):
     m = _re.search(r"id=([A-Za-z0-9._:/-]+)", suggested)
     assert m
     marker_id = m.group(1)
-    # the file is written with the suggested marker id but a DIFFERENT symbol
+    # the file is written with the suggested marker id but a DIFFERENT symbol:
+    # the marker string alone must NOT absorb the obligation
     (repo / "src").mkdir(parents=True, exist_ok=True)
     (repo / "src" / "new.py").write_text(
         f"# trace:v1 id={marker_id} work=WORK-local-repository-dependency-scanner\n"
@@ -220,15 +227,98 @@ def test_obligation_resolves_by_marker_id_despite_symbol_mismatch(tmp_path):
         input=json.dumps({"path": "src/new.py"}),
     )
     assert r.returncode == 0, r.stderr
-    fin = json.loads(run_trace(repo, "task", "finish", env={"TRACE_SESSION": "s"}).stdout)
-    assert fin["status"] != "blocked"  # obligation resolved; no deadlock
+    fin = json.loads(
+        run_trace(repo, "task", "finish", "--lifecycle", "wip", env={"TRACE_SESSION": "s"}).stdout
+    )
+    assert fin["status"] == "blocked"  # obligation NOT resolved by the mismatch
+    # ...but the rename is confirmed explicitly (LLM semantics, engine
+    # validates): the agent asserts the differently-named boundary IS the
+    # renamed new_behavior
+    r = run_trace(
+        repo,
+        "task",
+        "resolve-obligation",
+        "src/new.py",
+        "--symbol",
+        "new_behavior",
+        env={"TRACE_SESSION": "s"},
+    )
+    assert r.returncode == 0, r.stderr
+    fin2 = json.loads(
+        run_trace(repo, "task", "finish", "--lifecycle", "wip", env={"TRACE_SESSION": "s"}).stdout
+    )
+    assert fin2["status"] != "blocked"  # explicit confirmation clears the deadlock
+
+
+# trace:v1 id=test.dogfood.tests.integration.test_ambient_regressions.test_obligation_resolves_same_boundary_across_path_form type=test
+def test_obligation_resolves_same_boundary_across_path_form(tmp_path):
+    """FINDING 8 (v2): a same-name boundary with the marker resolves even when
+    pre (absolute path) and post (relative path) spell the path differently."""
+    repo = _bootstrapped(tmp_path, "s")
+    r = run_trace(
+        repo,
+        "hook",
+        "pre-mutation",
+        "--format",
+        "json",
+        env={"TRACE_SESSION": "s"},
+        input=json.dumps(
+            {
+                "tool_name": "Write",
+                "tool_input": {
+                    "file_path": str(repo / "src" / "new.py"),
+                    "content": "def new_behavior():\n    return 1\n",
+                },
+            }
+        ),
+    )
+    assert r.returncode == 2
+    obl = json.loads(r.stdout)
+    suggested = obl.get("output", "")
+    import re as _re
+
+    m = _re.search(r"id=([A-Za-z0-9._:/-]+)", suggested)
+    assert m
+    marker_id = m.group(1)
+    (repo / "src").mkdir(parents=True, exist_ok=True)
+    (repo / "src" / "new.py").write_text(
+        f"# trace:v1 id={marker_id} work=WORK-local-repository-dependency-scanner\n"
+        "def new_behavior():\n    return 1\n",
+        encoding="utf-8",
+    )
+    r = run_trace(
+        repo,
+        "hook",
+        "post-mutation",
+        "--format",
+        "json",
+        env={"TRACE_SESSION": "s"},
+        input=json.dumps({"path": "src/new.py"}),
+    )
+    assert r.returncode == 0, r.stderr
+    fin = json.loads(
+        run_trace(repo, "task", "finish", "--lifecycle", "wip", env={"TRACE_SESSION": "s"}).stdout
+    )
+    assert fin["status"] != "blocked"  # same boundary, path-form mismatch: resolved
 
 
 # trace:v1 id=test.dogfood.tests.integration.test_ambient_regressions.test_resolve_completed_work_returns_new type=test
 def test_resolve_completed_work_returns_new(tmp_path):
     """FINDING 9: completed work is not resumable — follow-ups create new work."""
     repo = _bootstrapped(tmp_path, "a")
-    run_trace(repo, "task", "finish", env={"TRACE_SESSION": "a"})
+    result = complete_work(
+        repo,
+        "a",
+        work_id="WORK-local-repository-dependency-scanner",
+        req_id="REQ-repository-discovery",
+        impl_path="scanner.py",
+        impl_id="impl.scanner.discover-repositories",
+        impl_code="def discover_repositories():\n    return []\n",
+        test_path="test_scanner.py",
+        test_id="TEST-scanner",
+        test_code="def test_discover():\n    assert discover_repositories() == []\n",
+    )
+    assert result["status"] == "done", result
     r = run_trace(repo, "task", "resolve", "--prompt", "scanner", env={"TRACE_SESSION": "fresh"})
     result = json.loads(r.stdout)
     assert result["resolution"] == "new"

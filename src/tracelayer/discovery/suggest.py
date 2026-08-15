@@ -60,6 +60,25 @@ def _slug(name: str) -> str:
     return slug or "boundary"
 
 
+# trace:exempt reason=internal-helper
+def _marker_id(role: str, boundary: Boundary) -> str:
+    """Marker id derived from the boundary's QUALIFIED semantic scope.
+
+    ``app.UserService.save`` / ``app.OrderService.save`` produce distinct
+    ids (``impl.app-userservice.save`` vs ``impl.app-orderservice.save``)
+    instead of colliding on the bare method name (adversarial review P0).
+    The owner scope is the qualified name minus its final segment; the
+    final segment stays as the boundary's own slug so a rename of the
+    boundary itself (``save`` -> ``persist``) yields a new id.
+    """
+    qualified = boundary.qualified_name or boundary.name
+    segments = [s for s in qualified.split(".") if s]
+    if len(segments) <= 1:
+        return f"{role}.{_slug(boundary.name)}"
+    owner = ".".join(segments[:-1])
+    return f"{role}.{_slug(owner)}.{_slug(segments[-1])}"
+
+
 def _host_language(path: str) -> str:
     suffix = path.rsplit(".", 1)[-1].lower() if "." in path else ""
     return {
@@ -130,11 +149,24 @@ def suggest_marker(
     requirement: str | None = None,
     plan: str | None = None,
     exercised: str | None = None,
+    existing_ids: set[str] | None = None,
 ) -> MarkerSuggestion:
-    """The canonical marker for a boundary under the given session context."""
+    """The canonical marker for a boundary under the given session context.
+
+    ``existing_ids`` (trace ids already present in the file, or the graph)
+    disambiguates the generated id deterministically: when the qualified
+    base id collides, ``-2``/``-3``... are appended so the suggestion never
+    mints a duplicate (adversarial review P0).
+    """
     role = classify_role(boundary, path)
     syntax = _COMMENT_STYLES.get(boundary.language, "#")
-    prefix = f"id={role}.{_slug(boundary.name)}"
+    prefix = f"id={_marker_id(role, boundary)}"
+    if existing_ids:
+        base = prefix
+        counter = 2
+        while prefix in existing_ids:
+            prefix = f"{base}-{counter}"
+            counter += 1
     rel: list[str] = []
     if work:
         rel.append(f"work={work}")

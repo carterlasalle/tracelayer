@@ -90,6 +90,13 @@ def handle(ctx: HookContext, payload: dict) -> HookOutput:
     if dirty:
         ctx.state.mark_dirty(ctx.session_id, dirty)
     _resolve_obligations(ctx, path, text)
+    if ctx.state.pending_spec_update(ctx.session_id) and ctx.store is not None:
+        try:
+            from tracelayer.tasks import _reconcile_spec_updates
+
+            _reconcile_spec_updates(ctx.project, ctx.store, ctx.session_id)
+        except Exception:
+            pass  # intake reconciliation never breaks the edit loop
     if ctx.state.active_work(ctx.session_id):
         try:
             from tracelayer.tasks import record_receipt
@@ -342,7 +349,8 @@ def _scan_changed_files(ctx: HookContext, json_data: dict) -> HookOutput:
         return render_allowed("", json_data)
     files = repo.changed_files()
     work = ctx.state.active_work(ctx.session_id) if ctx.state else None
-    req = ctx.state.active_requirement(ctx.session_id) if ctx.state else None
+    reqs = ctx.state.active_requirements(ctx.session_id) if ctx.state else None
+    req = reqs[0] if reqs and len(reqs) == 1 else None
     plan = ctx.state.active_plan(ctx.session_id) if ctx.state else None
     created: list[str] = []
     for f in sorted(files, key=lambda x: x.path)[:20]:
@@ -358,14 +366,22 @@ def _scan_changed_files(ctx: HookContext, json_data: dict) -> HookOutput:
             untraced = [
                 b
                 for b in boundaries
-                if not boundary_is_traced(text, boundaries, b, ctx.project.root)
+                if not boundary_is_traced(text, boundaries, b, ctx.project.root, ctx.store)
             ]
         except Exception:
             untraced = []
+        existing_ids = _ids_in_file(text)
         for b in untraced:
             from tracelayer.discovery.suggest import suggest_marker
 
-            suggestion = suggest_marker(b, f.path, work=work, requirement=req, plan=plan)
+            suggestion = suggest_marker(
+                b,
+                f.path,
+                work=work,
+                requirement=req,
+                plan=plan,
+                existing_ids=existing_ids,
+            )
             ctx.state.add_obligation(
                 ctx.session_id,
                 {
@@ -384,6 +400,10 @@ def _scan_changed_files(ctx: HookContext, json_data: dict) -> HookOutput:
     lines = ["BASH MUTATION DETECTED — TRACE OBLIGATIONS CREATED", ""]
     for item in created[:10]:
         lines.append(f"- {item}")
+    if reqs and len(reqs) > 1:
+        lines.append("")
+        lines.append("Candidate requirements (choose per boundary):")
+        lines += [f"- {rid}" for rid in reqs]
     lines.append("")
     lines.append("Resolve each before completing (or `trace verify --changed`).")
     text = "\n".join(lines)
@@ -394,11 +414,17 @@ def _scan_changed_files(ctx: HookContext, json_data: dict) -> HookOutput:
 
 # trace:v1 id=impl.hooks.resolve-obligations work=WORK-TL-001
 def _resolve_obligations(ctx: HookContext, path: str, text: str) -> None:
-    """Mark pending trace obligations satisfied once the marker exists.
+    """Mark pending trace obligations satisfied when the expected boundary
+    is actually traced (adversarial review P0).
 
-    An obligation for (path, symbol) resolves when the symbol now carries a
-    marker (within its block or the line above) or when the suggested marker
-    id appears anywhere in the file.
+    An obligation for (path, expected-symbol) resolves only when a marker
+    with the suggested id is ATTACHED to a boundary that matches the
+    expected boundary (qualified name, or name slug — cosmetic renames
+    like ``saveUser`` -> ``save_user`` keep the slug). A marker id floating
+    anywhere in the file — or attached to an unrelated boundary — does NOT
+    resolve it; that mismatch is reported so the agent can confirm a real
+    rename via ``trace task resolve-obligation <path> <symbol>`` (the LLM
+    selects semantics; TraceLayer validates identity).
     """
     if ctx.state is None:
         return
@@ -407,37 +433,58 @@ def _resolve_obligations(ctx: HookContext, path: str, text: str) -> None:
         symbols = parser.parse(text, path) if parser else []
     except Exception:
         symbols = []
-    by_name = {s.name: s for s in symbols}
-    by_qualified = {(getattr(s, "qualified_name", "") or s.name): s for s in symbols}
     marker_lines = {h.line for h in iter_marker_hits(text, path)}
     marker_ids: set[str] = set()
     for hit in iter_marker_hits(text, path):
         res = parse_marker_hit(hit, unknown_keys=ctx.project.config.markers.unknown_keys)
         if res.marker is not None and res.marker.trace_id:
             marker_ids.add(res.marker.trace_id)
+    from tracelayer.discovery.suggest import _slug
+
     for obl in ctx.state.pending_obligations(ctx.session_id):
         if obl.get("path") != path:
             continue
         symbol_name = obl.get("symbol")
-        suggested_ids = _ids_in(str(obl.get("suggested_marker", "")))
-        # The suggested marker's trace id appearing anywhere in the file is
-        # proof the authoring happened — resolve before symbol lookup so a
-        # path-form mismatch between pre/post payloads cannot deadlock.
-        if suggested_ids & marker_ids:
-            ctx.state.resolve_obligation(ctx.session_id, path, symbol_name or "")
+        if not isinstance(symbol_name, str) or not symbol_name:
             continue
-        if not isinstance(symbol_name, str):
-            continue
-        symbol = by_qualified.get(symbol_name) or by_name.get(symbol_name)
-        if symbol is None:
-            continue
-        # attached marker directly above the symbol (indexer placement rule)
-        traced = any(
-            symbol.start_line - 4 <= m <= symbol.start_line - 1
-            and _attachment_gap_ok(text, m, symbol.start_line)
-            for m in marker_lines
+        # the expected boundary, found by qualified name or slug (cosmetic
+        # renames like saveUser -> save_user keep the slug)
+        expected = next(
+            (
+                s
+                for s in symbols
+                if str(getattr(s, "qualified_name", "") or s.name) == symbol_name
+                or _slug(str(s.name)) == _slug(symbol_name.rsplit(".", 1)[-1])
+            ),
+            None,
         )
-        if traced:
+        if expected is not None and any(
+            expected.start_line - 4 <= m <= expected.start_line - 1
+            and _attachment_gap_ok(text, m, expected.start_line)
+            for m in marker_lines
+        ):
+            ctx.state.resolve_obligation(ctx.session_id, path, symbol_name)
+            continue
+        # The suggested marker id attached to the expected boundary (path-form
+        # mismatch tolerance: pre used an absolute path, post a relative one —
+        # the boundary identity, not the path spelling, decides).
+        suggested_ids = _ids_in(str(obl.get("suggested_marker", "")))
+        if not suggested_ids or not (suggested_ids & marker_ids):
+            continue
+        attached = [
+            s
+            for s in symbols
+            if any(
+                s.start_line - 4 <= m <= s.start_line - 1
+                and _attachment_gap_ok(text, m, s.start_line)
+                for m in marker_lines
+            )
+        ]
+        if any(
+            str(getattr(s, "qualified_name", "") or s.name) == symbol_name
+            or _slug(str(s.name)) == _slug(symbol_name.rsplit(".", 1)[-1])
+            for s in attached
+        ):
             ctx.state.resolve_obligation(ctx.session_id, path, symbol_name)
 
 
@@ -460,6 +507,20 @@ def _ids_in(marker_text: str) -> set[str]:
     except Exception:
         pass
     return set()
+
+
+# trace:exempt reason=internal-helper
+def _ids_in_file(text: str) -> set[str]:
+    """Every trace id present in the file text (suggestion collision guard)."""
+    ids: set[str] = set()
+    try:
+        for hit in iter_marker_hits(text, "file"):
+            res = parse_marker_hit(hit, unknown_keys="warn")
+            if res.marker is not None and res.marker.trace_id:
+                ids.add(res.marker.trace_id)
+    except Exception:
+        pass
+    return ids
 
 
 def _deleted_path_output(
@@ -598,7 +659,8 @@ def _guidance(
         blocks.append("\n".join(lines))
     if untraced:
         work = ctx.state.active_work(ctx.session_id) if ctx.state else None
-        req = ctx.state.active_requirement(ctx.session_id) if ctx.state else None
+        reqs = ctx.state.active_requirements(ctx.session_id) if ctx.state else None
+        req = reqs[0] if reqs and len(reqs) == 1 else None
         work_attr = f" work={work}" if work else ""
         req_attr = f" satisfies={req}" if req else ""
         example = f"# trace:v1 id=impl.<slug>{work_attr}{req_attr}"
@@ -610,6 +672,9 @@ def _guidance(
                 lines.append(f"Active requirement: {req}")
             lines.append("Candidates:")
             lines += [f"- {name}" for name in untraced]
+            if reqs and len(reqs) > 1:
+                lines.append("Candidate requirements (choose per boundary):")
+                lines += [f"- {rid}" for rid in reqs]
             lines += [
                 "",
                 "If this file introduces a meaningful behavior boundary (public",
@@ -624,6 +689,7 @@ def _guidance(
             from tracelayer.discovery.suggest import suggest_marker
 
             lines = ["NEW UNTRACED BEHAVIOR", ""]
+            existing_ids = _ids_in_file(_read_text(ctx.project.root, path) or "")
             for name in untraced:
                 file_text = _read_text(ctx.project.root, path) or ""
                 b = next(
@@ -637,6 +703,7 @@ def _guidance(
                         work=work,
                         requirement=req,
                         plan=ctx.state.active_plan(ctx.session_id) if ctx.state else None,
+                        existing_ids=existing_ids,
                     )
                     lines.append(f"Add a trace marker above `{name}` ({suggestion.role}):")
                     lines.append(f"  {suggestion.marker}")
@@ -645,6 +712,9 @@ def _guidance(
                 else:
                     lines.append(f"Add a trace marker above `{name}`:")
                     lines.append(f"  {example}")
+            if reqs and len(reqs) > 1:
+                lines.append("Candidate requirements (choose the correct one per boundary):")
+                lines += [f"- {rid}" for rid in reqs]
             lines.append("See the traceability skill for valid fields and formats.")
         blocks.append("\n".join(lines))
     return fit("\n\n".join(blocks), ctx.project.config.hooks.max_context_chars)

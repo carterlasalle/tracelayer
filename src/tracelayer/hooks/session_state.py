@@ -165,6 +165,56 @@ class SessionState:
 
     # -- pending trace obligations (durable authoring, not ephemeral prose) --
 
+    # trace:exempt reason=internal-helper
+    def set_pending_bootstrap(self, session_id: str, prompt_hash: str) -> None:
+        """Record that the session's latest intent has no causal context yet.
+
+        The pre-mutation gate turns this into a mandatory semantic-bootstrap
+        instruction before the first code mutation (adversarial review P0:
+        natural-language intake). Cleared by bootstrap/activate/intake.
+        """
+        data = self._read(session_id)
+        data["pending_bootstrap"] = prompt_hash
+        self._write(session_id, data)
+
+    # trace:exempt reason=internal-helper
+    def pending_bootstrap(self, session_id: str) -> str | None:
+        return self._read(session_id).get("pending_bootstrap")
+
+    # trace:exempt reason=internal-helper
+    def clear_pending_bootstrap(self, session_id: str) -> None:
+        data = self._read(session_id)
+        if data.pop("pending_bootstrap", None) is not None:
+            self._write(session_id, data)
+
+    # trace:exempt reason=internal-helper
+    def set_pending_spec_update(self, session_id: str, req_ids: list[str]) -> None:
+        """Record requirements whose contract the user just changed.
+
+        The authoring gate blocks implementation edits until the governing
+        requirement text actually changes (fingerprint) or the agent
+        reclassifies via ``trace task intake`` (adversarial review P0:
+        spec evolution must be enforced, not voluntary).
+        """
+        if not req_ids:
+            return
+        data = self._read(session_id)
+        pending = data.setdefault("pending_spec_update", [])
+        for rid in req_ids:
+            if rid not in pending:
+                pending.append(rid)
+        self._write(session_id, data)
+
+    # trace:exempt reason=internal-helper
+    def pending_spec_update(self, session_id: str) -> list[str]:
+        return list(self._read(session_id).get("pending_spec_update") or [])
+
+    # trace:exempt reason=internal-helper
+    def clear_pending_spec_update(self, session_id: str) -> None:
+        data = self._read(session_id)
+        if data.pop("pending_spec_update", None) is not None:
+            self._write(session_id, data)
+
     def add_obligation(self, session_id: str, obligation: dict) -> None:
         """Persist a pending trace-authoring obligation for the session.
 
@@ -211,5 +261,7 @@ class SessionState:
                 "active_requirements": [],
                 "active_plan": None,
                 "obligations": [],
+                "pending_bootstrap": None,
+                "pending_spec_update": [],
             },
         )

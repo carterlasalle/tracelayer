@@ -104,6 +104,8 @@ def test_atomic_writes_leave_no_temp_files(state):
         "active_requirements": [],
         "active_plan": None,
         "obligations": [],
+        "pending_bootstrap": None,
+        "pending_spec_update": [],
     }
 
 

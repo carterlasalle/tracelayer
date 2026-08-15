@@ -98,7 +98,17 @@ def test_authoring_gate_uses_bootstrapped_requirements_without_ids(tmp_path):
     assert r.returncode == 2
     out = json.loads(r.stdout)["output"]
     assert "TRACE AUTHORING REQUIRED" in out
-    assert "satisfies=REQ-repository-discovery" in out  # the active requirement, auto-attached
+    # With FOUR active requirements the engine must NOT pick one arbitrary
+    # primary: it lists the candidates and lets the agent choose per boundary.
+    assert "Candidate requirements" in out
+    assert "REQ-repository-discovery" in out
+    assert "REQ-ranked-results" in out
+    # the suggested marker line itself carries no satisfies= (the engine
+    # refuses to pick one arbitrary primary requirement)
+    marker_line = next(
+        ln for ln in out.split("\n") if "id=impl.scanner.discover-repositories" in ln
+    )
+    assert "satisfies=" not in marker_line
     assert "work=WORK-local-repository-dependency-scanner" in out
 
 
@@ -206,7 +216,12 @@ def test_marker_injection_via_updated_input(tmp_path):
     assert hso["permissionDecision"] == "allow"
     assert "updatedInput" in hso
     content = hso["updatedInput"]["content"]
-    assert "# trace:v1 id=impl.apply-threshold work=WORK-configurable-output-threshold" in content
+    # the id is derived from the QUALIFIED scope (src.threshold.apply_threshold),
+    # not the bare method name — same-named methods in different classes/modules
+    # never collide (adversarial review P0)
+    assert (
+        "id=impl.src-threshold.apply-threshold work=WORK-configurable-output-threshold" in content
+    )
     assert "satisfies=REQ-configurable-threshold" in content
     # the marker is attached directly above the def
     lines = content.split("\n")

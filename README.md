@@ -19,13 +19,31 @@ TraceLayer makes the **why** of software traversable. One-line `trace:v1` marker
 
 ## Quickstart
 
-Install, trace a repository, and get your first answer in under a minute:
+Install once per machine, then let TraceLayer handle the rest:
 
 ```bash
 uv tool install tracelayer            # pipx install tracelayer also works
+trace install --agent claude-code --global --yes   # one-time: skill + hooks for your agent
+```
 
+**Zero-ceremony per-repo bootstrap** (Ambient mode): nothing else is needed.
+When you start working in a repository, the hooks initialize `.trace/`
+silently on their first fire, and the agent bootstraps traced tasks straight
+from your prose — you never type a TraceLayer ID:
+
+```text
+you:  "Build a program that scans for node_modules over 2 GB..."
+agent: trace task bootstrap --prompt "<your request>"   (internal machinery)
+       ...work, spec, requirements, plan auto-created; hooks enforce per-boundary traces
+agent: "Done — WORK finalized after tests + evidence."
+```
+
+Explicit per-repo setup is still available when you want it (config,
+invariant, skill + hooks for every detected agent, `.mcp.json`):
+
+```bash
 cd your-repo
-trace init                            # full bootstrap: config, invariant, skill + hooks for every detected agent, .mcp.json
+trace init                            # full bootstrap: config, invariant, skill + hooks, .mcp.json
 trace index --all                     # builds the trace graph
 trace verify --all                    # policy check (exit 0 = pass)
 trace context <trace-id>              # why does this exist, what verifies it
@@ -41,6 +59,25 @@ def do_the_thing(): ...
 then `trace index --all` again. Staleness, evidence, hooks, and the CI gate
 all build on this. Running `trace` outside a configured repository prints the
 `trace init` / `trace install` next steps.
+
+<!-- trace:v1 id=doc.tracelayer.readme.ambient -->
+### Ambient mode in one paragraph
+
+The user speaks only prose. At every UserPromptSubmit the prompt hook
+resolves the request deterministically: a strong match activates the
+existing work + its requirements + plan automatically; new intent records a
+pending bootstrap, so the first code mutation is gated on
+`trace task bootstrap --prompt "<request>"` (or a richer `--json` bundle)
+before any implementation exists. A `behavior-change` intake
+(`trace task intake --kind behavior-change <WORK> --requirements REQ-x`)
+blocks implementation edits until the requirement text actually changes.
+The authoring gate suggests qualified marker IDs (`impl.<scope>.<name>`),
+lists candidate requirements when several are active, and auto-injects
+markers into Write input (single-requirement, unambiguous) — Edits are
+denied with the plan, never rewritten. On completion the Stop hook runs a
+safe finalizer: work becomes `done` only under merge-grade policy (requirement
+ancestry, verifying test, passed evidence, no stale blockers), and mutation
+receipts are bound to the commit that contains the work.
 
 ## How it works
 
@@ -233,6 +270,11 @@ Hooks install for every agent: JSON-merged settings for claude-code
 configs for pi (`.pi/hooks.json` + wrapper), omp (`.omp/hook/hooks.yaml` +
 extension gate), and opencode (`opencode.json`) — each with an activation
 note (e.g. `pi install npm:@hsingjui/pi-hooks`, `/hooks-trust` in omp).
+The **engine contract is shared** across harnesses; enforcement strength is
+harness-dependent (Claude Code and OMP gate Write/Edit/Bash and finalize on
+Stop; Codex gates Bash only; Pi/OpenCode/Hermes are best-effort or
+CI/manual — see the master spec §74). Where a harness cannot intercept,
+CI merge-grade verification and `trace task finish` remain authoritative.
 After upgrading the tool, refresh installed copies with
 `tracelayer update` (or `trace install --update`). The same skill is
 installable through the skills.sh ecosystem:

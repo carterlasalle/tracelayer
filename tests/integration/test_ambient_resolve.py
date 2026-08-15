@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 from tests.conftest import make_git_repo, run_trace
+from tests.integration._fixtures import complete_work
 
 BUNDLE = {
     "title": "Local repository dependency scanner",
@@ -114,11 +115,30 @@ def test_requirement_revision_stales_verification(tmp_path):
 
 # trace:v1 id=test.dogfood.tests.integration.test_ambient_resolve.test_finish_auto_marks_work_done type=test
 def test_finish_auto_marks_work_done(tmp_path):
-    """Phase 5: finish --auto marks the work done and clears the session."""
+    """Phase 5: finish marks the work done and clears the session — but only
+    under merge-grade verification (test + evidence + full causal structure),
+    never on a bare bootstrap (adversarial review P0)."""
     repo = _bootstrapped(tmp_path, "f")
+    # a bare bootstrap must NOT finalize: merge policy requires a verifying
+    # test with passed evidence
     r = run_trace(repo, "task", "finish", env={"TRACE_SESSION": "f"})
-    result = json.loads(r.stdout)
-    assert result["status"] == "done"
+    assert json.loads(r.stdout)["status"] == "blocked"
+    work_toml = (repo / ".trace" / "work.toml").read_text(encoding="utf-8")
+    assert 'status = "done"' not in work_toml
+    # merge-grade completion: impl + test + evidence
+    result = complete_work(
+        repo,
+        "f",
+        work_id="WORK-local-repository-dependency-scanner",
+        req_id="REQ-repository-discovery,REQ-node-modules-measurement",
+        impl_path="scanner.py",
+        impl_id="impl.scanner.discover-repositories",
+        impl_code="def discover_repositories():\n    return []\n",
+        test_path="test_scanner.py",
+        test_id="TEST-scanner",
+        test_code="def test_discover():\n    assert discover_repositories() == []\n",
+    )
+    assert result["status"] == "done", result
     work_toml = (repo / ".trace" / "work.toml").read_text(encoding="utf-8")
     assert 'status = "done"' in work_toml
     ctx = json.loads(run_trace(repo, "task", "context", env={"TRACE_SESSION": "f"}).stdout)
@@ -180,7 +200,19 @@ def test_mutation_receipts_recorded(tmp_path):
 def test_open_work_priority_in_resolution(tmp_path):
     """Phase 6: open (active) work outranks completed work on a match."""
     repo = _bootstrapped(tmp_path, "a")
-    run_trace(repo, "task", "finish", env={"TRACE_SESSION": "a"})  # close it
+    result = complete_work(
+        repo,
+        "a",
+        work_id="WORK-local-repository-dependency-scanner",
+        req_id="REQ-repository-discovery,REQ-node-modules-measurement",
+        impl_path="scanner.py",
+        impl_id="impl.scanner.discover-repositories",
+        impl_code="def discover_repositories():\n    return []\n",
+        test_path="test_scanner.py",
+        test_id="TEST-scanner",
+        test_code="def test_discover():\n    assert discover_repositories() == []\n",
+    )
+    assert result["status"] == "done", result  # close it (merge-grade)
     # create a second, open work with a matching concept
     run_trace(
         repo,

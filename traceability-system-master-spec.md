@@ -4351,6 +4351,189 @@ Start with Phase 0 and produce the ADRs, package skeleton, marker grammar, ontol
 
 ---
 
+<!-- trace:exempt reason=document-structure -->
+# Part XIX - Ambient Trace: Zero-Ceremony Task Lifecycle
+
+The Ambient Trace architecture (implemented in v0.2.x) is the normative
+specification for the speak-prose-only workflow: the USER expresses intent
+in prose; the AGENT expresses semantics; TraceLayer maintains identity,
+structure, provenance, enforcement, and evidence — internally. TraceLayer
+commands are agent machinery, never user UX.
+
+<!-- trace:exempt reason=document-structure -->
+## 68. Ambient Principles
+
+1. **Users never provide or see TraceLayer IDs** during normal use. The
+   prompt hook resolves prose automatically; bootstrap mints IDs
+   deterministically; activation attaches requirements without ceremony.
+2. **Missing causal context triggers automatic bootstrap, never user
+   ceremony.** A first code mutation with no work/requirement is blocked
+   with a semantic-bootstrap instruction addressed to the agent.
+3. **Trace commands are internal machinery.** The Skill documents them for
+   the agent; the user's interface is prose.
+4. **Deterministic core.** Resolution, scoring, ID allocation, obligation
+   matching, gate decisions, and finalization are all deterministic. The
+   LLM's job is semantic classification (bundle authorship, per-boundary
+   requirement selection, rename confirmation); TraceLayer validates every
+   ID it is handed.
+5. **Work becomes `done` only under merge-grade policy.** "The agent may
+   stop coding" (Stop gate at the session lifecycle) and "WORK status =
+   done" (requirement ancestry + verifying test + passed evidence + no
+   stale blockers at merge) are deliberately separated.
+
+<!-- trace:exempt reason=document-structure -->
+## 69. Intake Lifecycle
+
+Every UserPromptSubmit runs the intake pipeline:
+
+```text
+USER PROSE
+   -> task resolve(prompt)          (deterministic scoring)
+      -> strong match  -> activate(work, requirements, plan)   [resumed]
+      -> new intent    -> record pending_bootstrap              [needs_bootstrap]
+```
+
+The pre-mutation authoring gate then enforces the intake state:
+
+| State | Effect |
+|---|---|
+| `pending_bootstrap` | First code mutation blocked with NEW INTENT, NO CAUSAL CONTEXT; the agent bootstraps from the user's request (`trace task bootstrap --prompt` or a richer `--json` bundle) |
+| `pending_spec_update` (behavior-change intake) | Implementation edits blocked with SPEC UPDATE REQUIRED until the governing requirement's text actually changes (fingerprint comparison against the index) or intake is re-run `--kind implementation-only` |
+| active work + requirements | Normal authoring: per-boundary marker suggestions with `work=` / `satisfies=` |
+
+Semantic intake classification (`trace task intake`):
+
+- `greenfield_project | new_feature | feature_extension |
+  bug_contract_backfill` — behavioral; bootstrap requires at least one
+  requirement (schema validation rejects empty requirement lists).
+- `behavior_change` — sets `pending_spec_update` for the governing
+  requirements: spec evolution is enforced, not voluntary.
+- `refactor | maintenance | non_behavioral_edit` — implementation-only;
+  clears all pending intake state; zero requirements valid.
+
+<!-- trace:exempt reason=document-structure -->
+## 70. TaskBootstrapBundle
+
+`task bootstrap` validates the semantic bundle before writing anything:
+
+```json
+{
+  "title": "…",                    // required, non-empty
+  "kind": "new_feature",           // required; one of the kinds in §69
+  "intent": "…",                   // optional prose
+  "requirements": [                // required for behavioral kinds
+    {"title": "…", "statement": "…", "acceptance": ["…"]}
+  ],
+  "plan": {"recommended": true, "steps": ["…"]}   // optional
+}
+```
+
+Behavioral kinds with zero requirements are rejected. IDs are minted
+deterministically (`WORK-<slug>`, `REQ-<slug>`, `PLAN-<slug>`) with a
+transaction-local allocator: same-transaction slug collisions ("API Rate
+Limit" vs "API-Rate-Limit") and store collisions both get `-2`, `-3`, ...
+
+`trace task bootstrap --prompt "<prose>"` derives a minimal valid bundle
+from the user's request alone (title, kind=new_feature, one requirement,
+a plan step) — the zero-ceremony path; the agent may refine with `--json`.
+
+Bootstrap writes: the spec document (requirement markers with `work=` and
+acceptance criteria, structural headings trace-accounted), the work item
+in `.trace/work.toml` with origin provenance (kind/intent/session/prompt
+hash), the plan document when recommended, indexes the graph, activates
+the session context, and clears pending intake state. Repeated bootstraps
+namespace artifacts by the minted work id when the default path belongs to
+a different work.
+
+<!-- trace:exempt reason=document-structure -->
+## 71. Resolution Signals
+
+`task resolve` scores candidate works deterministically (threshold 0.55):
+
+| Signal | Weight | Source |
+|---|---|---|
+| Active-session referential/continuity/demonstrative | 1.0 | `this`/`that`/`it`, `continue`/`keep`/`again`, token overlap with the active work's titles |
+| Prompt token overlap with work title | 2.0·|∩|/|P| | work node |
+| Requirement-title overlap | 1.5/reqs | requirement nodes |
+| FTS hits on the work's artifacts | 0.6 | store FTS |
+| Branch-name overlap | 0.4 | git branch |
+| **Mutation receipts** (paths this work touched, boundary-name tokens) | 0.5 | `.trace/receipts/` |
+| **Changed-boundary ownership** (works owning nodes at currently changed paths) | 0.4 | working tree |
+| **Recent Git history** (works owning nodes at the last commits' paths) | 0.3 | `git log` |
+| Open (active) status | 0.3 | work.toml |
+
+Completed (`status=done`) work is never resumable; follow-ups create new
+work. An unrelated prompt under an active session falls through to normal
+scoring so genuinely new intent resolves to `new`.
+
+<!-- trace:exempt reason=document-structure -->
+## 72. Authoring Enforcement
+
+Per-boundary NEW/MODIFIED classification drives the pre-mutation gate:
+
+- **Marker IDs are qualified**: `id=impl.<owner-scope>.<name>` derived from
+  the boundary's qualified name (`app.UserService.save` →
+  `impl.app-userservice.save`), never the bare method name — same-named
+  methods cannot collide. Suggestions disambiguate against ids already
+  present in the file.
+- **Automatic `updatedInput` rewriting is WRITE-only** (single active
+  requirement, comment-capable language). Edits are denied with the
+  authoring plan: a whole-file rewrite inside an Edit's `new_string` would
+  corrupt the target.
+- **Multiple active requirements**: the engine refuses to pick one
+  arbitrary primary. The authoring plan injects the candidate list; the
+  agent chooses the correct `satisfies=` per boundary; TraceLayer
+  validates the IDs.
+- **Obligations are boundary-aware**: a pending obligation resolves only
+  when the suggested marker id is attached to the expected boundary
+  (qualified name or slug match — cosmetic renames keep the slug). A
+  marker string anywhere in the file does not absorb it; a renamed
+  boundary is confirmed explicitly
+  (`trace task resolve-obligation <path> --symbol <name>`).
+- **Inheritance validation** (`# trace:inherit <id> reason=`) runs against
+  the store in every authoring surface (pre-mutation gate, Bash scan,
+  TL013) — a valid declaration is never misclassified as untraced.
+- The Bash/generator post-mutation scan creates the same obligations for
+  opaque mutations, skipping `.trace/**`, `.git/**`, and `AGENTS.md`.
+
+<!-- trace:exempt reason=document-structure -->
+## 73. Finalization and Receipts
+
+- `task finish` runs the completion gate at **merge** lifecycle by default
+  (`--lifecycle` overrides). Blocked → work stays active, diagnostics
+  named. Passed → `WORK` status = `done`, session context cleared.
+- The Stop hook runs a safe finalizer automatically: on a successful stop
+  with an active work it attempts finish; success reports
+  "Ambient: work <id> finalized", failure reports the missing merge-grade
+  items without blocking.
+- **Mutation receipts** (`.trace/receipts/receipts.jsonl`) record
+  work/path/targets at post-mutation time with `commit=null`; at
+  finalization every receipt for the work is **bound to the commit that
+  contains the change** (`commit=<HEAD>`, `bound=true`).
+- Cross-session continuity uses receipts, changed-boundary ownership, and
+  Git history in addition to titles (§71).
+
+<!-- trace:exempt reason=document-structure -->
+## 74. Harness Parity
+
+The engine contract (hooks, gates, obligations, receipts, finalization) is
+shared by every supported harness. Enforcement strength is harness-
+dependent by construction:
+
+| Harness | Write/Edit gate | Bash scan | Stop finalization |
+|---|---|---|---|
+| Claude Code | full (updatedInput injection) | full | full |
+| Oh My Pi (OMP) | full (tool_call/tool_result) | full | full (session_stop) |
+| Codex | Bash-gated; native file edits are not hook-gated | partial | CI/manual |
+| Pi | third-party hook package behavior | depends | depends |
+| OpenCode | best-effort, version-dependent | depends | CI/manual |
+| Hermes | adapter; no session Stop interception | partial | CI/manual |
+
+Where a harness cannot intercept, CI merge-grade verification and
+`trace task finish` remain authoritative.
+
+---
+
 # Appendix A - Quick Comparison: Perfect System vs CodeOps
 
 | Dimension | CodeOps reference | TraceLayer target |

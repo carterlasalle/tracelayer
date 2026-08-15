@@ -666,6 +666,21 @@ def task(
     session: str | None = typer.Option(
         None, "--session", help="Session id (default: $TRACE_SESSION or 'default')"
     ),
+    kind: str | None = typer.Option(
+        None,
+        "--kind",
+        help="Intake classification (new-feature|behavior-change|bug-contract-backfill|"
+        "refactor|maintenance|non-behavioral-edit)",
+    ),
+    requirements: str | None = typer.Option(
+        None, "--requirements", help="Comma-separated REQ-... ids (for intake)"
+    ),
+    symbol: str | None = typer.Option(
+        None, "--symbol", help="Boundary symbol (for resolve-obligation)"
+    ),
+    lifecycle: str | None = typer.Option(
+        None, "--lifecycle", help="Finish gate lifecycle (default: merge)"
+    ),
     root: Path | None = _root_opt(),
 ) -> None:
     """Manage the session's active trace context (review P1).
@@ -684,8 +699,12 @@ def task(
     sid = session or os.environ.get("TRACE_SESSION") or "default"
     if command == "bootstrap":
         from tracelayer.tasks import bootstrap as ambient_bootstrap
+        from tracelayer.tasks import bundle_from_prompt
 
-        bundle = json.loads(_read_payload_text())
+        if prompt:
+            bundle = bundle_from_prompt(prompt)
+        else:
+            bundle = json.loads(_read_payload_text())
         result = ambient_bootstrap(project, bundle, session_id=sid)
         typer.echo(json.dumps(result, indent=2, sort_keys=True))
         return
@@ -724,13 +743,61 @@ def task(
 
         eng3, _d3 = _open(root)
         try:
-            result = ambient_finish(project, eng3.store, session_id=sid)
+            result = ambient_finish(
+                project, eng3.store, session_id=sid, lifecycle=lifecycle or "merge"
+            )
         finally:
             eng3.close()
         typer.echo(json.dumps(result, indent=2, sort_keys=True))
         if result.get("status") == "blocked":
             raise typer.Exit(1)
         return
+    if command == "intake":
+        from tracelayer.tasks import intake as ambient_intake
+
+        if not kind:
+            typer.echo(
+                "usage: trace task intake --kind <new-feature|behavior-change|...>", err=True
+            )
+            raise typer.Exit(2)
+        eng4, _d4 = _open(root)
+        try:
+            reqs = [r.strip() for r in (requirements or "").split(",") if r.strip()]
+            result = ambient_intake(
+                project,
+                eng4.store,
+                session_id=sid,
+                kind=kind,
+                work=work_id,
+                requirements=reqs or None,
+            )
+        finally:
+            eng4.close()
+        typer.echo(json.dumps(result, indent=2, sort_keys=True))
+        return
+    if command == "resolve-obligation":
+        if not work_id or not symbol:
+            typer.echo("usage: trace task resolve-obligation <path> --symbol <symbol>", err=True)
+            raise typer.Exit(2)
+        pending = state.pending_obligations(sid)
+
+        # trace:exempt reason=internal-helper
+        def _matches(obl: dict, symbol: str) -> bool:
+            stored = obl.get("symbol") or ""
+            return (
+                stored == symbol
+                or stored.endswith("." + symbol)
+                or str(stored).rsplit(".", 1)[-1] == symbol
+                or str(stored).rsplit(".", 1)[-1].replace("_", "-") == symbol.replace("_", "-")
+            )
+
+        for obl in pending:
+            if obl.get("path") == work_id and _matches(obl, symbol):
+                state.resolve_obligation(sid, work_id, obl.get("symbol") or symbol)
+                typer.echo(f"obligation resolved by explicit confirmation: {work_id}::{symbol}")
+                return
+        typer.echo(f"no pending obligation for {work_id}::{symbol}", err=True)
+        raise typer.Exit(2)
     if command == "context":
         from tracelayer.tasks import context as ambient_context
 
@@ -773,7 +840,11 @@ def task(
         state.clear(sid)
         typer.echo("session trace context cleared")
         return
-    typer.echo(f"unknown task command {command!r} (begin|end)", err=True)
+    typer.echo(
+        f"unknown task command {command!r} "
+        "(begin|end|bootstrap|resolve|activate|context|finish|intake|resolve-obligation)",
+        err=True,
+    )
     raise typer.Exit(2)
 
 
