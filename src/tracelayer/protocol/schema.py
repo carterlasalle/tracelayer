@@ -140,8 +140,8 @@ def marker_protocol_markdown() -> str:
         "",
         "```python",
         "# trace:v1 id=test.auth.refresh-reuse verifies=REQ-AUTH-017 exercises=impl.auth.refresh",
-        "def test_reused_refresh_token_is_rejected():",
-        "    ...",
+        # one-line form: ruff collapses an ellipsis-only body when it fits
+        "def test_reused_refresh_token_is_rejected(): ...",
         "```",
         "",
         "```markdown",
