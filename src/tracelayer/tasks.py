@@ -60,12 +60,22 @@ def _work_entry(bundle: dict, session_id: str, work_id: str) -> dict:
 def _spec_markdown(bundle: dict, work_id: str, req_ids: dict[str, str]) -> str:
     """Render the minimal spec document with requirement markers.
 
-    ``req_ids`` maps each requirement title to its minted REQ id.
+    ``req_ids`` maps each requirement title to its minted REQ id. The
+    document's own structural headings (title/Goal/Requirements) are
+    trace-accounted so the generated spec passes the boundary gate.
     """
+    slug = _slug(bundle.get("title") or work_id)
     lines = [f"# {bundle.get('title') or work_id}", ""]
+    lines += [f"<!-- trace:v1 id=doc.{slug} -->", ""]
     if bundle.get("intent"):
-        lines += ["## Goal", "", str(bundle["intent"]), ""]
-    lines += ["## Requirements", ""]
+        lines += [
+            "<!-- trace:exempt reason=document-structure -->",
+            "## Goal",
+            "",
+            str(bundle["intent"]),
+            "",
+        ]
+    lines += ["<!-- trace:exempt reason=document-structure -->", "## Requirements", ""]
     for req in bundle.get("requirements", []):
         title = str(req.get("title") or "Requirement")
         rid = req_ids[title]
@@ -83,7 +93,7 @@ def _spec_markdown(bundle: dict, work_id: str, req_ids: dict[str, str]) -> str:
 def _plan_markdown(bundle: dict, work_id: str, plan_id: str) -> str:
     lines = [f"# {plan_id}", ""]
     lines += [f"<!-- trace:v1 id={plan_id} type=plan work={work_id} -->", ""]
-    lines += ["## Steps", ""]
+    lines += ["<!-- trace:exempt reason=document-structure -->", "## Steps", ""]
     for step in bundle.get("plan", {}).get("steps", []) or []:
         lines += [f"- {step}", ""]
     return "\n".join(lines)
@@ -113,7 +123,7 @@ def bootstrap(
             req_ids[title] = _mint_id("REQ", title, store)
 
         root: Path = project.root
-        spec_rel = spec_path or SPEC_PATH
+        spec_rel = spec_path or _artifact_path(root, SPEC_PATH, work_id)
         spec_file = root / spec_rel
         spec_file.parent.mkdir(parents=True, exist_ok=True)
         spec_file.write_text(_spec_markdown(bundle, work_id, req_ids), encoding="utf-8")
@@ -147,7 +157,9 @@ def bootstrap(
         plan_id = None
         if bundle.get("plan", {}).get("recommended"):
             plan_id = _mint_id("PLAN", bundle.get("title") or "task", store)
-            plan_file = root / "docs" / f"plan-{_slug(bundle.get('title') or 'task')}.md"
+            plan_file = root / _artifact_path(
+                root, f"docs/plan-{_slug(bundle.get('title') or 'task')}.md", work_id, suffix="plan"
+            )
             plan_file.parent.mkdir(parents=True, exist_ok=True)
             plan_file.write_text(_plan_markdown(bundle, work_id, plan_id), encoding="utf-8")
 
@@ -190,6 +202,8 @@ def activate(project: Project, store: GraphStore, work_id: str, session_id: str)
             continue
         if src.node_type == "requirement":
             requirements.append(src.trace_id)
+        if src.node_type == "plan" and plan_id is None:
+            plan_id = src.trace_id
         if src.node_type == "implementation":
             for sat in store.edges_from(src.entity_uid, "satisfies"):
                 target = store.get_node(uid=sat.to_uid)
@@ -271,11 +285,12 @@ def finish(
     """Task finalization (Ambient §32-33): run the completion gate; when it
     passes, mark the work item done and clear the session context."""
     from tracelayer.engine import Engine
+    from tracelayer.git.repo import GitRepo
 
     state = SessionState(project)
     work = state.active_work(session_id)
     pending = state.pending_obligations(session_id)
-    engine = Engine(project)
+    engine = Engine(project, GitRepo.open(project.root))
     try:
         changed = engine.verify(scope="changed", lifecycle=lifecycle)
         whole = engine.verify(scope="all", lifecycle=lifecycle)
@@ -386,16 +401,31 @@ def resolve(
             "source": [],
         }
     state = SessionState(project)
+    prompt_tokens = set(_tokenize(prompt))
     explicit = state.active_work(session_id)
     if explicit:
         reqs = _requirements_for(store, explicit)
-        return {
-            "resolution": "resume",
-            "work": explicit,
-            "confidence": 1.0,
-            "requirements": reqs,
-            "source": ["active_session"],
-        }
+        active = store.get_node(trace_id=explicit)
+        active_tokens = set(_tokenize(active.title or active.trace_id)) if active else set()
+        req_tokens: set[str] = set()
+        for rid in reqs:
+            rn = store.get_node(trace_id=rid)
+            if rn is not None:
+                req_tokens |= set(_tokenize(rn.title or rn.trace_id))
+        referential = bool(prompt_tokens & active_tokens) or bool(prompt_tokens & req_tokens)
+        continuity = any(w in prompt_tokens for w in ("continue", "keep", "again"))
+        low = prompt.lower()
+        demonstrative = any(w in low for w in ("this", "that", " it ")) or low.endswith(" it")
+        if referential or continuity or demonstrative:
+            return {
+                "resolution": "resume",
+                "work": explicit,
+                "confidence": 1.0,
+                "requirements": reqs,
+                "source": ["active_session"],
+            }
+        # An unrelated prompt under an active session falls through to normal
+        # scoring so genuinely new intent can resolve to "new" (spec §26).
 
     prompt_tokens = set(_tokenize(prompt))
     if not prompt_tokens:
@@ -450,6 +480,8 @@ def resolve(
         if branch_tokens & (set(_tokenize(work.trace_id)) | title_tokens):
             score += 0.4
             sources.append("branch")
+        if open_works.get(work.trace_id) == "done":
+            continue  # completed work is not resumable; follow-ups create new work (§45)
         if open_works.get(work.trace_id) == "active":
             score += 0.3
             if "open_work" not in sources:
@@ -559,6 +591,20 @@ def _tokenize(text: str) -> list[str]:
 
 
 # trace:exempt reason=internal-helper
+def _artifact_path(root: Path, default_rel: str, work_id: str, suffix: str = "spec") -> str:
+    """Spec/plan path for a bootstrap: reuse the default only when it belongs
+    to this work; otherwise namespace by the minted work id so a repeated
+    bootstrap never overwrites a prior work's artifacts (Ambient §15)."""
+    default = root / default_rel
+    if not default.exists():
+        return default_rel
+    text = default.read_text(encoding="utf-8")
+    if f"work={work_id}" in text:
+        return default_rel
+    stem = default.stem
+    return f"{default.parent / (stem + '-' + work_id.replace('WORK-', 'work-'))}{default.suffix}"
+
+
 def _toml_key(value: str) -> str:
     return json.dumps(value) if re.match(r"^[A-Za-z0-9._-]+$", value) is None else f'"{value}"'
 

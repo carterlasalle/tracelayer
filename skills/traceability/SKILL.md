@@ -81,7 +81,7 @@ At the start of every development turn:
 
 1. Read the user request.
 2. Ask TraceLayer for current/resolved task context
-   (`trace task context --json`, or `trace task resolve --prompt "<request>"`).
+   (`trace task context`, or `trace task resolve --prompt "<request>"`).
 3. Search for related existing requirements (`trace search`).
 4. Decide whether the request continues current intent, changes existing
    intent, creates new intent, or is implementation-only.

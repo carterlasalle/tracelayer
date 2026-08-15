@@ -132,7 +132,14 @@ class GitRepo:
         """
         try:
             if base is None:
-                r = _run_git(self._root, "status", "--porcelain=v1", "-z", "--renames")
+                r = _run_git(
+                    self._root,
+                    "status",
+                    "--porcelain=v1",
+                    "-z",
+                    "--renames",
+                    "--untracked-files=all",
+                )
             else:
                 r = _run_git(
                     self._root, "diff", "--name-status", "-z", "--find-renames", base, "HEAD"

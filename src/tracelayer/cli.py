@@ -88,7 +88,7 @@ def _maybe_hint_unconfigured(root: Path) -> None:
         return
     if os.environ.get("TRACE_NO_HINT"):
         return
-    if args[0] == "hook":
+    if "hook" in [a for a in args if not a.startswith("-")]:
         return  # ambient infrastructure: hooks bootstrap silently
     if any(a in ("init", "install", "--help", "-h", "--version") for a in args):
         return
@@ -1759,13 +1759,17 @@ def _ambient_bootstrap_repo(root: Path) -> None:
     """Ambient (spec §5): when a hook fires in an unconfigured git repo,
     initialize TraceLayer silently — config, policy, gitignore, invariant.
     The user never runs `trace init`; the harness does it for them.
+    Resolves the git top-level so hooks fired from repo subdirectories
+    bootstrap the repository root, not the subdirectory.
     """
-    if (root / ".trace" / "trace.toml").exists():
-        return
-    if not (root / ".git").exists():
+    from tracelayer.git.repo import GitRepo
+
+    repo = GitRepo.open(root)
+    top = repo.root() if repo is not None else root
+    if (top / ".trace" / "trace.toml").exists():
         return
     try:
-        _run_init(root, observe=False, skill=False, agents_note=True, mcp=False)
+        _run_init(top, observe=False, skill=False, agents_note=True, mcp=False)
     except Exception:
         pass  # ambient bootstrap must never break the agent loop
 

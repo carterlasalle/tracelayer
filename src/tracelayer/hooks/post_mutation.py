@@ -348,6 +348,8 @@ def _scan_changed_files(ctx: HookContext, json_data: dict) -> HookOutput:
     for f in sorted(files, key=lambda x: x.path)[:20]:
         if f.change == "deleted":
             continue
+        if f.path.startswith(".trace/") or f.path.startswith(".git/") or f.path in ("AGENTS.md",):
+            continue  # internal TraceLayer state is not scanned behavior
         text = _read_text(ctx.project.root, f.path)
         if text is None:
             continue
@@ -417,6 +419,13 @@ def _resolve_obligations(ctx: HookContext, path: str, text: str) -> None:
         if obl.get("path") != path:
             continue
         symbol_name = obl.get("symbol")
+        suggested_ids = _ids_in(str(obl.get("suggested_marker", "")))
+        # The suggested marker's trace id appearing anywhere in the file is
+        # proof the authoring happened — resolve before symbol lookup so a
+        # path-form mismatch between pre/post payloads cannot deadlock.
+        if suggested_ids & marker_ids:
+            ctx.state.resolve_obligation(ctx.session_id, path, symbol_name or "")
+            continue
         if not isinstance(symbol_name, str):
             continue
         symbol = by_qualified.get(symbol_name) or by_name.get(symbol_name)
@@ -428,8 +437,7 @@ def _resolve_obligations(ctx: HookContext, path: str, text: str) -> None:
             and _attachment_gap_ok(text, m, symbol.start_line)
             for m in marker_lines
         )
-        suggested_ids = _ids_in(str(obl.get("suggested_marker", "")))
-        if traced or (suggested_ids & marker_ids):
+        if traced:
             ctx.state.resolve_obligation(ctx.session_id, path, symbol_name)
 
 
