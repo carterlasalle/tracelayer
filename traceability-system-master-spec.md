@@ -1988,20 +1988,42 @@ Then retry the edit.
 
 The context acknowledgement can be stored in ephemeral session state keyed by task/session + trace ID.
 
-### 22.4 New file creation hook
+### 22.4 New file / boundary creation hook
+<!-- trace:v1 id=doc.spec.hook-22-4 work=WORK-TL-001 -->
 
-If a new source/config/test file is created during an active traced work item, do not automatically force a trace marker into the file.
+**Replaced by the authoring gate (see 22.3).** The earlier "do not
+automatically force a trace marker into the file" design is superseded:
+the pre-write hook simulates the proposed Write/Edit, extracts every
+behavioral boundary from the result, compares current vs proposed by
+qualified identity (name + kind + parent + semantic fingerprint), and
+classifies each boundary NEW / MODIFIED / UNCHANGED.
 
-Instead inject:
+New and materially-changed untraced boundaries BLOCK the mutation before
+the write, with the full authoring plan:
 
 ```text
-New artifact created under WORK-GEO-042.
-Active requirement: REQ-GEO-011.
-If this file introduces a meaningful behavior boundary, create/reuse a trace ID and link it semantically.
-Do not trace imports, boilerplate, generated code, or trivial helpers.
+TRACE AUTHORING REQUIRED
+
+This mutation creates/rewrites 2 untraced boundary(ies):
+
+1. impl.payment.charge (new)
+   Add above it: # trace:v1 id=impl.payment.charge work=WORK-PAY-42 satisfies=REQ-PAY-12
+
+2. impl.payment.refund (new)
+   Add above it: # trace:v1 id=impl.payment.refund work=WORK-PAY-42 satisfies=REQ-PAY-18
+
+Retry the mutation with every boundary above accounted for, or add an
+explicit `# trace:exempt reason=<why>` for genuinely trivial code.
 ```
 
-This prevents marker spam.
+Every listed boundary is persisted as a durable trace obligation (keyed by
+path + qualified name) enforced by the stop gate. Marker spam is prevented
+not by deferring markers but by exempting truly trivial code explicitly
+(`# trace:exempt reason=<why>`) and by never requiring markers for
+imports, boilerplate, or generated code. Opaque mutations (Bash,
+generators, formatters) receive the same treatment through a post-mutation
+working-tree scan that creates obligations for every untraced boundary it
+finds.
 
 ### 22.5 PostToolUse Write/Edit hook
 

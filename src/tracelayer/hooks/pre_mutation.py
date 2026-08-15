@@ -228,18 +228,21 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
                 "output": text,
             },
         )
-    state.add_obligation(
-        ctx.session_id,
-        {
-            "path": rel_path,
-            "symbol": boundary.name,
-            "kind": "new_behavior" if change_kind == "NEW" else "modified_behavior",
-            "work": work or "",
-            "requirement": req or "",
-            "suggested_marker": _suggested_marker(boundary, work, req, plan, rel_path, exercised),
-            "state": "pending",
-        },
-    )
+    for boundary, change_kind in untraced[:20]:
+        state.add_obligation(
+            ctx.session_id,
+            {
+                "path": rel_path,
+                "symbol": boundary.qualified_name or boundary.name,
+                "kind": "new_behavior" if change_kind == "NEW" else "modified_behavior",
+                "work": work or "",
+                "requirement": req or "",
+                "suggested_marker": _suggested_marker(
+                    boundary, work, req, plan, rel_path, exercised
+                ),
+                "state": "pending",
+            },
+        )
     text = _authoring_plan_text(untraced, rel_path, work, req, plan, exercised)
     return render_blocked(
         text,

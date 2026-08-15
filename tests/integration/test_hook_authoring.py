@@ -166,6 +166,7 @@ def test_no_causal_context_blocks_with_task_begin_hint(tmp_path):
     assert "trace task begin" in out["output"]
 
 
+# trace:v1 id=test.dogfood.tests.integration.test_hook_authoring.obligation-stop type=test
 def test_obligation_blocks_stop_until_resolved(tmp_path):
     repo = _repo(tmp_path)
     run_trace(repo, "task", "begin", "WORK-AUTH-237", env={"TRACE_SESSION": "s"})
@@ -191,7 +192,7 @@ def test_obligation_blocks_stop_until_resolved(tmp_path):
     assert r.returncode == 2, r.stdout
     out = json.loads(r.stdout)
     assert "TRACE OBLIGATIONS PENDING" in out["output"]
-    assert "payments.py::charge" in out["output"]
+    assert "payments.py::src.payments.charge" in out["output"]
     # The agent retries with the marker; post-mutation resolves it
     (repo / "src" / "payments.py").write_text(
         "# \x74race:v1 id=impl.payments.charge work=WORK-AUTH-237 satisfies=REQ-AUTH-017\n"

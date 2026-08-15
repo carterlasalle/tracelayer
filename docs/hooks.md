@@ -103,16 +103,21 @@ The context acknowledgement is stored in ephemeral session state keyed by
 task/session + trace ID, so the block fires once per session and disappears
 after `trace context <id>` runs.
 
-### New file creation
+### New file / boundary creation
+<!-- trace:v1 id=doc.tracelayer.hooks.authoring work=WORK-TL-001 -->
 
-New files are not force-tagged. Instead a reminder is injected:
+New files are **not** "reminded with judgment" anymore: the authoring gate
+simulates the proposed Write/Edit, extracts every behavioral boundary,
+classifies each NEW / MODIFIED / UNCHANGED by qualified identity, and
+**blocks until every meaningful boundary is locally trace-accounted** with
+the full authoring plan (one mutation -> all boundaries listed with their
+exact markers, all persisted as durable obligations). Trivial code is
+exempted explicitly (`# trace:exempt reason=<why>`); imports, boilerplate,
+and generated code never need traces. Opaque mutations (Bash, generators,
+formatters) receive the same treatment through a post-mutation
+working-tree scan that creates obligations for every untraced boundary it
+finds.
 
-```text
-New artifact created under WORK-GEO-042.
-Active requirement: REQ-GEO-011.
-If this file introduces a meaningful behavior boundary, create/reuse a trace ID and link it semantically.
-Do not trace imports, boilerplate, generated code, or trivial helpers.
-```
 
 ### PostToolUse Write/Edit
 

@@ -86,7 +86,9 @@ Every deterministic rule has a stable ID, so failures are explainable
 | TL007 | invalid field value |
 | TL010 | changed behavior missing requirement ancestry |
 | TL011 | changed requirement has stale downstream implementation |
-| TL012 | new/changed meaningful behavior not traced |
+| TL012 | changed file has no traced behavior at all |
+| TL013 | individual behavior boundary is not trace-accounted (local marker, explicit inherit, or exempted) |
+| TL014 | plan expected artifact missing or not linked via implements |
 | TL020 | required verification test missing |
 | TL021 | linked test did not pass at current revision |
 | TL022 | exercise claim lacks required execution evidence |

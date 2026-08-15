@@ -109,8 +109,8 @@ def boundary_is_traced(
         return True  # a marker directly above the key attaches to it
     if boundary.language == "json" and _json_sidecar_traced(boundary, root):
         return True  # JSON uses the sidecar anchor (.trace/sidecars/<path>.json)
-    # Explicit inheritance declaration with a validated target.
-    if store is not None and _inherit_valid(lines, boundary, store):
+    # Explicit inheritance declaration with a validated structural parent.
+    if store is not None and _inherit_valid(lines, boundary, boundaries, store):
         return True
     return False
 
@@ -305,9 +305,17 @@ def _inherit_target(lines: list[str], boundary: Boundary) -> str | None:
 
 
 # trace:exempt reason=internal-helper
-def _inherit_valid(lines: list[str], boundary: Boundary, store: Any) -> bool:
-    """Inheritance counts only when the target exists, is active, and is an
-    enclosing parent in the same file."""
+def _inherit_valid(
+    lines: list[str], boundary: Boundary, boundaries: list[Boundary], store: Any
+) -> bool:
+    """Inheritance counts only when the target is the boundary's actual
+    structural parent: the target node must exist, be active, live in the
+    same file, and carry the marker attached to the narrowest boundary that
+    encloses the child in the parsed file.
+
+    A function defined earlier in the file is not a parent; a class whose
+    marker traces it and whose range contains the method is.
+    """
     target_id = _inherit_target(lines, boundary)
     if target_id is None:
         return False
@@ -318,10 +326,45 @@ def _inherit_valid(lines: list[str], boundary: Boundary, store: Any) -> bool:
     if target is None or not target.active:
         return False
     if target.canonical_path != boundary.path:
-        return False  # a legitimate enclosing/semantic parent lives in the same file
-    if target.source_start_line and target.source_start_line > boundary.start_line:
-        return False  # not enclosing: starts below the child
-    return True
+        return False
+    enclosing = min(
+        (
+            b
+            for b in boundaries
+            if b is not boundary
+            and b.start_line <= boundary.start_line
+            and b.end_line >= boundary.end_line
+        ),
+        key=lambda b: (b.end_line - b.start_line, b.start_line),
+        default=None,
+    )
+    if enclosing is None:
+        return False  # no structural parent: a global cannot inherit
+    attached = _attached_marker_id(lines, enclosing)
+    return attached == target_id
+
+
+# trace:exempt reason=internal-helper
+def _attached_marker_id(lines: list[str], boundary: Boundary) -> str | None:
+    """The trace id of the marker attached to a boundary (indexer placement)."""
+    import re
+
+    if boundary.language == "markdown":
+        window = range(boundary.start_line, min(len(lines), boundary.start_line + 6))
+    else:
+        prefixes = _COMMENT_PREFIX.get(boundary.language, ("#",))
+        window = range(max(0, boundary.start_line - 1 - _MAX_GAP), boundary.start_line)
+    for i in window:
+        line = lines[i] if i < len(lines) else ""
+        if "trace:v1" not in line:
+            continue
+        if boundary.language != "markdown" and i < boundary.start_line:
+            if not _gap_ok(lines, i + 1, boundary.start_line - 1, _COMMENT_PREFIX.get(boundary.language, ("#",))):
+                continue
+        m = re.search(r"id=([A-Za-z0-9._:/-]+)", line)
+        if m is not None:
+            return m.group(1)
+    return None
 
 
 _COMMENT_PREFIX = {
@@ -348,9 +391,17 @@ def _marker_attached(lines: list[str], boundary: Boundary) -> bool:
     indexer absorbs those markers into the block).
     """
     if boundary.language == "markdown":
-        for i in range(boundary.start_line, min(len(lines), boundary.start_line + 6)):
-            if "trace:v1" in lines[i]:
-                return True
+        # Canonical styles: marker directly under the heading, one blank
+        # line under it, or directly above the heading. Prose between the
+        # heading and the marker breaks attachment.
+        heading_idx = boundary.start_line - 1
+        candidates = [heading_idx + 1, heading_idx + 2, heading_idx - 1]
+        for i in candidates:
+            if not (0 <= i < len(lines)) or "trace:v1" not in lines[i]:
+                continue
+            if i == heading_idx + 2 and lines[heading_idx + 1].strip():
+                continue  # prose on the line between heading and marker
+            return True
         return False
     prefixes = _COMMENT_PREFIX.get(boundary.language, ("#",))
     for marker_idx in range(max(0, boundary.start_line - 1 - _MAX_GAP), boundary.start_line):
