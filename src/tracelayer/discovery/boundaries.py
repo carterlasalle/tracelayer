@@ -359,7 +359,12 @@ def _attached_marker_id(lines: list[str], boundary: Boundary) -> str | None:
         if "trace:v1" not in line:
             continue
         if boundary.language != "markdown" and i < boundary.start_line:
-            if not _gap_ok(lines, i + 1, boundary.start_line - 1, _COMMENT_PREFIX.get(boundary.language, ("#",))):
+            if not _gap_ok(
+                lines,
+                i + 1,
+                boundary.start_line - 1,
+                _COMMENT_PREFIX.get(boundary.language, ("#",)),
+            ):
                 continue
         m = re.search(r"id=([A-Za-z0-9._:/-]+)", line)
         if m is not None:
