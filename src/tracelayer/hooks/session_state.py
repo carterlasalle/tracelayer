@@ -215,20 +215,25 @@ class SessionState:
         if data.pop("pending_spec_update", None) is not None:
             self._write(session_id, data)
 
-    def add_obligation(self, session_id: str, obligation: dict) -> None:
+    # trace:exempt reason=internal-helper
+    def add_obligation(self, session_id: str, obligation: dict) -> bool:
         """Persist a pending trace-authoring obligation for the session.
 
         Obligations are durable: the agent must resolve them (by adding the
-        marker) before the stop gate allows completion.
+        marker) before the stop gate allows completion. Returns True when
+        the obligation was newly added, False when it was already pending
+        (dedupe by path+symbol) — callers use this to report NEW work vs
+        re-listing existing pendings honestly.
         """
         data = self._read(session_id)
         obligations = data.setdefault("obligations", [])
         key = (obligation.get("path"), obligation.get("symbol"))
         for existing in obligations:
             if (existing.get("path"), existing.get("symbol")) == key:
-                return  # dedupe by path+symbol
+                return False  # dedupe by path+symbol
         obligations.append(obligation)
         self._write(session_id, data)
+        return True
 
     def resolve_obligation(self, session_id: str, path: str, symbol: str) -> None:
         data = self._read(session_id)

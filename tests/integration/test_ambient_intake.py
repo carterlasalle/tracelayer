@@ -742,3 +742,60 @@ def test_init_policy_excludes_agent_dirs(tmp_path):
     assert not any(
         ".claude" in o or ".omp" in o or ".pi" in o for o in out.get("created_obligations", [])
     )
+
+
+# trace:v1 id=test.dogfood.tests.integration.test_ambient_intake.test_bash_scan_distinguishes_new_vs_pending type=test
+def test_bash_scan_distinguishes_new_vs_pending(tmp_path):
+    """The Bash scan must report NEW obligations vs already-pending ones
+    honestly — re-listing existing pendings as 'created' sent agents into
+    re-doing resolved work (system_ir transcript)."""
+    repo = make_git_repo(tmp_path, {"README.md": "# home\n"})
+    run_trace(repo, "init", "--no-skill", "--no-mcp")
+    run_trace(repo, "task", "bootstrap", env={"TRACE_SESSION": "s"}, input=json.dumps(BUNDLE))
+    (repo / "mcp.rs").write_text("fn send() {}\nfn reply() {}\nfn error() {}\n", encoding="utf-8")
+    r = run_trace(
+        repo,
+        "hook",
+        "post-mutation",
+        "--format",
+        "json",
+        env={"TRACE_SESSION": "s"},
+        input=json.dumps({"tool_name": "Bash", "tool_input": {"command": "cat > mcp.rs"}}),
+    )
+    o1 = json.loads(r.stdout)
+    assert len(o1.get("created_obligations", [])) == 3
+    # no new mutations: re-scan must NOT claim new creations
+    r = run_trace(
+        repo,
+        "hook",
+        "post-mutation",
+        "--format",
+        "json",
+        env={"TRACE_SESSION": "s"},
+        input=json.dumps({"tool_name": "Bash", "tool_input": {"command": "touch mcp.rs"}}),
+    )
+    o2 = json.loads(r.stdout)
+    assert o2.get("created_obligations") == []
+    assert len(o2.get("pending_obligations", [])) == 3
+    output = o2.get("output", "")
+    assert "NEW TRACE OBLIGATION" not in output
+    assert "already pending" in output
+    # marker authored via Bash resolves: the next scan lists only the rest
+    (repo / "mcp.rs").write_text(
+        "# \x74race:v1 id=impl.mcp.send work=WORK-repository-size-scanner "
+        "satisfies=REQ-repository-discovery\n"
+        "fn send() {}\nfn reply() {}\nfn error() {}\n",
+        encoding="utf-8",
+    )
+    r = run_trace(
+        repo,
+        "hook",
+        "post-mutation",
+        "--format",
+        "json",
+        env={"TRACE_SESSION": "s"},
+        input=json.dumps({"tool_name": "Bash", "tool_input": {"command": "sed -i"}}),
+    )
+    o3 = json.loads(r.stdout)
+    assert "send" not in str(o3.get("pending_obligations", []))
+    assert "reply" in str(o3.get("pending_obligations", []))

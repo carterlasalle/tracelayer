@@ -352,7 +352,6 @@ def _scan_changed_files(ctx: HookContext, json_data: dict) -> HookOutput:
     reqs = ctx.state.active_requirements(ctx.session_id) if ctx.state else None
     req = reqs[0] if reqs and len(reqs) == 1 else None
     plan = ctx.state.active_plan(ctx.session_id) if ctx.state else None
-    created: list[str] = []
     try:
         from tracelayer.discovery.ignore import build_ignored
 
@@ -363,6 +362,9 @@ def _scan_changed_files(ctx: HookContext, json_data: dict) -> HookOutput:
         from tracelayer.hooks.common import policy_excluded
     except Exception:
         policy_excluded = None
+    created: list[str] = []
+    remaining: dict[str, str] = {}
+    pending_seen: list[str] = []
     for f in sorted(files, key=lambda x: x.path)[:20]:
         if f.change == "deleted":
             continue
@@ -412,7 +414,7 @@ def _scan_changed_files(ctx: HookContext, json_data: dict) -> HookOutput:
                 plan=plan,
                 existing_ids=existing_ids,
             )
-            ctx.state.add_obligation(
+            added = ctx.state.add_obligation(
                 ctx.session_id,
                 {
                     "path": f.path,
@@ -424,12 +426,30 @@ def _scan_changed_files(ctx: HookContext, json_data: dict) -> HookOutput:
                     "state": "pending",
                 },
             )
-            created.append(f"{f.path}::{b.name}")
-    if not created:
+            label = f"{f.path}::{b.name}"
+            if added:
+                created.append(label)
+            else:
+                pending_seen.append(label)
+            remaining[label] = str(suggestion.marker)
+    if not (created or pending_seen):
         return render_allowed("", json_data)
-    lines = ["BASH MUTATION DETECTED — TRACE OBLIGATIONS CREATED", ""]
-    for item in created[:10]:
-        lines.append(f"- {item}")
+    lines = ["BASH MUTATION DETECTED"]
+    if created:
+        lines[0] += f" — {len(created)} NEW TRACE OBLIGATION(S)"
+        lines.append("")
+        for item in created[:10]:
+            lines.append(f"- {item} (new)")
+        if len(created) > 10:
+            lines.append(f"  ... and {len(created) - 10} more")
+    if pending_seen:
+        if created:
+            lines.append("")
+        lines.append(f"PLUS {len(pending_seen)} obligation(s) already pending (unchanged):")
+        for item in sorted(set(pending_seen))[:10]:
+            lines.append(f"- {item}")
+        if len(set(pending_seen)) > 10:
+            lines.append(f"  ... and {len(set(pending_seen)) - 10} more")
     if reqs and len(reqs) > 1:
         lines.append("")
         lines.append("Candidate requirements (choose per boundary):")
@@ -439,6 +459,7 @@ def _scan_changed_files(ctx: HookContext, json_data: dict) -> HookOutput:
     text = "\n".join(lines)
     json_data["output"] = text
     json_data["created_obligations"] = created
+    json_data["pending_obligations"] = sorted(set(pending_seen))
     return render_allowed(text, json_data)
 
 
