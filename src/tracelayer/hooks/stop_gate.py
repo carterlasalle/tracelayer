@@ -30,12 +30,28 @@ def handle(ctx: HookContext, payload: dict) -> HookOutput:
     lifecycle = payload.get("lifecycle") or (policy.lifecycle_for(None) if policy else "wip")
     pending = ctx.state.pending_obligations(ctx.session_id) if ctx.state else []
     result = _verify_both(ctx, lifecycle)
+    # Stale-session guard: when verification passes but the session still
+    # holds pending obligations, reconcile them against the CURRENT tree
+    # before blocking. An obligation whose marker landed (in any session) is
+    # a repo fact — it must not block completion forever (system_ir: verify
+    # passing, gate re-emitting a stale obligation list).
+    reconciled = 0
+    if not result["blocking"] and pending and ctx.state is not None:
+        try:
+            from tracelayer.hooks.post_mutation import reconcile_pending_obligations
+
+            reconciled, pending = reconcile_pending_obligations(
+                ctx.project, ctx.state, ctx.session_id
+            )
+        except Exception:
+            pass  # reconciliation never breaks the gate
     json_data = {
         "event": "stop",
         "decision": "block" if (result["blocking"] or pending) else "allow",
         "status": result["status"],
         "lifecycle": lifecycle,
         "pending_obligations": pending,
+        "reconciled_obligations": reconciled,
         "diagnostics": [d.to_json() for d in result["diagnostics"]],
         "output": "",
     }
@@ -125,13 +141,16 @@ def _verify_both(ctx: HookContext, lifecycle: str) -> dict:
     return _evaluate_fallback(ctx, lifecycle)
 
 
+# trace:exempt reason=internal-helper
 def _obligation_text(pending: list[dict]) -> str:
-    lines = ["TRACE OBLIGATIONS PENDING", ""]
+    lines = [f"TRACE OBLIGATIONS PENDING — {len(pending)} TOTAL", ""]
     for obl in pending[:8]:
         marker = str(obl.get("suggested_marker", "")).strip()
         lines.append(f"- {obl.get('path')}::{obl.get('symbol')} (new behavior)")
         if marker:
             lines.append(f"    add: {marker}")
+    if len(pending) > 8:
+        lines.append(f"  ... and {len(pending) - 8} more")
     lines += ["", "Resolve every obligation before completing the task."]
     return "\n".join(lines)
 

@@ -433,6 +433,13 @@ def finish(
     pending = state.pending_obligations(session_id)
     if work is None and not pending:
         return {"status": "idle", "work": None, "lifecycle": lifecycle}
+    if pending:
+        try:
+            from tracelayer.hooks.post_mutation import reconcile_pending_obligations
+
+            _reconciled, pending = reconcile_pending_obligations(project, state, session_id)
+        except Exception:
+            pass  # reconciliation never blocks finalization
     engine = Engine(project, GitRepo.open(project.root))
     try:
         changed = engine.verify(scope="changed", lifecycle=lifecycle)

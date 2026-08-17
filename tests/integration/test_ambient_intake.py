@@ -799,3 +799,78 @@ def test_bash_scan_distinguishes_new_vs_pending(tmp_path):
     o3 = json.loads(r.stdout)
     assert "send" not in str(o3.get("pending_obligations", []))
     assert "reply" in str(o3.get("pending_obligations", []))
+
+
+# trace:v1 id=test.dogfood.tests.integration.test_ambient_intake.test_stop_gate_reconciles_stale_session_obligations type=test
+def test_stop_gate_reconciles_stale_session_obligations(tmp_path):
+    """An obligation created in session A whose marker landed (in any
+    session) must NOT block A's stop gate — the gate reconciles against the
+    CURRENT tree instead of trusting a stale session snapshot (system_ir
+    transcript: 136 persisted obligations, verify passing, gate still
+    re-emitting an 8-item list until the session was manually cleared)."""
+    repo = make_git_repo(tmp_path, {"README.md": "# home\n"})
+    run_trace(repo, "init", "--no-skill", "--no-mcp")
+    run_trace(repo, "task", "bootstrap", env={"TRACE_SESSION": "A"}, input=json.dumps(BUNDLE))
+    r = run_trace(
+        repo,
+        "hook",
+        "pre-mutation",
+        "--format",
+        "json",
+        env={"TRACE_SESSION": "A"},
+        input=json.dumps(
+            {
+                "tool_name": "Write",
+                "tool_input": {
+                    "file_path": str(repo / "scanner.rs"),
+                    "content": "fn send() {}\n",
+                },
+            }
+        ),
+    )
+    assert r.returncode == 2
+    # the marker lands via another session's edit (valid Rust comment syntax)
+    (repo / "scanner.rs").write_text(
+        "// trace:v1 id=impl.scanner.send work=WORK-repository-size-scanner "
+        "satisfies=REQ-repository-discovery\n"
+        "fn send() {}\n",
+        encoding="utf-8",
+    )
+    r = run_trace(
+        repo,
+        "hook",
+        "stop",
+        "--format",
+        "json",
+        env={"TRACE_SESSION": "A"},
+        input=json.dumps({"lifecycle": "wip"}),
+    )
+    out = json.loads(r.stdout)
+    assert r.returncode == 0, out.get("output")
+    assert out.get("reconciled_obligations") == 1
+    assert out.get("pending_obligations") == []
+    # honest count: 11+ pending shows the total and the overflow
+    for i in range(11):
+        (repo / f"f{i}.rs").write_text(f"fn fn_{i}() {{}}\n", encoding="utf-8")
+    run_trace(
+        repo,
+        "hook",
+        "post-mutation",
+        "--format",
+        "json",
+        env={"TRACE_SESSION": "A"},
+        input=json.dumps({"tool_name": "Bash", "tool_input": {"command": "touch"}}),
+    )
+    r = run_trace(
+        repo,
+        "hook",
+        "stop",
+        "--format",
+        "json",
+        env={"TRACE_SESSION": "A"},
+        input=json.dumps({"lifecycle": "wip"}),
+    )
+    out = json.loads(r.stdout)
+    head = out.get("output", "").splitlines()[0]
+    assert "TOTAL" in head and "11" in head
+    assert "more" in out.get("output", "")

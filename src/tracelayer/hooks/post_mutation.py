@@ -464,9 +464,24 @@ def _scan_changed_files(ctx: HookContext, json_data: dict) -> HookOutput:
 
 
 # trace:v1 id=impl.hooks.resolve-obligations work=WORK-TL-001
-def _resolve_obligations(ctx: HookContext, path: str, text: str) -> None:
+def _resolve_obligations(ctx: HookContext, path: str, text: str) -> int:
+    """Resolve the CURRENT session's pending obligations for ``path``."""
+    if ctx.state is None:
+        return 0
+    return _resolve_obligations_in(ctx.state, ctx.session_id, ctx.project, path, text)
+
+
+# trace:exempt reason=internal-helper
+def _resolve_obligations_in(state, session_id: str, project, path: str, text: str) -> int:
     """Mark pending trace obligations satisfied when the expected boundary
     is actually traced (adversarial review P0).
+
+    Session-parameterized so the stop gate and finalizer can reconcile a
+    session's stale obligation snapshot against the CURRENT tree: an
+    obligation whose marker landed (in any session) is a repo fact, not a
+    session fact — it must not block completion forever (system_ir
+    transcript: 136 persisted obligations, verify passing, gate still
+    blocking on a stale 8-item list).
 
     An obligation for (path, expected-symbol) resolves only when a marker
     with the suggested id is ATTACHED to a boundary that matches the
@@ -477,8 +492,6 @@ def _resolve_obligations(ctx: HookContext, path: str, text: str) -> None:
     rename via ``trace task resolve-obligation <path> <symbol>`` (the LLM
     selects semantics; TraceLayer validates identity).
     """
-    if ctx.state is None:
-        return
     parser = _parser_for(path)
     try:
         symbols = parser.parse(text, path) if parser else []
@@ -487,12 +500,13 @@ def _resolve_obligations(ctx: HookContext, path: str, text: str) -> None:
     marker_lines = {h.line for h in iter_marker_hits(text, path)}
     marker_ids: set[str] = set()
     for hit in iter_marker_hits(text, path):
-        res = parse_marker_hit(hit, unknown_keys=ctx.project.config.markers.unknown_keys)
+        res = parse_marker_hit(hit, unknown_keys=project.config.markers.unknown_keys)
         if res.marker is not None and res.marker.trace_id:
             marker_ids.add(res.marker.trace_id)
     from tracelayer.discovery.suggest import _slug
 
-    for obl in ctx.state.pending_obligations(ctx.session_id):
+    resolved = 0
+    for obl in state.pending_obligations(session_id):
         if obl.get("path") != path:
             continue
         symbol_name = obl.get("symbol")
@@ -514,7 +528,8 @@ def _resolve_obligations(ctx: HookContext, path: str, text: str) -> None:
             and _attachment_gap_ok(text, m, expected.start_line)
             for m in marker_lines
         ):
-            ctx.state.resolve_obligation(ctx.session_id, path, symbol_name)
+            state.resolve_obligation(session_id, path, symbol_name)
+            resolved += 1
             continue
         # The suggested marker id attached to the expected boundary (path-form
         # mismatch tolerance: pre used an absolute path, post a relative one —
@@ -536,7 +551,41 @@ def _resolve_obligations(ctx: HookContext, path: str, text: str) -> None:
             or _slug(str(s.name)) == _slug(symbol_name.rsplit(".", 1)[-1])
             for s in attached
         ):
-            ctx.state.resolve_obligation(ctx.session_id, path, symbol_name)
+            state.resolve_obligation(session_id, path, symbol_name)
+            resolved += 1
+    return resolved
+
+
+# trace:v1 id=impl.hooks.reconcile-obligations work=WORK-TL-001
+def reconcile_pending_obligations(project, state, session_id: str) -> tuple[int, list[dict]]:
+    """Reconcile a session's pending obligations against the CURRENT tree.
+
+    Returns (resolved_count, remaining_pending). Each pending obligation's
+    file is parsed and the boundary-attachment rule applied — an obligation
+    whose expected boundary now carries a marker is satisfied regardless of
+    which session's hook landed it. This is what lets the stop gate and
+    finalizer trust the repository over a stale session snapshot.
+    """
+    if state is None:
+        return 0, []
+    pending = state.pending_obligations(session_id)
+    if not pending:
+        return 0, []
+    by_path: dict[str, list[dict]] = {}
+    for obl in pending:
+        by_path.setdefault(str(obl.get("path") or ""), []).append(obl)
+    total_resolved = 0
+    for path, _obls in by_path.items():
+        if not path:
+            continue
+        text = _read_text(project.root, path)
+        if text is None:
+            continue
+        try:
+            total_resolved += _resolve_obligations_in(state, session_id, project, path, text)
+        except Exception:
+            pass  # reconciliation never breaks the gate
+    return total_resolved, state.pending_obligations(session_id)
 
 
 def _attachment_gap_ok(text: str, marker_line: int, symbol_start: int) -> bool:
