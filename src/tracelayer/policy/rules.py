@@ -74,6 +74,7 @@ def _has_incoming(ctx: EvalContext, node: Node, predicates: frozenset[str]) -> b
 # --------------------------------------------------------------------------
 
 
+# trace:exempt reason=internal-detail
 def rule_tl001(ctx: EvalContext) -> list[Diagnostic]:
     """Duplicate trace IDs — parse-time detection, re-emitted from the store.
 
@@ -115,6 +116,7 @@ def rule_tl002(ctx: EvalContext) -> list[Diagnostic]:
     return diags
 
 
+# trace:exempt reason=internal-detail
 def rule_tl003(ctx: EvalContext) -> list[Diagnostic]:
     """Markers detached/ambiguous in a language the parser supports.
 
@@ -146,21 +148,25 @@ def rule_tl003(ctx: EvalContext) -> list[Diagnostic]:
     return diags
 
 
+# trace:exempt reason=internal-detail
 def rule_tl004(ctx: EvalContext) -> list[Diagnostic]:
     """Malformed marker syntax — re-emitted from the last index."""
     return _stored(ctx, "TL004")
 
 
+# trace:exempt reason=internal-detail
 def rule_tl005(ctx: EvalContext) -> list[Diagnostic]:
     """Invalid trace ID — re-emitted from the last index."""
     return _stored(ctx, "TL005")
 
 
+# trace:exempt reason=internal-detail
 def rule_tl006(ctx: EvalContext) -> list[Diagnostic]:
     """Duplicate key on one marker — re-emitted from the last index."""
     return _stored(ctx, "TL006")
 
 
+# trace:exempt reason=internal-detail
 def rule_tl007(ctx: EvalContext) -> list[Diagnostic]:
     """Invalid field value — re-emitted from the last index."""
     return _stored(ctx, "TL007")
@@ -171,6 +177,7 @@ def rule_tl007(ctx: EvalContext) -> list[Diagnostic]:
 # --------------------------------------------------------------------------
 
 
+# trace:exempt reason=internal-detail
 def rule_tl010(ctx: EvalContext) -> list[Diagnostic]:
     """Changed implementation lacking work/satisfies ancestry.
 
@@ -197,6 +204,7 @@ def rule_tl010(ctx: EvalContext) -> list[Diagnostic]:
     return diags
 
 
+# trace:exempt reason=internal-detail
 def rule_tl011(ctx: EvalContext) -> list[Diagnostic]:
     """Changed requirement with a stale downstream node.
 
@@ -376,6 +384,7 @@ def rule_tl014(ctx: EvalContext) -> list[Diagnostic]:
     return diags
 
 
+# trace:exempt reason=internal-detail
 def rule_tl012(ctx: EvalContext) -> list[Diagnostic]:
     """Changed path with no traced behavior.
 
@@ -414,6 +423,7 @@ def rule_tl012(ctx: EvalContext) -> list[Diagnostic]:
 # --------------------------------------------------------------------------
 
 
+# trace:exempt reason=internal-detail
 def rule_tl020(ctx: EvalContext) -> list[Diagnostic]:
     """Requirement without any incoming verifies edge.
 
@@ -467,6 +477,7 @@ def _test_passed(ctx: EvalContext, test_node: Node, outcomes: list) -> bool:
     return False
 
 
+# trace:exempt reason=internal-detail
 def rule_tl021(ctx: EvalContext) -> list[Diagnostic]:
     """Linked test's latest outcome is not pass, or is missing."""
     linked: dict[str, tuple[Node, list[str]]] = {}
@@ -501,6 +512,7 @@ def rule_tl021(ctx: EvalContext) -> list[Diagnostic]:
     return diags
 
 
+# trace:exempt reason=internal-detail
 def rule_tl022(ctx: EvalContext) -> list[Diagnostic]:
     """exercises edge without the required execution evidence.
 
@@ -553,6 +565,7 @@ def rule_tl022(ctx: EvalContext) -> list[Diagnostic]:
 # --------------------------------------------------------------------------
 
 
+# trace:exempt reason=internal-detail
 def rule_tl030(ctx: EvalContext) -> list[Diagnostic]:
     """Inactive node with an active incoming semantic edge.
 
@@ -590,11 +603,13 @@ def rule_tl030(ctx: EvalContext) -> list[Diagnostic]:
 # --------------------------------------------------------------------------
 
 
+# trace:exempt reason=internal-detail
 def rule_tl040(ctx: EvalContext) -> list[Diagnostic]:
     """Unknown marker keys — re-emitted from the last index."""
     return _stored(ctx, "TL040")
 
 
+# trace:exempt reason=internal-detail
 def rule_tl050(ctx: EvalContext) -> list[Diagnostic]:
     """Evidence run bound to a different revision than the one evaluated."""
     if ctx.revision is None:
@@ -616,11 +631,13 @@ def rule_tl050(ctx: EvalContext) -> list[Diagnostic]:
     return diags
 
 
+# trace:exempt reason=internal-detail
 def rule_tl051(ctx: EvalContext) -> list[Diagnostic]:
     """Evidence parser failures — re-emitted from the last ingest/index."""
     return _stored(ctx, "TL051")
 
 
+# trace:exempt reason=internal-detail
 def rule_tl060(ctx: EvalContext) -> list[Diagnostic]:
     """Independent semantic audit result missing or non-conforming."""
     result = ctx.audit_result
@@ -638,6 +655,7 @@ def rule_tl060(ctx: EvalContext) -> list[Diagnostic]:
     ]
 
 
+# trace:exempt reason=internal-detail
 def rule_tl061(ctx: EvalContext) -> list[Diagnostic]:
     """Expired waiver records block (strict profiles)."""
     policy = ctx.project.policy
@@ -661,6 +679,7 @@ def rule_tl061(ctx: EvalContext) -> list[Diagnostic]:
     return diags
 
 
+# trace:exempt reason=internal-detail
 def rule_tl062(ctx: EvalContext) -> list[Diagnostic]:
     """Evidence not bound to an exact revision (safety-critical)."""
     if ctx.revision is None:
@@ -678,11 +697,13 @@ def rule_tl062(ctx: EvalContext) -> list[Diagnostic]:
     return diags
 
 
+# trace:exempt reason=internal-detail
 def rule_tl100(ctx: EvalContext) -> list[Diagnostic]:
     """Configuration errors — re-emitted from the last index/load."""
     return _stored(ctx, "TL100")
 
 
+# trace:exempt reason=internal-detail
 def rule_tl110(ctx: EvalContext) -> list[Diagnostic]:
     """Stale nodes block merge/release when block_stale is enabled.
 

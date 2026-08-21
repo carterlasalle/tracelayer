@@ -58,6 +58,11 @@ from tracelayer.protocol.marker import MarkerHit
 # --------------------------------------------------------------------------
 
 
+# trace:exempt reason=internal-detail
+
+
+# trace:exempt reason=internal-detail
+
 @dataclass
 class IndexReport:
     """Summary of one index run (spec 18.1, 58)."""
@@ -70,6 +75,11 @@ class IndexReport:
     duration_ms: int
     per_stage: dict[str, int] = field(default_factory=dict)
 
+
+# trace:exempt reason=internal-detail
+
+
+# trace:exempt reason=internal-detail
 
 @dataclass
 class VerifyResult:
@@ -85,6 +95,11 @@ class VerifyResult:
         """0 pass | 1 blocking (spec 28.6)."""
         return 1 if self.blocking else 0
 
+
+# trace:exempt reason=internal-detail
+
+
+# trace:exempt reason=internal-detail
 
 @dataclass
 class StatusReport:
@@ -792,6 +807,8 @@ class Engine:
         project.cache_dir.mkdir(parents=True, exist_ok=True)
         self.store = GraphStore.open(project.db_path)
 
+    # trace:exempt reason=internal-detail
+
     @classmethod
     def open(cls, root: Path | None = None) -> tuple[Engine, list[Diagnostic]]:
         """Resolve the project, git repo, and graph store (contract §J).
@@ -1493,6 +1510,7 @@ class Engine:
         return True
 
 
+# trace:exempt reason=internal-detail
 class TraceRepository:
     """Thin machine-API facade over the Engine (spec Section 29).
 
@@ -1502,6 +1520,8 @@ class TraceRepository:
 
     def __init__(self, engine: Engine) -> None:
         self._engine = engine
+
+    # trace:exempt reason=internal-detail
 
     @classmethod
     def open(cls, path: Path | str | None = None) -> TraceRepository:

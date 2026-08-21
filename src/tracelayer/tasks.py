@@ -620,11 +620,24 @@ def _receipt_count(project: Project, work_id: str) -> int:
 def context(project: Project, session_id: str) -> dict:
     """The agent-visible task context (internal API)."""
     state = SessionState(project)
+    # Reconcile stale obligations: when markers exist in the current tree
+    # but the session still holds them, resolve them immediately. This
+    # prevents the recurring "110 obligations" from re-appearing on every
+    # prompt when markers have already been added (the reconcile previously
+    # only ran on stop events).
+    pending = state.pending_obligations(session_id)
+    if pending:
+        try:
+            from tracelayer.hooks.post_mutation import reconcile_pending_obligations
+
+            _reconciled, pending = reconcile_pending_obligations(project, state, session_id)
+        except Exception:
+            pending = state.pending_obligations(session_id)
     return {
         "work": state.active_work(session_id),
         "requirements": state.active_requirements(session_id),
         "plan": state.active_plan(session_id),
-        "pending_obligations": state.pending_obligations(session_id),
+        "pending_obligations": pending,
         "pending_bootstrap": state.pending_bootstrap(session_id),
         "pending_spec_update": state.pending_spec_update(session_id),
     }
