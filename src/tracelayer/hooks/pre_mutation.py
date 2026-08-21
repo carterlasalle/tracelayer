@@ -186,6 +186,11 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
         return None
     state = ctx.state
     rel_path = _relpath(ctx.project.root, path)
+    # Paths outside the repo root are never traced — skip the gate entirely.
+    # This prevents ambient bootstrap from firing on /tmp/ or other
+    # non-repo files, which have no .trace/ config and no traced code.
+    if rel_path.startswith(".."):
+        return None
     try:
         from tracelayer.hooks.common import policy_excluded
 

@@ -380,6 +380,10 @@ paths = [
   ".claude/skills/**",
   ".pi/skills/**",
   ".omp/skills/**",
-  ".hermes/skills/**"
+  ".hermes/skills/**",
+  "*_test.*",
+  "*.test.*",
+  "*_spec.*",
+  "*.spec.*"
 ]
 """

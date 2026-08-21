@@ -308,6 +308,10 @@ def test_default_policy_toml_roundtrip(tmp_path: Path) -> None:
         ".pi/skills/**",
         ".omp/skills/**",
         ".hermes/skills/**",
+        "*_test.*",
+        "*.test.*",
+        "*_spec.*",
+        "*.spec.*",
     ]
 
 
