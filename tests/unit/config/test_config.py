@@ -302,6 +302,7 @@ def test_default_policy_toml_roundtrip(tmp_path: Path) -> None:
         ".hermes/**",
         ".serena/**",
         "opencode.json",
+        "tests/**",
     ]
 
 
