@@ -307,7 +307,6 @@ def _read_payload() -> dict[str, Any]:
 # --------------------------------------------------------------------------
 
 
-# trace:exempt reason=internal-detail
 @app.command()
 def init(
     ctx: typer.Context,
@@ -415,7 +414,6 @@ def _run_init(
     return written
 
 
-# trace:exempt reason=internal-detail
 @app.command()
 def install(
     ctx: typer.Context,
@@ -516,7 +514,6 @@ def _install_agents(
         typer.echo(f"mcp: {mstatus} -> {mpath}")
 
 
-# trace:exempt reason=internal-detail
 @app.command()
 def update(
     ctx: typer.Context,
@@ -1031,7 +1028,6 @@ def plan_sync(
         engine.close()
 
 
-# trace:exempt reason=internal-detail
 @app.command()
 def summary(
     ctx: typer.Context,
@@ -1082,7 +1078,6 @@ def summary(
     typer.echo("\n".join(lines))
 
 
-# trace:exempt reason=internal-detail
 @app.command()
 def web(
     ctx: typer.Context,
@@ -1117,7 +1112,6 @@ def web(
         engine.close()
 
 
-# trace:exempt reason=internal-detail
 @app.command()
 def mcp(ctx: typer.Context, root: Path | None = _root_opt()) -> None:
     """Run the MCP stdio server (optional adapter).
@@ -1134,7 +1128,6 @@ def mcp(ctx: typer.Context, root: Path | None = _root_opt()) -> None:
         sys.exit(0)
 
 
-# trace:exempt reason=internal-detail
 @app.command()
 def index(
     ctx: typer.Context,
@@ -1192,7 +1185,6 @@ def index(
         )
 
 
-# trace:exempt reason=internal-detail
 @app.command()
 def status(
     ctx: typer.Context,
@@ -1244,7 +1236,6 @@ def _status_dict(report) -> dict[str, Any]:
     }
 
 
-# trace:exempt reason=internal-detail
 @app.command()
 def search(
     ctx: typer.Context,
@@ -1268,7 +1259,6 @@ def search(
             typer.echo(f"{n.trace_id}  {label}")
 
 
-# trace:exempt reason=internal-detail
 @app.command()
 def context(
     ctx: typer.Context,
@@ -1328,7 +1318,6 @@ def context(
         engine.close()
 
 
-# trace:exempt reason=internal-detail
 @app.command()
 def why(
     ctx: typer.Context,
@@ -1365,7 +1354,6 @@ def why(
         engine.close()
 
 
-# trace:exempt reason=internal-detail
 @app.command()
 def impact(
     ctx: typer.Context,
@@ -1436,7 +1424,6 @@ def impact(
         engine.close()
 
 
-# trace:exempt reason=internal-detail
 @app.command()
 def graph(
     ctx: typer.Context,
@@ -1488,7 +1475,6 @@ def graph(
         engine.close()
 
 
-# trace:exempt reason=internal-detail
 @app.command()
 def new(
     ctx: typer.Context,
@@ -1528,7 +1514,6 @@ def _write_policy_exclusions(project, paths: list[str]) -> None:
     p.write_text(new_txt, encoding="utf-8")
 
 
-# trace:exempt reason=internal-helper
 @app.command("ignore")
 def ignore_cmd(
     ctx: typer.Context,
@@ -1573,7 +1558,6 @@ def ignore_cmd(
         typer.echo(f"  {p}")
 
 
-# trace:exempt reason=internal-helper
 @app.command("unignore")
 def unignore_cmd(
     ctx: typer.Context,
@@ -1601,7 +1585,6 @@ def unignore_cmd(
         typer.echo(f"  {p}")
 
 
-# trace:exempt reason=internal-detail
 @app.command()
 def verify(
     ctx: typer.Context,
@@ -1686,7 +1669,6 @@ def verify(
     raise typer.Exit(result.exit_code())
 
 
-# trace:exempt reason=internal-detail
 @app.command()
 def doctor(
     ctx: typer.Context,
@@ -1721,7 +1703,6 @@ def doctor(
             typer.echo(f"fixes applied: {report.get('total_fixed', 0)}")
 
 
-# trace:exempt reason=internal-detail
 @app.command()
 def review(
     ctx: typer.Context,
@@ -1749,7 +1730,6 @@ evidence_app = typer.Typer(no_args_is_help=True, help="Evidence ingestion")
 app.add_typer(evidence_app, name="evidence")
 
 
-# trace:exempt reason=internal-detail
 @evidence_app.command("ingest")
 def evidence_ingest(
     ctx: typer.Context,
@@ -1819,7 +1799,6 @@ report_app = typer.Typer(no_args_is_help=True, help="Reports")
 app.add_typer(report_app, name="report")
 
 
-# trace:exempt reason=internal-detail
 @report_app.command("pr")
 def report_pr(
     ctx: typer.Context,
@@ -1844,7 +1823,6 @@ migrate_app = typer.Typer(no_args_is_help=True, help="Migration tooling")
 app.add_typer(migrate_app, name="migrate")
 
 
-# trace:exempt reason=internal-detail
 @migrate_app.command("codeops")
 def migrate_codeops(
     ctx: typer.Context,
@@ -1887,7 +1865,6 @@ def migrate_codeops(
         engine.close()
 
 
-# trace:exempt reason=internal-detail
 @migrate_app.command("scry")
 def migrate_scry(
     ctx: typer.Context,
@@ -1911,7 +1888,6 @@ audit_app = typer.Typer(no_args_is_help=True, help="Independent semantic audit")
 app.add_typer(audit_app, name="audit")
 
 
-# trace:exempt reason=internal-detail
 @audit_app.command("package")
 def audit_package(
     ctx: typer.Context,
@@ -1935,7 +1911,6 @@ def audit_package(
         typer.echo(data)
 
 
-# trace:exempt reason=internal-detail
 @audit_app.command("run")
 def audit_run(
     ctx: typer.Context,
@@ -1966,7 +1941,6 @@ docs_app = typer.Typer(no_args_is_help=True, help="Generated protocol documentat
 app.add_typer(docs_app, name="docs")
 
 
-# trace:exempt reason=internal-detail
 @docs_app.command("generate")
 def docs_generate(
     ctx: typer.Context,

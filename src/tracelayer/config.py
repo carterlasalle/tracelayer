@@ -180,7 +180,6 @@ class PolicyConfig(BaseModel):
 # --------------------------------------------------------------------------
 
 
-# trace:exempt reason=internal-detail
 @dataclass
 class Project:
     root: Path

@@ -471,14 +471,12 @@ def _resolve_obligations_in(state, session_id: str, project, path: str, text: st
     transcript: 136 persisted obligations, verify passing, gate still
     blocking on a stale 8-item list).
 
-    An obligation for (path, expected-symbol) resolves only when a marker
-    with the suggested id is ATTACHED to a boundary that matches the
-    expected boundary (qualified name, or name slug — cosmetic renames
-    like ``saveUser`` -> ``save_user`` keep the slug). A marker id floating
-    anywhere in the file — or attached to an unrelated boundary — does NOT
-    resolve it; that mismatch is reported so the agent can confirm a real
-    rename via ``trace task resolve-obligation <path> <symbol>`` (the LLM
-    selects semantics; TraceLayer validates identity).
+    An obligation for (path, expected-symbol) resolves when the expected
+    boundary has ANY marker attached — including exemption markers (the
+    agent chose ``# trace:exempt reason=...`` instead of the suggested
+    trace id). A marker attached to an UNRELATED boundary does NOT resolve
+    the obligation; a mismatch is reported so the agent can confirm a real
+    rename via ``trace task resolve-obligation <path> <symbol>``.
     """
     parser = _parser_for(path)
     try:
