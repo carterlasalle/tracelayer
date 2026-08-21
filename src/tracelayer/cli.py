@@ -1494,6 +1494,98 @@ def new(
     typer.echo(tid)
 
 
+# trace:exempt reason=internal-helper
+def _read_policy_exclusions(project) -> list[str]:
+    """The [exclusions] paths from policy.toml."""
+    return list(project.policy.exclusions.paths) if project and project.policy else []
+
+
+# trace:exempt reason=internal-helper
+def _write_policy_exclusions(project, paths: list[str]) -> None:
+    """Rewrite the [exclusions] paths in policy.toml, preserving the rest."""
+    p = project.root / ".trace" / "policy.toml"
+    txt = p.read_text(encoding="utf-8")
+    import re
+
+    body = "\n".join(f'  "{x}",' for x in paths)
+    replacement = f"[exclusions]\npaths = [\n{body}\n]"
+    new_txt = re.sub(r"\[exclusions\]\npaths\s*=\s*\[[^\]]*\]", replacement, txt, flags=re.S)
+    p.write_text(new_txt, encoding="utf-8")
+
+
+# trace:exempt reason=internal-helper
+@app.command("ignore")
+def ignore_cmd(
+    ctx: typer.Context,
+    patterns: list[str] = typer.Argument(
+        None, help="Glob patterns to exclude (e.g. .serena/** vendor/**)"
+    ),
+    root: Path | None = _root_opt(),
+) -> None:
+    """Add exclusion patterns to the trace policy (same as .gitignore for TraceLayer).
+
+    Excluded paths are skipped by verify, the Bash scan, and the authoring gate.
+    Patterns without ** are auto-suffixed to cover subdirectories.
+    Use `trace ignore --list` to see current exclusions.
+    """
+    from tracelayer.config import load_project as _load_project
+
+    root = _resolve_root(ctx, root)
+    project, _diags = _load_project(root)
+    existing = _read_policy_exclusions(project)
+    if not patterns:
+        typer.echo("Current policy exclusions:")
+        for p in existing:
+            typer.echo(f"  {p}")
+        return
+    added = 0
+    for pat in patterns:
+        p = pat.rstrip("/") if not pat.endswith("*") else pat
+        if not p.endswith("**") and "/" not in p:
+            p = p + "/**"
+        if p not in existing:
+            existing.append(p)
+            added += 1
+    if not patterns:
+        typer.echo("Current policy exclusions:")
+        for p in existing:
+            typer.echo(f"  {p}")
+        return
+    _write_policy_exclusions(project, existing)
+    typer.echo(f"added {added} exclusion(s); {len(existing)} total")
+    typer.echo("Current exclusions:")
+    for p in existing:
+        typer.echo(f"  {p}")
+
+
+# trace:exempt reason=internal-helper
+@app.command("unignore")
+def unignore_cmd(
+    ctx: typer.Context,
+    patterns: list[str] = typer.Argument(..., help="Glob patterns to remove"),
+    root: Path | None = _root_opt(),
+) -> None:
+    """Remove exclusion patterns from the trace policy."""
+    from tracelayer.config import load_project as _load_project
+
+    root = _resolve_root(ctx, root)
+    project, _diags = _load_project(root)
+    existing = _read_policy_exclusions(project)
+    removed = 0
+    for pat in patterns:
+        p = pat.rstrip("/") if not pat.endswith("*") else pat
+        for i, ex in enumerate(existing):
+            if ex == p or ex == p + "/**" or (ex.endswith("/**") and ex[:-3] == p):
+                existing.pop(i)
+                removed += 1
+                break
+    _write_policy_exclusions(project, existing)
+    typer.echo(f"removed {removed} exclusion(s); {len(existing)} total")
+    typer.echo("Current exclusions:")
+    for p in existing:
+        typer.echo(f"  {p}")
+
+
 @app.command()
 def verify(
     ctx: typer.Context,

@@ -185,19 +185,12 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
     if not path or ctx.state is None:
         return None
     state = ctx.state
-    try:
-        from tracelayer.discovery.ignore import build_ignored
-
-        if build_ignored(ctx.project.root, ctx.project.config, ctx.gitrepo)(path):
-            return None
-    except Exception:
-        pass
     rel_path = _relpath(ctx.project.root, path)
     try:
         from tracelayer.hooks.common import policy_excluded
 
-        if policy_excluded(ctx.project, rel_path):
-            return None  # the verify gate never flags this path; neither do we
+        if policy_excluded(ctx.project, rel_path, ctx.gitrepo):
+            return None  # excluded by policy or .gitignore — gate skips
     except Exception:
         pass
     current = _read_file(ctx.project.root, path)

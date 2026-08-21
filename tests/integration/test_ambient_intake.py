@@ -874,3 +874,46 @@ def test_stop_gate_reconciles_stale_session_obligations(tmp_path):
     head = out.get("output", "").splitlines()[0]
     assert "TOTAL" in head and "11" in head
     assert "more" in out.get("output", "")
+
+
+# trace:v1 id=test.dogfood.tests.integration.test_ambient_intake.test_gitignored_files_get_no_obligations type=test
+def test_gitignored_files_get_no_obligations(tmp_path):
+    """Files in .gitignore must be automatically excluded from the Bash scan
+    without manual policy entries — aligning the gate with the discovery layer."""
+    repo = make_git_repo(tmp_path, {"README.md": "# home\n"})
+    run_trace(repo, "init", "--no-skill", "--no-mcp")
+    run_trace(repo, "task", "bootstrap", env={"TRACE_SESSION": "s"}, input=json.dumps(BUNDLE))
+    # .gitignore a path
+    (repo / ".gitignore").write_text("generated/\n", encoding="utf-8")
+    (repo / "generated").mkdir()
+    (repo / "generated" / "auto.rs").write_text("fn gen() {}\n", encoding="utf-8")
+    r = run_trace(
+        repo,
+        "hook",
+        "post-mutation",
+        "--format",
+        "json",
+        env={"TRACE_SESSION": "s"},
+        input=json.dumps({"tool_name": "Bash", "tool_input": {"command": "touch"}}),
+    )
+    out = json.loads(r.stdout)
+    assert not any("generated" in o for o in out.get("created_obligations", []))
+    ctx = json.loads(run_trace(repo, "task", "context", env={"TRACE_SESSION": "s"}).stdout)
+    assert not any("generated" in o.get("path", "") for o in ctx.get("pending_obligations", []))
+
+
+# trace:v1 id=test.dogfood.tests.integration.test_ambient_intake.test_trace_ignore_adds_and_removes_exclusion type=test
+def test_trace_ignore_adds_and_removes_exclusion(tmp_path):
+    """trace ignore / trace unignore manage policy exclusions; --list shows them."""
+    repo = make_git_repo(tmp_path, {"README.md": "# home\n"})
+    run_trace(repo, "init", "--no-skill", "--no-mcp")
+    initial = run_trace(repo, "ignore")
+    assert ".mcp.json" in initial.stdout  # always present
+    added = run_trace(repo, "ignore", ".serena")
+    assert ".serena/**" in added.stdout
+    listed = run_trace(repo, "ignore")
+    assert ".serena/**" in listed.stdout
+    removed = run_trace(repo, "unignore", ".serena")
+    assert ".serena/**" not in removed.stdout
+    listed2 = run_trace(repo, "ignore")
+    assert ".serena/**" not in listed2.stdout

@@ -133,20 +133,31 @@ class HookOutput:
 
 
 # trace:exempt reason=internal-helper
-def policy_excluded(project, rel_path: str) -> bool:
-    """True when the repo-relative path is in the policy exclusions list.
+def policy_excluded(project, rel_path: str, git_repo=None) -> bool:
+    """True when the path is excluded by policy OR .gitignore.
 
-    Mirrors the TL012/TL013 rule matching (fnmatch over policy.toml
-    ``[exclusions] paths``) so the authoring gates and the verify gate
-    classify the same paths identically: a file the gate never flags must
-    not be blocked by the hooks either.
+    Combines three sources identically used by the verify gate and
+    discovery layer: policy.toml ``[exclusions] paths``, the project
+    ``.gitignore``, and the always-ignored ``.git/**/<cache_dir>/**``
+    patterns.  A file the gate never flags must not be blocked by
+    the hooks either.
     """
     import fnmatch
 
     if project.policy is None:
         return False
     p = str(rel_path).replace("\\", "/")
-    return any(fnmatch.fnmatch(p, pat) for pat in project.policy.exclusions.paths)
+    if any(fnmatch.fnmatch(p, pat) for pat in project.policy.exclusions.paths):
+        return True
+    try:
+        from tracelayer.discovery.ignore import build_ignored
+
+        is_ignored = build_ignored(project.root, project.config, git_repo)
+        if is_ignored(p):
+            return True
+    except Exception:
+        pass
+    return False
 
 
 def sanitize_text(text: str, max_chars: int = 200) -> str:

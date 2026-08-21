@@ -353,12 +353,6 @@ def _scan_changed_files(ctx: HookContext, json_data: dict) -> HookOutput:
     req = reqs[0] if reqs and len(reqs) == 1 else None
     plan = ctx.state.active_plan(ctx.session_id) if ctx.state else None
     try:
-        from tracelayer.discovery.ignore import build_ignored
-
-        ignored = build_ignored(ctx.project.root, ctx.project.config, ctx.gitrepo)
-    except Exception:
-        ignored = None
-    try:
         from tracelayer.hooks.common import policy_excluded
     except Exception:
         policy_excluded = None
@@ -372,14 +366,8 @@ def _scan_changed_files(ctx: HookContext, json_data: dict) -> HookOutput:
             continue  # internal TraceLayer state is not scanned behavior
         if policy_excluded is not None:
             try:
-                if policy_excluded(ctx.project, f.path):
-                    continue  # verify-gate-excluded paths never get obligations
-            except Exception:
-                pass
-        if ignored is not None:
-            try:
-                if ignored(f.path):
-                    continue  # discovery/gitignore-excluded paths
+                if policy_excluded(ctx.project, f.path, ctx.gitrepo):
+                    continue  # excluded by policy or .gitignore
             except Exception:
                 pass
         text = _read_text(ctx.project.root, f.path)
@@ -434,9 +422,9 @@ def _scan_changed_files(ctx: HookContext, json_data: dict) -> HookOutput:
             remaining[label] = str(suggestion.marker)
     if not (created or pending_seen):
         return render_allowed("", json_data)
-    lines = ["BASH MUTATION DETECTED"]
+    lines = []
     if created:
-        lines[0] += f" — {len(created)} NEW TRACE OBLIGATION(S)"
+        lines.append(f"BASH MUTATION DETECTED — {len(created)} NEW TRACE OBLIGATION(S)")
         lines.append("")
         for item in created[:10]:
             lines.append(f"- {item} (new)")

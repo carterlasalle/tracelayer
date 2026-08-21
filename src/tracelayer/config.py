@@ -356,6 +356,7 @@ paths = [
   ".pi/**",
   ".omp/**",
   ".hermes/**",
+  ".serena/**",
   "opencode.json"
 ]
 """
