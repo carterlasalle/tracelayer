@@ -375,6 +375,11 @@ paths = [
   ".hermes/**",
   ".serena/**",
   "opencode.json",
-  "tests/**"
+  "tests/**",
+  ".agents/skills/**",
+  ".claude/skills/**",
+  ".pi/skills/**",
+  ".omp/skills/**",
+  ".hermes/skills/**"
 ]
 """

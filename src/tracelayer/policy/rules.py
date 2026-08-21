@@ -83,6 +83,7 @@ def rule_tl001(ctx: EvalContext) -> list[Diagnostic]:
     return _stored(ctx, "TL001")
 
 
+# trace:exempt reason=internal-helper
 def rule_tl002(ctx: EvalContext) -> list[Diagnostic]:
     """Active edge whose target node is missing from the store."""
     diags: list[Diagnostic] = []
@@ -91,6 +92,12 @@ def rule_tl002(ctx: EvalContext) -> list[Diagnostic]:
             continue
         if ctx.store.get_node(uid=edge.to_uid) is None:
             from_node = ctx.store.get_node(uid=edge.from_uid)
+            rem = ""
+            if edge.to_uid:
+                rem = (
+                    f"  Create it: trace new {edge.to_uid.split('-')[0].lower()}"
+                    f" --name {edge.to_uid} --title "<title>""
+                ) if edge.to_uid.startswith("REQ-") or edge.to_uid.startswith("WORK-") else ""
             diags.append(
                 make(
                     "TL002",
@@ -101,6 +108,7 @@ def rule_tl002(ctx: EvalContext) -> list[Diagnostic]:
                     message=(
                         f"{edge.predicate} edge targets missing node "
                         f"{edge.to_uid} (declared in {edge.source_path or 'unknown'})"
+                        f"{chr(10) + rem if rem else ''}"
                     ),
                 )
             )
@@ -265,6 +273,24 @@ def rule_tl013(ctx: EvalContext) -> list[Diagnostic]:
                 continue
             if boundary_is_traced(current, cur_bounds, boundary, ctx.project.root, ctx.store):
                 continue
+            # Build a placement hint so the agent knows exactly where to put it
+            lines = current.splitlines()
+            hint_lines: list[str] = []
+            for i in range(max(0, boundary.start_line - 4), boundary.start_line):
+                line = lines[i] if i < len(lines) else ""
+                if line.strip().startswith(("@", "#", "//", "/*", ">", "*")):
+                    hint_lines.append(line.strip())
+            placement = (
+                "doc-comments may separate marker and symbol" if hint_lines
+                else "place marker directly above the symbol (no blank lines in between)"
+            )
+            rem_hint = ""
+            if boundary.kind in ("function", "method", "class"):
+                slug = boundary.name.replace("_", "-")
+                rem_hint = (
+                    f" For example:\n    // trace:v1 id=impl.<scope>.{slug} work=... satisfies=...\n"
+                    f"    {boundary.name}(...)"
+                )
             diags.append(
                 make(
                     "TL013",
@@ -272,8 +298,10 @@ def rule_tl013(ctx: EvalContext) -> list[Diagnostic]:
                     line=boundary.start_line,
                     message=(
                         f"Behavior boundary {boundary.kind} '{boundary.name}' is not "
-                        "trace-accounted: add a trace:v1 marker above it, inherit from "
-                        "a traced parent, or add `# trace:exempt reason=internal-detail`"
+                        f"trace-accounted ({placement}). "
+                        f"Add a trace:v1 marker above it, inherit from a traced parent, "
+                        f"or add `# trace:exempt reason=internal-detail`."
+                        f"{rem_hint}"
                     ),
                 )
             )
