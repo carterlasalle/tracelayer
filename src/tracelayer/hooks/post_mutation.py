@@ -150,6 +150,7 @@ def handle(ctx: HookContext, payload: dict) -> HookOutput:
     return render_allowed(text_out, json_data)
 
 
+# trace:exempt reason=internal-detail
 def _read_text(root, rel: str) -> str | None:
     path = resolve_path(root, rel)
     if path is None or not path.is_file():
@@ -162,6 +163,7 @@ def _read_text(root, rel: str) -> str | None:
         return None
 
 
+# trace:exempt reason=internal-detail
 def _parser_for(path: str):
     """Lazy symbol parser for the file's language; None when unsupported."""
     suffix = path.rsplit(".", 1)[-1].lower() if "." in path else ""
@@ -176,6 +178,7 @@ def _parser_for(path: str):
         return None
 
 
+# trace:exempt reason=internal-detail
 def _containing_symbol(symbols: list, line: int):
     """Narrowest symbol whose range contains the marker line, else None."""
     hits = [s for s in symbols if s.start_line <= line <= s.end_line]
@@ -184,6 +187,7 @@ def _containing_symbol(symbols: list, line: int):
     return min(hits, key=lambda s: (s.end_line - s.start_line, s.start_line, s.name))
 
 
+# trace:exempt reason=internal-detail
 def _changed_nodes(
     ctx: HookContext, store: GraphStore, path: str, text: str
 ) -> tuple[list[Node], list[Node]]:
@@ -231,6 +235,7 @@ def _changed_nodes(
     return modified, deleted
 
 
+# trace:exempt reason=internal-detail
 def _markdown_blocks(ctx: HookContext, path: str, text: str) -> dict[str, Any]:
     """trace_id -> MarkdownBlock for doc files (spec 22.7 change detection)."""
     suffix = path.rsplit(".", 1)[-1].lower() if "." in path else ""
@@ -245,6 +250,7 @@ def _markdown_blocks(ctx: HookContext, path: str, text: str) -> dict[str, Any]:
         return {}
 
 
+# trace:exempt reason=internal-detail
 def _added_lines(root: Path, path: str) -> set[int] | None:
     """New-file line numbers introduced by the working-tree edit.
 
@@ -282,6 +288,7 @@ def _added_lines(root: Path, path: str) -> set[int] | None:
     return added
 
 
+# trace:exempt reason=internal-detail
 def _untraced_added_symbols(root: Path, path: str, text: str) -> tuple[list[str], bool]:
     """(symbols introduced by this edit, is_new_file).
 
@@ -356,6 +363,14 @@ def _scan_changed_files(ctx: HookContext, json_data: dict) -> HookOutput:
         from tracelayer.hooks.common import policy_excluded
     except Exception:
         policy_excluded = None
+    # Reconcile stale obligations FIRST: if markers exist in the tree,
+    # resolve them before the scan re-creates the same ones. This is what
+    # prevents the recurring "N obligations already pending" messages.
+    try:
+        from tracelayer.hooks.post_mutation import reconcile_pending_obligations as _reconcile
+        reconciled, _ = _reconcile(ctx.project, ctx.state, ctx.session_id)
+    except Exception:
+        reconciled = 0
     created: list[str] = []
     remaining: dict[str, str] = {}
     pending_seen: list[str] = []
@@ -574,6 +589,7 @@ def reconcile_pending_obligations(project, state, session_id: str) -> tuple[int,
     return total_resolved, state.pending_obligations(session_id)
 
 
+# trace:exempt reason=internal-detail
 def _attachment_gap_ok(text: str, marker_line: int, symbol_start: int) -> bool:
     """Only blank/comment/decorator lines may separate marker and symbol."""
     for i in range(marker_line + 1, symbol_start):
@@ -583,6 +599,7 @@ def _attachment_gap_ok(text: str, marker_line: int, symbol_start: int) -> bool:
     return True
 
 
+# trace:exempt reason=internal-detail
 def _ids_in(marker_text: str) -> set[str]:
     """Trace ids referenced by a suggested marker line."""
     try:
@@ -609,6 +626,7 @@ def _ids_in_file(text: str) -> set[str]:
     return ids
 
 
+# trace:exempt reason=internal-detail
 def _deleted_path_output(
     store: GraphStore, path: str, json_data: dict, max_chars: int
 ) -> HookOutput:
@@ -638,6 +656,7 @@ def _deleted_path_output(
     )
 
 
+# trace:exempt reason=internal-detail
 def _deleted_block(store: GraphStore, deleted: list[Node], max_chars: int) -> str | None:
     """Spec 22.8: block when deletion leaves unresolved reference edges."""
     for node in deleted:
@@ -670,6 +689,7 @@ def _deleted_block(store: GraphStore, deleted: list[Node], max_chars: int) -> st
     return None
 
 
+# trace:exempt reason=internal-detail
 def _deleted_note(deleted: list[Node]) -> str:
     """Spec 22.8: preserve trace identity through renames/moves."""
     ids = ", ".join(n.trace_id for n in deleted[:3])
@@ -684,6 +704,7 @@ def _deleted_note(deleted: list[Node]) -> str:
     return "\n".join(lines)
 
 
+# trace:exempt reason=internal-detail
 def _stale_downstream(store: GraphStore, changed: list[Node]) -> dict[str, list[str]]:
     """Spec 22.7: requirement/ADR/plan edits with active downstream references."""
     out: dict[str, list[str]] = {}

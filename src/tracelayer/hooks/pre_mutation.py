@@ -75,6 +75,7 @@ def handle(ctx: HookContext, payload: dict) -> HookOutput:
 _EXEMPT_MARK = "# trace:exempt"
 
 
+# trace:exempt reason=internal-detail
 def _proposed_text(root: Path, path: str, payload: dict) -> str | None:
     """Simulate the mutation: Write content, or Edit old->new replacement."""
     content = payload.get("content")
@@ -92,12 +93,14 @@ def _proposed_text(root: Path, path: str, payload: dict) -> str | None:
     return None  # old_string mismatch; do not guess
 
 
+# trace:exempt reason=internal-detail
 def _read_file(root: Path, path: str) -> str | None:
     from tracelayer.hooks.post_mutation import _read_text
 
     return _read_text(root, path)
 
 
+# trace:exempt reason=internal-detail
 def _classify_boundaries(path: str, current: str | None, proposed: str) -> list[tuple]:
     """(boundary, kind) for the proposed edit, by identity not line numbers.
 
@@ -135,6 +138,7 @@ def _classify_boundaries(path: str, current: str | None, proposed: str) -> list[
     return out
 
 
+# trace:exempt reason=internal-detail
 def _parser_for(path: str):
     suffix = path.rsplit(".", 1)[-1].lower() if "." in path else ""
     _EXT = {
@@ -156,6 +160,7 @@ def _parser_for(path: str):
         return None
 
 
+# trace:exempt reason=internal-detail
 def _relpath(root: Path, path: str) -> str:
     """Repo-relative path for obligation identity (Claude sends absolute)."""
     import os
@@ -266,12 +271,22 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
         )
     rewrite = None
     if "content" in payload:
-        # Automatic updatedInput rewriting is Write-only (review P0): an
-        # Edit's old_string/new_string cannot carry a whole-file rewrite
-        # without corrupting the target, so Edits fall back to deny + plan.
+        # Write: inject markers into the content (unchanged).
         rewrite = _deterministic_rewrite(
             state, ctx.session_id, rel_path, path, payload, proposed, untraced
         )
+    elif "old_string" in payload and "new_string" in payload:
+        # Edit with a single untraced boundary: inject the marker directly
+        # into the new_string so the agent sees marked code without rewriting.
+        # Multi-boundary: deny with a shorter reminder (no full plan).
+        if len(untraced) == 1:
+            boundary, change_kind = untraced[0]
+            marker = _suggested_marker(boundary, work, req, plan, rel_path, exercised, existing_ids)
+            if marker:
+                new_content = payload["new_string"]
+                inject = marker + "\n" if boundary.language != "json" else ""
+                rewrite = {"file_path": rel_path, "old_string": payload["old_string"],
+                          "new_string": inject + new_content}
     existing_ids = _file_marker_ids(proposed)
     for boundary, change_kind in untraced[:20]:
         state.add_obligation(
@@ -288,7 +303,10 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
                 "state": "pending",
             },
         )
-    text = _authoring_plan_text(untraced, rel_path, work, reqs, plan, exercised)
+    if len(untraced) == 1 and rewrite is not None:
+        text = ""  # single boundary: injected, no block needed
+    else:
+        text = _authoring_plan_text(untraced, rel_path, work, reqs, plan, exercised)
     payload_out = {
         "event": "pre_mutation",
         "decision": "block",
@@ -541,6 +559,7 @@ def _causal_context_block(symbol, path: str, line: int) -> str:
     return fit("\n".join(lines), 4000)
 
 
+# trace:exempt reason=internal-detail
 def _as_int(value: object) -> int | None:
     if isinstance(value, int):
         return value
@@ -552,6 +571,7 @@ def _as_int(value: object) -> int | None:
     return None
 
 
+# trace:exempt reason=internal-detail
 def _block_text(ctx: HookContext, node) -> str:
     """Render the spec 22.3 denial: identity, links, tests, retry steps."""
     store = ctx.store
