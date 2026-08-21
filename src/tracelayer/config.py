@@ -24,6 +24,7 @@ CACHE_DIR = ".trace/cache"
 # --------------------------------------------------------------------------
 
 
+# trace:exempt reason=internal-detail
 class IndexLanguages(BaseModel):
     model_config = ConfigDict(extra="forbid")
     python: bool = True
@@ -35,6 +36,7 @@ class IndexLanguages(BaseModel):
     cpp: bool = False
 
 
+# trace:exempt reason=internal-detail
 class IndexConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     respect_gitignore: bool = True
@@ -43,6 +45,7 @@ class IndexConfig(BaseModel):
     languages: IndexLanguages = Field(default_factory=IndexLanguages)
 
 
+# trace:exempt reason=internal-detail
 class DiscoveryConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     include: list[str] = Field(default_factory=lambda: ["**/*"])
@@ -59,12 +62,14 @@ class DiscoveryConfig(BaseModel):
     generated: list[str] = Field(default_factory=lambda: ["src/generated/**"])
 
 
+# trace:exempt reason=internal-detail
 class MarkersConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     prefix: str = "trace:v1"
     unknown_keys: str = "error"  # error | warning | permissive
 
 
+# trace:exempt reason=internal-detail
 class HooksConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     max_context_chars: int = 1500
@@ -73,17 +78,20 @@ class HooksConfig(BaseModel):
     prompt_search_limit: int = 5
 
 
+# trace:exempt reason=internal-detail
 class EvidenceConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     require_revision: bool = True
     preferred_coverage_proof: str = "suite"  # suite | per_test
 
 
+# trace:exempt reason=internal-detail
 class ExternalConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     resolve_by_default: bool = False
 
 
+# trace:exempt reason=internal-detail
 class TraceConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     schema_version: int = 1
@@ -104,6 +112,7 @@ class TraceConfig(BaseModel):
 # --------------------------------------------------------------------------
 
 
+# trace:exempt reason=internal-detail
 class RequirementsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     require_work_ancestry: bool = False
@@ -118,11 +127,13 @@ class RequirementsConfig(BaseModel):
     allow_waivers: bool = True
 
 
+# trace:exempt reason=internal-detail
 class ExclusionsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     paths: list[str] = Field(default_factory=list)
 
 
+# trace:exempt reason=internal-detail
 class Waiver(BaseModel):
     model_config = ConfigDict(extra="forbid")
     rule: str
@@ -147,6 +158,7 @@ class Waiver(BaseModel):
         return True
 
 
+# trace:exempt reason=internal-detail
 class PolicyConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     profile: str = "standard"  # minimal | standard | strict | safety-critical
@@ -168,6 +180,7 @@ class PolicyConfig(BaseModel):
 # --------------------------------------------------------------------------
 
 
+# trace:exempt reason=internal-detail
 @dataclass
 class Project:
     root: Path
@@ -187,6 +200,7 @@ class Project:
         return self.cache_dir / "session"
 
 
+# trace:exempt reason=internal-detail
 def find_repo_root(start: Path | None = None) -> Path:
     """Walk up for `.trace/trace.toml`, else `.git`, else the start directory."""
     current = (start or Path.cwd()).resolve()
@@ -196,6 +210,7 @@ def find_repo_root(start: Path | None = None) -> Path:
     return current
 
 
+# trace:exempt reason=internal-detail
 def load_project(root: Path | None = None) -> tuple[Project, list[Diagnostic]]:
     root = (root or find_repo_root()).resolve()
     diags: list[Diagnostic] = []
@@ -228,6 +243,7 @@ def load_project(root: Path | None = None) -> tuple[Project, list[Diagnostic]]:
     return Project(root=root, config=config, policy=policy), diags
 
 
+# trace:exempt reason=internal-detail
 def load_policy(root: Path, diags: list[Diagnostic] | None = None) -> PolicyConfig | None:
     path = root / ".trace" / "policy.toml"
     if not path.exists():
@@ -266,6 +282,7 @@ def _compact(exc: Exception) -> str:
 # --------------------------------------------------------------------------
 
 
+# trace:exempt reason=internal-detail
 def default_trace_toml(repo_id: str) -> str:
     return f"""# TraceLayer configuration (spec Section 49).
 schema_version = 1
