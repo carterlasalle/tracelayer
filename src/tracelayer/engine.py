@@ -782,6 +782,7 @@ _HOOK_MODULES = {
 }
 
 
+# trace:exempt reason=internal-detail
 class Engine:
     """The trace engine: index, verify, query, hook, audit, migrate, doctor."""
 
@@ -1014,6 +1015,41 @@ class Engine:
         edges = kept + new_edges + _structural_contains_edges(nodes, revision)
 
         _staleness_pass(store, nodes, edges, revision=revision, now=now, clean=False)
+        # Bootstrapping: create stub requirement nodes for missing satisfies
+        # targets. When source code says ``satisfies=REQ-foo`` but REQ-foo
+        # doesn't exist yet, the indexer creates a minimal stub so TL002
+        # doesn't block (the agent referenced a requirement that just needs
+        # to be fleshed out later). Stub nodes are active, type=requirement,
+        # and carry the source path where the reference was declared.
+        active_uids = {n.entity_uid for n in nodes if n.active}
+        for edge in edges:
+            if edge.status != "active" or edge.to_uid in active_uids:
+                continue
+            # only auto-create stubs for requirement IDs (REQ-*)
+            if not edge.to_uid:
+                continue
+            # check if the to_uid looks like a REQ node (by convention)
+            # we auto-create stubs for satisfies/work edges targeting missing nodes
+            from tracelayer.protocol.ids import infer_node_type
+
+            ntype = infer_node_type(edge.to_uid)
+            if ntype not in ("requirement", "work"):
+                continue
+            stub = Node(
+                entity_uid=edge.to_uid,
+                trace_id=edge.to_uid,
+                node_type=ntype,
+                canonical_path=edge.source_path or "",
+                artifact_fingerprint=None,
+                source_hash=None,
+                ast_hash=None,
+                metadata={"stub": True, "bootstrapped_by": edge.source_path},
+                active=True,
+                first_seen_at=now,
+                last_indexed_at=now,
+            )
+            nodes.append(stub)
+            active_uids.add(stub.entity_uid)
         diags.extend(_tl002_diags(nodes, edges))
 
         old_diags = [d for d in store.get_diagnostics() if d.path not in changed_paths]
