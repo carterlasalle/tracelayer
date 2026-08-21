@@ -49,13 +49,14 @@ class MarkerSuggestion:
     relationships: list[str] = field(default_factory=list)
 
 
+# trace:exempt reason=internal-helper
 def _slug(name: str) -> str:
     """kebab-case slug safe for trace ids.
 
     Splits camelCase (TS/JS names), spaces, and punctuation: "handleRequest"
     -> "handle-request", "Refresh Token Rotation" -> "refresh-token-rotation".
     """
-    split = re.sub(r"(?<!^)(?=[A-Z])", "-", name)
+    split = re.sub(r"(?<!^)(?=[A-Z][a-z])", "-", name)
     slug = re.sub(r"[^A-Za-z0-9]+", "-", split).strip("-").lower()
     return slug or "boundary"
 
