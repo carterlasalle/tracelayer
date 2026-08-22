@@ -399,8 +399,10 @@ def _scan_changed_files(ctx: HookContext, json_data: dict) -> HookOutput:
             continue
         if f.path.startswith(".trace/") or f.path.startswith(".git/") or f.path in ("AGENTS.md",):
             continue  # internal TraceLayer state is not scanned behavior
-        # Skip test files by default — they're verification, not product behavior
+        # Skip test files and CLI by default — they're infrastructure, not product behavior
         if re.search(r"(?:^|/)tests?/(?:test_|.*_test\.py|.*\.test\.\w+|.*\.spec\.\w+)|(?:^|/)__(?:tests|spec)__/(?!init)|test_[a-z_]+\.py$|[a-z_]+_test\.py$", f.path):
+            continue
+        if f.path.endswith("/cli.py") or "/cli/" in f.path:
             continue
         if policy_excluded is not None:
             try:
