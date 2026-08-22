@@ -388,9 +388,9 @@ def _scan_changed_files(ctx: HookContext, json_data: dict) -> HookOutput:
     try:
         from tracelayer.hooks.post_mutation import reconcile_pending_obligations as _reconcile
 
-        reconciled, _ = _reconcile(ctx.project, ctx.state, ctx.session_id)
+        _reconcile(ctx.project, ctx.state, ctx.session_id)
     except Exception:
-        reconciled = 0
+        pass
     created: list[str] = []
     remaining: dict[str, str] = {}
     pending_seen: list[str] = []
@@ -523,7 +523,6 @@ def _resolve_obligations_in(state, session_id: str, project, path: str, text: st
         symbols = parser.parse(text, path) if parser else []
     except Exception:
         symbols = []
-    marker_lines = {h.line for h in iter_marker_hits(text, path)}
     marker_ids: set[str] = set()
     for hit in iter_marker_hits(text, path):
         res = parse_marker_hit(hit, unknown_keys=project.config.markers.unknown_keys)
@@ -551,7 +550,13 @@ def _resolve_obligations_in(state, session_id: str, project, path: str, text: st
             None,
         )
         if expected is None:
-            # Boundary no longer exists — obligation is stale
+            # Boundary no longer exists. Stale ONLY when the file doesn't
+            # carry the obligation's suggested marker id: a file rewritten
+            # with the suggested id on a DIFFERENTLY-NAMED boundary is an
+            # unresolved rename (adversarial FINDING 8), not a stale list.
+            suggested_ids = _ids_in(str(obl.get("suggested_marker", "")))
+            if suggested_ids and (suggested_ids & marker_ids):
+                continue  # rename mismatch — keep blocking, agent must confirm
             state.resolve_obligation(session_id, path, symbol_name)
             resolved += 1
             continue

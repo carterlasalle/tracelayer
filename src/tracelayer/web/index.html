@@ -63,8 +63,20 @@ const TYPE_COLORS = {
 const LEGEND = [
   ["requirement", "#f59e0b"], ["decision", "#a78bfa"], ["plan", "#22d3ee"],
   ["work", "#f472b6"], ["implementation", "#4ade80"], ["test", "#60a5fa"],
-  ["doc/ops", "#9ca3af"],
+  ["doc/ops", "#9ca3af"], ["satisfies", "#4ade80"], ["verifies", "#60a5fa"],
+  ["implements", "#22d3ee"], ["exercises", "#a3e635"],
 ];
+
+const PREDICATE_STYLE = {
+  satisfies:    { color: "#4ade80", width: 2.6 },
+  verifies:     { color: "#60a5fa", width: 2.2 },
+  implements:   { color: "#22d3ee", width: 1.8 },
+  exercises:    { color: "#a3e635", width: 1.8 },
+  work:         { color: "#f472b6", width: 1.4 },
+  contains:     { color: "#64748b", width: 0.9 },
+  default:      { color: "#3a4a5c", width: 0.7 },
+};
+const styleOf = (p) => PREDICATE_STYLE[p] || PREDICATE_STYLE.default;
 
 let GRAPH = { nodes: [], edges: [] };
 
@@ -81,33 +93,38 @@ async function loadGraph() {
     return;
   }
   const nodes = data.nodes.map((n) => ({
-    id: n.id, name: n.id, type: n.type, title: n.title, path: n.path, status: n.status,
-    val: n.type === "requirement" ? 3 : n.type === "implementation" ? 2 : 1.4,
+    id: n.id,
+    name: n.title ? `${n.id} — ${n.title}` : n.id,
+    type: n.type, title: n.title, path: n.path, status: n.status,
+    val: n.type === "requirement" ? 4 : n.type === "implementation" ? 3 : n.type === "work" ? 2.2 : 1.6,
     color: colorOf(n.type),
   }));
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const links = data.edges
     .filter((e) => byId.has(e.source) && byId.has(e.target))
-    .map((e) => ({ source: e.source, target: e.target, predicate: e.predicate }));
+    .map((e) => {
+      const st = styleOf(e.predicate);
+      return { source: e.source, target: e.target, predicate: e.predicate, color: st.color, width: st.width };
+    });
   window.Graph = ForceGraph3D()(document.getElementById("graph"))
     .graphData({ nodes, links })
-    .nodeLabel((n) => `${n.id}\n${n.title || ""}`)
-    .nodeRelSize(5)
-    .linkColor((l) => "#3a4a5c")
-    .linkWidth(0.6)
-    .linkDirectionalParticles(1)
-    .linkDirectionalParticleSpeed(0.005)
-    .linkDirectionalParticleColor((l) => "#7cb3ff")
+    .nodeLabel((n) => `<div style="max-width:340px;white-space:normal">${escapeHtml(n.name)}</div>`)
+    .nodeRelSize(5.5)
+    .nodeOpacity(0.92)
+    .linkColor((l) => l.color)
+    .linkWidth((l) => l.width)
+    .linkOpacity(0.55)
+    .linkDirectionalParticles((l) => (["satisfies", "verifies"].includes(l.predicate) ? 2 : 0))
+    .linkDirectionalParticleSpeed(0.006)
+    .linkDirectionalParticleWidth((l) => l.width * 1.1)
+    .linkDirectionalParticleColor((l) => l.color)
+    .linkLabel((l) => l.predicate)
     .onNodeClick((n) => showNode(n.id))
     .onNodeHover((n) => {
       document.body.style.cursor = n ? "pointer" : "default";
     })
     .onLinkHover((l) => {
-      if (l) {
-        l.__label = `${l.predicate}`;
-        l.__tmp = { color: l.color, width: l.width };
-        l.color = "#7cb3ff"; l.width = 2;
-      } else if (GRAPH.edges.some((e) => e === l)) { /* noop */ }
+      document.body.style.cursor = l ? "pointer" : "default";
     });
 }
 

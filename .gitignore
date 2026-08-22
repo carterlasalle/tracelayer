@@ -24,3 +24,19 @@ node_modules/
 .pi/skills/
 
 .DS_Store
+
+# Release/build artifacts
+*.tar.gz
+*.whl
+*.egg-info/
+junit.xml
+coverage.xml
+coverage.lcov
+htmlcov/
+
+# Local agent runtime state (skills are canonical in skills/traceability)
+.hermes/
+.pi/
+.claude/settings.json
+.claude/skills/
+.opencode/
