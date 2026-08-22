@@ -156,11 +156,14 @@ def handle(ctx: HookContext, payload: dict) -> HookOutput:
         }
     )
     # Post-scan reconcile: clear stale obligations that the scan didn't
-    # need to create. This ensures the output shows only genuinely new
-    # obligations, not a snapshot of the stale session state.
+    # need to create. Update json_data so the output reflects the
+    # reconciled state, not the pre-reconcile snapshot.
     try:
         from tracelayer.hooks.post_mutation import reconcile_pending_obligations as _reconcile
-        _reconcile(ctx.project, ctx.state, ctx.session_id)
+        reconciled, remaining = _reconcile(ctx.project, ctx.state, ctx.session_id)
+        if reconciled or remaining is not None:
+            json_data["pending_obligations"] = remaining
+            json_data["reconciled_obligations"] = reconciled
     except Exception:
         pass
     return render_allowed(text_out, json_data)
