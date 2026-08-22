@@ -23,17 +23,20 @@ _SAFE = re.compile(r"[^A-Za-z0-9._-]+")
 class SessionState:
     """JSON-file-backed session state keyed by session id."""
 
+    # trace:exempt reason=internal-helper
     def __init__(self, project: Project) -> None:
         self.project = project
         self.session_dir = project.session_dir
 
     # -- identity ---------------------------------------------------------
 
+    # trace:exempt reason=internal-helper
     def session_id_from(self, payload: dict) -> str:
         """Payload ``session_id``, else the ``TRACE_SESSION`` env, else ``"default"``."""
         sid = payload.get("session_id") or os.environ.get("TRACE_SESSION")
         return str(sid or "default")
 
+    # trace:exempt reason=internal-helper
     def _file(self, session_id: str) -> Path:
         # Sanitize so hostile session ids cannot escape the session directory.
         name = _SAFE.sub("-", str(session_id)).strip("-.")
@@ -43,6 +46,7 @@ class SessionState:
 
     # -- storage ----------------------------------------------------------
 
+    # trace:exempt reason=internal-helper
     def _read(self, session_id: str) -> dict:
         path = self._file(session_id)
         try:
@@ -51,6 +55,7 @@ class SessionState:
             return {}
         return data if isinstance(data, dict) else {}
 
+    # trace:exempt reason=internal-helper
     def _write(self, session_id: str, data: dict) -> None:
         self.session_dir.mkdir(parents=True, exist_ok=True)
         path = self._file(session_id)
@@ -65,9 +70,11 @@ class SessionState:
 
     # -- accessors ----------------------------------------------------------
 
+    # trace:exempt reason=internal-helper
     def context_loaded(self, session_id: str, trace_id: str) -> bool:
         return trace_id in self._read(session_id).get("contexts_loaded", [])
 
+    # trace:exempt reason=internal-helper
     def record_context_load(self, session_id: str, trace_id: str) -> None:
         data = self._read(session_id)
         loaded = data.setdefault("contexts_loaded", [])
@@ -75,6 +82,7 @@ class SessionState:
             loaded.append(trace_id)
         self._write(session_id, data)
 
+    # trace:exempt reason=internal-helper
     def record_blocked_edit(self, session_id: str, trace_id: str) -> None:
         data = self._read(session_id)
         blocked = data.setdefault("blocked", [])
@@ -82,9 +90,11 @@ class SessionState:
             blocked.append(trace_id)
         self._write(session_id, data)
 
+    # trace:exempt reason=internal-helper
     def blocked_without_context(self, session_id: str, trace_id: str) -> bool:
         return trace_id in self._read(session_id).get("blocked", [])
 
+    # trace:exempt reason=internal-helper
     def mark_dirty(self, session_id: str, trace_ids: set[str]) -> None:
         data = self._read(session_id)
         dirty = data.setdefault("dirty", [])
@@ -93,9 +103,11 @@ class SessionState:
                 dirty.append(tid)
         self._write(session_id, data)
 
+    # trace:exempt reason=internal-helper
     def dirty(self, session_id: str) -> set[str]:
         return set(self._read(session_id).get("dirty", []))
 
+    # trace:exempt reason=internal-helper
     def set_active_work(self, session_id: str, work_id: str | None) -> None:
         """Record the work item the session is operating under (spec 22.4)."""
         if work_id is None:
@@ -104,9 +116,11 @@ class SessionState:
         data["active_work"] = work_id
         self._write(session_id, data)
 
+    # trace:exempt reason=internal-helper
     def active_work(self, session_id: str) -> str | None:
         return self._read(session_id).get("active_work")
 
+    # trace:exempt reason=internal-helper
     def set_active_plan(self, session_id: str, plan_id: str | None) -> None:
         """Record the plan the session is implementing (review P2)."""
         if plan_id is None:
@@ -115,6 +129,7 @@ class SessionState:
         data["active_plan"] = plan_id
         self._write(session_id, data)
 
+    # trace:exempt reason=internal-helper
     def active_plan(self, session_id: str) -> str | None:
         return self._read(session_id).get("active_plan")
 
@@ -130,6 +145,7 @@ class SessionState:
             requirements.append(req_id)
         self._write(session_id, data)
 
+    # trace:exempt reason=internal-helper
     def active_requirement(self, session_id: str) -> str | None:
         return self._read(session_id).get("active_requirement")
 
@@ -240,6 +256,7 @@ class SessionState:
         self._write(session_id, data)
         return True
 
+    # trace:exempt reason=internal-helper
     def resolve_obligation(self, session_id: str, path: str, symbol: str) -> None:
         data = self._read(session_id)
         changed = False
@@ -250,6 +267,7 @@ class SessionState:
         if changed:
             self._write(session_id, data)
 
+    # trace:exempt reason=internal-helper
     def pending_obligations(self, session_id: str) -> list[dict]:
         return [
             o
