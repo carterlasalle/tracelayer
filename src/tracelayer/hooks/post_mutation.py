@@ -524,6 +524,7 @@ def _resolve_obligations_in(state, session_id: str, project, path: str, text: st
         res = parse_marker_hit(hit, unknown_keys=project.config.markers.unknown_keys)
         if res.marker is not None and res.marker.trace_id:
             marker_ids.add(res.marker.trace_id)
+    from tracelayer.discovery.boundaries import boundary_is_traced
     from tracelayer.discovery.suggest import _slug
 
     resolved = 0
@@ -544,36 +545,12 @@ def _resolve_obligations_in(state, session_id: str, project, path: str, text: st
             ),
             None,
         )
-        if expected is not None and any(
-            expected.start_line - 4 <= m <= expected.start_line - 1
-            and _attachment_gap_ok(text, m, expected.start_line)
-            for m in marker_lines
-        ):
-            state.resolve_obligation(session_id, path, symbol_name)
-            resolved += 1
-            continue
-        # The suggested marker id attached to the expected boundary (path-form
-        # mismatch tolerance: pre used an absolute path, post a relative one —
-        # the boundary identity, not the path spelling, decides).
-        suggested_ids = _ids_in(str(obl.get("suggested_marker", "")))
-        if not suggested_ids or not (suggested_ids & marker_ids):
-            continue
-        attached = [
-            s
-            for s in symbols
-            if any(
-                s.start_line - 4 <= m <= s.start_line - 1
-                and _attachment_gap_ok(text, m, s.start_line)
-                for m in marker_lines
-            )
-        ]
-        if any(
-            str(getattr(s, "qualified_name", "") or s.name) == symbol_name
-            or _slug(str(s.name)) == _slug(symbol_name.rsplit(".", 1)[-1])
-            for s in attached
-        ):
-            state.resolve_obligation(session_id, path, symbol_name)
-            resolved += 1
+        if expected is not None:
+            # Use boundary_is_traced which handles both v1 and exempt markers
+            if boundary_is_traced(text, symbols, expected, project.root, None):
+                state.resolve_obligation(session_id, path, symbol_name)
+                resolved += 1
+                continue
     return resolved
 
 

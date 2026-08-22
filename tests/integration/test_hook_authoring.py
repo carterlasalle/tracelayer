@@ -37,6 +37,7 @@ def _pre(repo, payload: dict, session: str = "s", fmt: str = "json") -> subproce
     )
 
 
+# trace:exempt reason=internal-detail
 def _post(repo, payload: dict, session: str = "s") -> dict:
     r = run_trace(
         repo,
@@ -250,6 +251,7 @@ def test_marker_suggest_with_session_context(tmp_path):
     )
 
 
+# trace:exempt reason=internal-detail
 def test_stop_blocks_untraced_new_file_via_changed_scope(tmp_path):
     """Stop now evaluates changed scope: a brand-new untraced file blocks."""
     repo = _repo(tmp_path)

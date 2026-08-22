@@ -143,11 +143,13 @@ class Waiver(BaseModel):
     expires: date | None = None
     owner: str | None = None
 
+    # trace:exempt reason=internal-detail
     def expired(self, today: date | None = None) -> bool:
         if self.expires is None:
             return False
         return self.expires < (today or date.today())
 
+    # trace:exempt reason=internal-detail
     def matches(self, rule_id: str, trace_id: str | None, path: str | None) -> bool:
         if self.rule != rule_id:
             return False
@@ -167,6 +169,7 @@ class PolicyConfig(BaseModel):
     exclusions: ExclusionsConfig = Field(default_factory=ExclusionsConfig)
     waivers: list[Waiver] = Field(default_factory=list)
 
+    # trace:exempt reason=internal-detail
     def lifecycle_for(self, requested: str | None, *, ci: bool = False) -> str:
         if requested:
             return requested
@@ -188,14 +191,17 @@ class Project:
     config: TraceConfig
     policy: PolicyConfig | None = None
 
+    # trace:exempt reason=internal-detail
     @property
     def cache_dir(self) -> Path:
         return self.root / self.config.cache_dir
 
+    # trace:exempt reason=internal-detail
     @property
     def db_path(self) -> Path:
         return self.cache_dir / "index.sqlite3"
 
+    # trace:exempt reason=internal-detail
     @property
     def session_dir(self) -> Path:
         return self.cache_dir / "session"

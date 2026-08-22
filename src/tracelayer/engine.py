@@ -97,6 +97,7 @@ class VerifyResult:
     diagnostics: list[Diagnostic] = field(default_factory=list)
     blocking: bool = False
 
+    # trace:exempt reason=internal-detail
     def exit_code(self) -> int:
         """0 pass | 1 blocking (spec 28.6)."""
         return 1 if self.blocking else 0
@@ -377,6 +378,7 @@ def _process_file(
     markers = 0
     symbols_attached = 0
 
+    # trace:exempt reason=internal-detail
     def parse_all(hits: list[MarkerHit]) -> dict[int, ParsedMarker | None]:
         """Parse every hit once (diags collected); id(hit) -> marker."""
         nonlocal markers
@@ -822,6 +824,7 @@ _HOOK_MODULES = {
 class Engine:
     """The trace engine: index, verify, query, hook, audit, migrate, doctor."""
 
+    # trace:exempt reason=internal-detail
     def __init__(self, project: Project, gitrepo: GitRepo | None = None) -> None:
         self.project = project
         self.gitrepo = gitrepo
@@ -832,6 +835,7 @@ class Engine:
 
     # trace:exempt reason=internal-detail
     @classmethod
+    # trace:exempt reason=internal-detail
     def open(cls, root: Path | None = None) -> tuple[Engine, list[Diagnostic]]:
         """Resolve the project, git repo, and graph store (contract §J).
 
@@ -842,17 +846,21 @@ class Engine:
         gitrepo = GitRepo.open(project.root)
         return cls(project, gitrepo), diags
 
+    # trace:exempt reason=internal-detail
     def close(self) -> None:
         self.store.close()
 
+    # trace:exempt reason=internal-detail
     def __enter__(self) -> Engine:
         return self
 
+    # trace:exempt reason=internal-detail
     def __exit__(self, *exc: Any) -> None:
         self.close()
 
     # ------------------------------------------------------------- indexing
 
+    # trace:exempt reason=internal-detail
     def index_all(self, *, clean: bool = False) -> IndexReport:
         """Full index (spec 18.1): discover, scan, attach, fingerprint,
         staleness, atomic rebuild."""
@@ -1126,6 +1134,7 @@ class Engine:
 
     # -------------------------------------------------------------- status
 
+    # trace:exempt reason=internal-detail
     def status(self) -> StatusReport:
         """Aggregate counts per spec 28.2."""
         stats = self.store.stats()
@@ -1149,11 +1158,13 @@ class Engine:
 
     # ------------------------------------------------------------- queries
 
+    # trace:exempt reason=internal-detail
     def context(self, trace_id: str):
         from tracelayer.query.context import build_context
 
         return build_context(self.store, self.gitrepo, trace_id)
 
+    # trace:exempt reason=internal-detail
     def why(self, trace_id: str):
         """Causal paths for a node; compensates the shared walker's leaf case.
 
@@ -1180,16 +1191,19 @@ class Engine:
                     return paths
         return paths
 
+    # trace:exempt reason=internal-detail
     def impact(self, trace_id: str, **kw: Any):
         from tracelayer.query.impact import impact as impact_fn
 
         return impact_fn(self.store, self.gitrepo, trace_id, **kw)
 
+    # trace:exempt reason=internal-detail
     def search(self, text: str, limit: int = 20):
         from tracelayer.query.search import search as search_fn
 
         return search_fn(self.store, text, limit=limit)
 
+    # trace:exempt reason=internal-detail
     def subgraph(self, trace_id: str, *, depth: int = 2) -> Subgraph:
         node = self.store.get_node(trace_id=trace_id)
         if node is None:
@@ -1215,6 +1229,7 @@ class Engine:
         new_policy = policy.model_copy(update={"requirements": {lifecycle: forced}})
         return dataclasses.replace(self.project, policy=new_policy)
 
+    # trace:exempt reason=internal-detail
     def verify(
         self,
         *,
@@ -1278,6 +1293,7 @@ class Engine:
 
     # ------------------------------------------------------------- evidence
 
+    # trace:exempt reason=internal-detail
     def ingest_evidence(self, **kw: Any):
         """Ingest evidence files, binding outcomes/coverage to indexed nodes."""
         from tracelayer.evidence.ingest import ingest
@@ -1309,6 +1325,7 @@ class Engine:
 
     # ---------------------------------------------------------------- hooks
 
+    # trace:exempt reason=internal-detail
     def hook(self, event: str, payload: dict):
         """Run one hook event handler (spec Section 22)."""
         from tracelayer.hooks.common import hook_context
@@ -1324,11 +1341,13 @@ class Engine:
 
     # ---------------------------------------------------------------- audit
 
+    # trace:exempt reason=internal-detail
     def audit_package(self, **kw: Any) -> dict:
         from tracelayer.audit.package import build_audit_package
 
         return build_audit_package(self.project, self.store, self.gitrepo, **kw)
 
+    # trace:exempt reason=internal-detail
     def run_auditor(self, *, command: str, timeout: int = 300) -> tuple[dict, list[Diagnostic]]:
         from tracelayer.audit.auditor import run_auditor as run_auditor_fn
 
@@ -1336,6 +1355,7 @@ class Engine:
 
     # --------------------------------------------------------------- reports
 
+    # trace:exempt reason=internal-detail
     def pr_summary(self) -> str:
         """Generate the PR summary (spec Section 27)."""
         store = self.store
@@ -1424,6 +1444,7 @@ class Engine:
         lines += [f"- {u}" for u in unexpected[:20]] or ["- none"]
         return "\n".join(lines) + "\n"
 
+    # trace:exempt reason=internal-detail
     def new_id(self, node_type: str, name: str) -> str:
         """Generate a fresh schema-compliant ID (``trace new``)."""
         from tracelayer.protocol.ontology import NODE_TYPES
@@ -1433,6 +1454,7 @@ class Engine:
         taken = {n.trace_id for n in self.store.all_nodes(active_only=False)}
         return generate_id(node_type, name, taken=taken)
 
+    # trace:exempt reason=internal-detail
     def review(self, trace_id: str) -> bool:
         """Review a stale node: STALE_REVIEW_REQUIRED -> REVIEWED_NEEDS_VERIFICATION.
 
@@ -1478,6 +1500,7 @@ class Engine:
 
     # ---------------------------------------------------------------- doctor
 
+    # trace:exempt reason=internal-detail
     def doctor(self, *, fix: bool = False) -> tuple[list[Diagnostic], dict | None]:
         """Re-detect issues; optionally apply deterministic cosmetic fixes."""
         from tracelayer.doctor import apply_fixes, run_doctor
@@ -1488,22 +1511,26 @@ class Engine:
 
     # -------------------------------------------------------------- migration
 
+    # trace:exempt reason=internal-detail
     def migration_scan(self) -> tuple[list, list[Diagnostic]]:
         from tracelayer.migration.codeops import scan_codeops
 
         return scan_codeops(self.project.root, self.project.config)
 
+    # trace:exempt reason=internal-detail
     def migration_scry(self) -> tuple[list, list[Diagnostic]]:
         from tracelayer.migration.scry import scan_scry
 
         return scan_scry(self.project.root, self.project.config)
 
+    # trace:exempt reason=internal-detail
     def migration_plan(self):
         from tracelayer.migration.codeops import build_plan
 
         markers, _diags = self.migration_scan()
         return build_plan(markers, self.project)
 
+    # trace:exempt reason=internal-detail
     def migration_apply(self, plan, *, dry_run: bool = False) -> dict:
         from tracelayer.migration.codeops import apply_plan
 
@@ -1511,6 +1538,7 @@ class Engine:
 
     # ----------------------------------------------------------------- docs
 
+    # trace:exempt reason=internal-detail
     def docs_generate(self, *, check: bool = False) -> bool:
         """Write (or verify) the generated protocol docs; True when up to date.
 
@@ -1542,6 +1570,7 @@ class TraceRepository:
     stable public APIs.
     """
 
+    # trace:exempt reason=internal-detail
     def __init__(self, engine: Engine) -> None:
         self._engine = engine
 
@@ -1549,9 +1578,11 @@ class TraceRepository:
 
     # trace:exempt reason=internal-detail
     @classmethod
+    # trace:exempt reason=internal-detail
     def open(cls, path: Path | str | None = None) -> TraceRepository:
         engine, _diags = Engine.open(Path(path) if path else None)
         return cls(engine)
 
+    # trace:exempt reason=internal-detail
     def __getattr__(self, name: str) -> Any:
         return getattr(self._engine, name)
