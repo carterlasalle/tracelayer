@@ -70,6 +70,14 @@ def handle(ctx: HookContext, payload: dict) -> HookOutput:
     }
     if ctx.store is None or ctx.state is None:
         return render_allowed("", json_data)
+    # Whole-tree reconcile FIRST: clear stale obligations before any
+    # scan creates new ones — this is what prevents the "N obligations
+    # pending" message from re-appearing on every OMP prompt.
+    try:
+        from tracelayer.hooks.post_mutation import reconcile_pending_obligations as _reconcile
+        _reconcile(ctx.project, ctx.state, ctx.session_id)
+    except Exception:
+        pass
     if not path:
         return _scan_changed_files(ctx, json_data)
     text = _read_text(ctx.project.root, path)
