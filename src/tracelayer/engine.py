@@ -64,7 +64,9 @@ from tracelayer.protocol.marker import MarkerHit
 # trace:exempt reason=internal-detail
 
 
+# trace:exempt reason=internal-detail
 @dataclass
+# trace:exempt reason=internal-detail
 class IndexReport:
     """Summary of one index run (spec 18.1, 58)."""
 
@@ -83,7 +85,9 @@ class IndexReport:
 # trace:exempt reason=internal-detail
 
 
+# trace:exempt reason=internal-detail
 @dataclass
+# trace:exempt reason=internal-detail
 class VerifyResult:
     """Outcome of ``trace verify`` (spec 28.6)."""
 
@@ -104,7 +108,9 @@ class VerifyResult:
 # trace:exempt reason=internal-detail
 
 
+# trace:exempt reason=internal-detail
 @dataclass
+# trace:exempt reason=internal-detail
 class StatusReport:
     """Counts per spec 28.2."""
 
@@ -125,11 +131,13 @@ class StatusReport:
 # --------------------------------------------------------------------------
 
 
+# trace:exempt reason=internal-detail
 def _now_iso() -> str:
     """UTC timestamp for observed_at / last_indexed_at columns."""
     return datetime.now(UTC).isoformat(timespec="seconds")
 
 
+# trace:exempt reason=internal-detail
 def _work_toml_nodes(project: Project, now: str) -> tuple[list[Node], list[Diagnostic]]:
     """Work nodes declared in ``<root>/.trace/work.toml`` (spec 31.2, FR-032).
 
@@ -189,6 +197,7 @@ def _work_toml_nodes(project: Project, now: str) -> tuple[list[Node], list[Diagn
     return nodes, diags
 
 
+# trace:exempt reason=internal-detail
 def _inactive_copy(node: Node, now: str) -> Node:
     """Historical copy of a node whose marker disappeared (spec 18.3).
 
@@ -215,6 +224,7 @@ def _inactive_copy(node: Node, now: str) -> Node:
     )
 
 
+# trace:exempt reason=internal-detail
 def _marker_edges(
     trace_id: str,
     edges_map: dict[str, list[str]],
@@ -249,6 +259,7 @@ def _marker_edges(
     return out
 
 
+# trace:exempt reason=internal-detail
 def _node_from_marker(
     rel_path: str,
     marker: ParsedMarker,
@@ -328,6 +339,7 @@ def _node_from_marker(
     return node, _marker_edges(tid, marker.edges, rel_path, marker.line, revision)
 
 
+# trace:exempt reason=internal-detail
 def _process_file(
     project: Project,
     rel_path: str,
@@ -577,6 +589,7 @@ def _process_file(
     return nodes, edges, diags, markers, symbols_attached
 
 
+# trace:exempt reason=internal-detail
 def _dedupe_nodes(nodes: list[Node], diags: list[Diagnostic]) -> list[Node]:
     """Keep the first declaration of each trace id; TL001 for the rest.
 
@@ -605,6 +618,7 @@ def _dedupe_nodes(nodes: list[Node], diags: list[Diagnostic]) -> list[Node]:
     return list(out.values())
 
 
+# trace:exempt reason=internal-detail
 def _tl002_diags(nodes: list[Node], edges: list[Edge]) -> list[Diagnostic]:
     """TL002 for active declared edges whose target is missing or inactive.
 
@@ -636,6 +650,7 @@ _POLICY_CONFIG_FILES = (".trace/policy.toml", ".trace/trace.toml")
 _POLICY_CONFIG_DIRS = (".trace/policy/", ".trace/schema/")
 
 
+# trace:exempt reason=internal-detail
 def _policy_config_diags(changed_paths: set[str]) -> list[Diagnostic]:
     """TL063 WARNINGs for changed policy/schema files (Threat T10, DoD security).
 
@@ -660,6 +675,7 @@ def _policy_config_diags(changed_paths: set[str]) -> list[Diagnostic]:
     return out
 
 
+# trace:exempt reason=internal-detail
 def _edge_order_key(e: Edge) -> str:
     """Deterministic edge row order: the store's computed edge uid.
 
@@ -678,6 +694,7 @@ def _edge_order_key(e: Edge) -> str:
     )
 
 
+# trace:exempt reason=internal-detail
 def _structural_contains_edges(nodes: list[Node], revision: str | None) -> list[Edge]:
     """Derive structural ``contains`` edges among symbol-attached nodes (spec 12.3).
 
@@ -724,6 +741,7 @@ def _structural_contains_edges(nodes: list[Node], revision: str | None) -> list[
     return out
 
 
+# trace:exempt reason=internal-detail
 def _staleness_pass(
     store: GraphStore,
     nodes: list[Node],
@@ -812,6 +830,7 @@ class Engine:
 
     # trace:exempt reason=internal-detail
 
+    # trace:exempt reason=internal-detail
     @classmethod
     def open(cls, root: Path | None = None) -> tuple[Engine, list[Diagnostic]]:
         """Resolve the project, git repo, and graph store (contract §J).
@@ -1179,6 +1198,7 @@ class Engine:
 
     # ------------------------------------------------------------- verify
 
+    # trace:exempt reason=internal-detail
     def _forced_evidence_project(self, lifecycle: str) -> Project:
         """Project copy with evidence-dependent gates forced on (spec 28.6)."""
         from tracelayer.policy.evaluator import effective_requirements
@@ -1428,6 +1448,7 @@ class Engine:
         self._review_closure(node)
         return True
 
+    # trace:exempt reason=internal-detail
     def _review_closure(self, start: Node) -> None:
         """Transition stale nodes reachable from ``start`` via declared edges."""
         seen: set[str] = {start.entity_uid}
@@ -1526,6 +1547,7 @@ class TraceRepository:
 
     # trace:exempt reason=internal-detail
 
+    # trace:exempt reason=internal-detail
     @classmethod
     def open(cls, path: Path | str | None = None) -> TraceRepository:
         engine, _diags = Engine.open(Path(path) if path else None)

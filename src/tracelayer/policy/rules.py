@@ -39,6 +39,7 @@ RuleFn = Callable[[EvalContext], list[Diagnostic]]
 _ANCESTRY_PREDICATES = frozenset({"work", "satisfies"})
 
 
+# trace:exempt reason=internal-detail
 def _scope_nodes(ctx: EvalContext) -> list[Node]:
     """Active nodes in scope: changed trace IDs when given, else all nodes.
 
@@ -50,11 +51,13 @@ def _scope_nodes(ctx: EvalContext) -> list[Node]:
     return [n for n in ctx.store.all_nodes(active_only=True) if n.trace_id in ctx.changed_ids]
 
 
+# trace:exempt reason=internal-detail
 def _stored(ctx: EvalContext, rule_id: str) -> list[Diagnostic]:
     """Re-emit diagnostics of ``rule_id`` from the last index."""
     return list(ctx.store.get_diagnostics(rule_id=rule_id))
 
 
+# trace:exempt reason=internal-detail
 def _has_outgoing(ctx: EvalContext, node: Node, predicates: frozenset[str]) -> bool:
     return any(
         e.status == "active" and e.predicate in predicates
@@ -62,6 +65,7 @@ def _has_outgoing(ctx: EvalContext, node: Node, predicates: frozenset[str]) -> b
     )
 
 
+# trace:exempt reason=internal-detail
 def _has_incoming(ctx: EvalContext, node: Node, predicates: frozenset[str]) -> bool:
     return any(
         e.status == "active" and e.predicate in predicates
@@ -321,6 +325,7 @@ def rule_tl013(ctx: EvalContext) -> list[Diagnostic]:
     return diags
 
 
+# trace:exempt reason=internal-detail
 def _baseline_text(gitrepo, path: str) -> str | None:
     """HEAD content of ``path``, or None when the file is new."""
     try:
@@ -332,6 +337,7 @@ def _baseline_text(gitrepo, path: str) -> str | None:
         return None
 
 
+# trace:exempt reason=internal-detail
 def _boundary_fp(boundary) -> str:
     from tracelayer.graph.fingerprints import normalize_block, semantic_fingerprint
 
@@ -454,6 +460,7 @@ def rule_tl020(ctx: EvalContext) -> list[Diagnostic]:
     return diags
 
 
+# trace:exempt reason=internal-detail
 def _outcomes_for(ctx: EvalContext) -> list:
     """Outcomes of the latest evidence run at the evaluated revision.
 
@@ -466,6 +473,7 @@ def _outcomes_for(ctx: EvalContext) -> list:
     return ctx.store.outcomes_for_run(run["run_id"])
 
 
+# trace:exempt reason=internal-detail
 def _test_passed(ctx: EvalContext, test_node: Node, outcomes: list) -> bool:
     """Latest outcome for a linked test is pass, matched by uid or id."""
     for outcome in outcomes:

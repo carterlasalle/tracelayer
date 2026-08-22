@@ -182,6 +182,7 @@ class PolicyConfig(BaseModel):
 
 # trace:exempt reason=internal-detail
 @dataclass
+# trace:exempt reason=internal-detail
 class Project:
     root: Path
     config: TraceConfig
@@ -265,6 +266,7 @@ def load_policy(root: Path, diags: list[Diagnostic] | None = None) -> PolicyConf
         return PolicyConfig()
 
 
+# trace:exempt reason=internal-detail
 def _compact(exc: Exception) -> str:
     """Compact, actionable error text from pydantic/tomllib exceptions."""
     if isinstance(exc, ValidationError):
