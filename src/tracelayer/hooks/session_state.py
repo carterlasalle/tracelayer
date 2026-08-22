@@ -230,6 +230,11 @@ class SessionState:
         key = (obligation.get("path"), obligation.get("symbol"))
         for existing in obligations:
             if (existing.get("path"), existing.get("symbol")) == key:
+                if existing.get("state") == "satisfied":
+                    # The scan re-proposed an obligation for a boundary the
+                    # tree already accounts for (marker landed since). Keep
+                    # it satisfied — never resurrect cleared work.
+                    return False
                 return False  # dedupe by path+symbol
         obligations.append(obligation)
         self._write(session_id, data)
