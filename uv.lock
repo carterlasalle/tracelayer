@@ -923,7 +923,7 @@ wheels = [
 
 [[package]]
 name = "tracelayer"
-version = "0.2.34"
+version = "0.2.35"
 source = { editable = "." }
 dependencies = [
     { name = "pydantic" },
