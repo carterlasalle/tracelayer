@@ -548,12 +548,16 @@ def _resolve_obligations_in(state, session_id: str, project, path: str, text: st
             ),
             None,
         )
-        if expected is not None:
-            # Use boundary_is_traced which handles both v1 and exempt markers
-            if boundary_is_traced(text, symbols, expected, project.root, None):
-                state.resolve_obligation(session_id, path, symbol_name)
-                resolved += 1
-                continue
+        if expected is None:
+            # Boundary no longer exists — obligation is stale
+            state.resolve_obligation(session_id, path, symbol_name)
+            resolved += 1
+            continue
+        # Use boundary_is_traced which handles both v1 and exempt markers
+        if boundary_is_traced(text, symbols, expected, project.root, None):
+            state.resolve_obligation(session_id, path, symbol_name)
+            resolved += 1
+            continue
     return resolved
 
 
