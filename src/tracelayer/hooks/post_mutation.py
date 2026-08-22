@@ -368,6 +368,7 @@ def _scan_changed_files(ctx: HookContext, json_data: dict) -> HookOutput:
     # prevents the recurring "N obligations already pending" messages.
     try:
         from tracelayer.hooks.post_mutation import reconcile_pending_obligations as _reconcile
+
         reconciled, _ = _reconcile(ctx.project, ctx.state, ctx.session_id)
     except Exception:
         reconciled = 0

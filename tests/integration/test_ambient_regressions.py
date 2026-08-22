@@ -201,12 +201,14 @@ def test_obligation_resolves_by_marker_id_despite_symbol_mismatch(tmp_path):
             }
         ),
     )
-    assert r.returncode == 2
+    assert r.returncode == 0  # auto-injects marker
     obl = json.loads(r.stdout)
-    suggested = obl.get("output", "")
+    rewrite = obl.get("suggested_rewrite")
+    assert rewrite is not None
+    content = rewrite["content"]
     import re as _re
 
-    m = _re.search(r"id=([A-Za-z0-9._:/-]+)", suggested)
+    m = _re.search(r"id=([A-Za-z0-9._:/-]+)", content)
     assert m
     marker_id = m.group(1)
     # the file is written with the suggested marker id but a DIFFERENT symbol:
@@ -272,12 +274,14 @@ def test_obligation_resolves_same_boundary_across_path_form(tmp_path):
             }
         ),
     )
-    assert r.returncode == 2
+    assert r.returncode == 0
     obl = json.loads(r.stdout)
-    suggested = obl.get("output", "")
+    rewrite = obl.get("suggested_rewrite")
+    assert rewrite is not None
+    content = rewrite["content"]
     import re as _re
 
-    m = _re.search(r"id=([A-Za-z0-9._:/-]+)", suggested)
+    m = _re.search(r"id=([A-Za-z0-9._:/-]+)", content)
     assert m
     marker_id = m.group(1)
     (repo / "src").mkdir(parents=True, exist_ok=True)

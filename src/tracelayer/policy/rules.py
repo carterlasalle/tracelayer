@@ -96,9 +96,13 @@ def rule_tl002(ctx: EvalContext) -> list[Diagnostic]:
             rem = ""
             if edge.to_uid:
                 rem = (
-                    f"  Create it: trace new {edge.to_uid.split('-')[0].lower()}"
-                    f" --name {edge.to_uid} --title "<title>""
-                ) if edge.to_uid.startswith("REQ-") or edge.to_uid.startswith("WORK-") else ""
+                    (
+                        f"  Create it: trace new {edge.to_uid.split('-')[0].lower()}"
+                        f" --name {edge.to_uid} --title " < title > ""
+                    )
+                    if edge.to_uid.startswith("REQ-") or edge.to_uid.startswith("WORK-")
+                    else ""
+                )
             diags.append(
                 make(
                     "TL002",
@@ -289,7 +293,8 @@ def rule_tl013(ctx: EvalContext) -> list[Diagnostic]:
                 if line.strip().startswith(("@", "#", "//", "/*", ">", "*")):
                     hint_lines.append(line.strip())
             placement = (
-                "doc-comments may separate marker and symbol" if hint_lines
+                "doc-comments may separate marker and symbol"
+                if hint_lines
                 else "place marker directly above the symbol (no blank lines in between)"
             )
             rem_hint = ""

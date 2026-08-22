@@ -63,6 +63,7 @@ from tracelayer.protocol.marker import MarkerHit
 
 # trace:exempt reason=internal-detail
 
+
 @dataclass
 class IndexReport:
     """Summary of one index run (spec 18.1, 58)."""
@@ -80,6 +81,7 @@ class IndexReport:
 
 
 # trace:exempt reason=internal-detail
+
 
 @dataclass
 class VerifyResult:
@@ -100,6 +102,7 @@ class VerifyResult:
 
 
 # trace:exempt reason=internal-detail
+
 
 @dataclass
 class StatusReport:

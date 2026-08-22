@@ -285,8 +285,11 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
             if marker:
                 new_content = payload["new_string"]
                 inject = marker + "\n" if boundary.language != "json" else ""
-                rewrite = {"file_path": rel_path, "old_string": payload["old_string"],
-                          "new_string": inject + new_content}
+                rewrite = {
+                    "file_path": rel_path,
+                    "old_string": payload["old_string"],
+                    "new_string": inject + new_content,
+                }
     existing_ids = _file_marker_ids(proposed)
     for boundary, change_kind in untraced[:20]:
         state.add_obligation(
