@@ -102,7 +102,7 @@ def rule_tl002(ctx: EvalContext) -> list[Diagnostic]:
                 rem = (
                     (
                         f"  Create it: trace new {edge.to_uid.split('-')[0].lower()}"
-                        f" --name {edge.to_uid} --title \"<title>\""
+                        f' --name {edge.to_uid} --title "<title>"'
                     )
                     if edge.to_uid.startswith("REQ-") or edge.to_uid.startswith("WORK-")
                     else ""

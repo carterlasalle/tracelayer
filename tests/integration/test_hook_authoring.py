@@ -31,7 +31,8 @@ def _pre(repo, payload: dict, session: str = "s", fmt: str = "json") -> subproce
         repo,
         "hook",
         "pre-mutation",
-        "--format", fmt,
+        "--format",
+        fmt,
         env={"TRACE_SESSION": session},
         input=json.dumps(payload),
     )

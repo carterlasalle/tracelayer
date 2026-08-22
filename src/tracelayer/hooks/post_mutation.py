@@ -75,6 +75,7 @@ def handle(ctx: HookContext, payload: dict) -> HookOutput:
     # pending" message from re-appearing on every OMP prompt.
     try:
         from tracelayer.hooks.post_mutation import reconcile_pending_obligations as _reconcile
+
         _reconcile(ctx.project, ctx.state, ctx.session_id)
     except Exception:
         pass
@@ -160,6 +161,7 @@ def handle(ctx: HookContext, payload: dict) -> HookOutput:
     # reconciled state, not the pre-reconcile snapshot.
     try:
         from tracelayer.hooks.post_mutation import reconcile_pending_obligations as _reconcile
+
         reconciled, remaining = _reconcile(ctx.project, ctx.state, ctx.session_id)
         if reconciled or remaining is not None:
             json_data["pending_obligations"] = remaining
@@ -400,7 +402,10 @@ def _scan_changed_files(ctx: HookContext, json_data: dict) -> HookOutput:
         if f.path.startswith(".trace/") or f.path.startswith(".git/") or f.path in ("AGENTS.md",):
             continue  # internal TraceLayer state is not scanned behavior
         # Skip test files and CLI by default — they're infrastructure, not product behavior
-        if re.search(r"(?:^|/)tests?/(?:test_|.*_test\.py|.*\.test\.\w+|.*\.spec\.\w+)|(?:^|/)__(?:tests|spec)__/(?!init)|test_[a-z_]+\.py$|[a-z_]+_test\.py$", f.path):
+        if re.search(
+            r"(?:^|/)tests?/(?:test_|.*_test\.py|.*\.test\.\w+|.*\.spec\.\w+)|(?:^|/)__(?:tests|spec)__/(?!init)|test_[a-z_]+\.py$|[a-z_]+_test\.py$",
+            f.path,
+        ):
             continue
         if f.path.endswith("/cli.py") or "/cli/" in f.path:
             continue
