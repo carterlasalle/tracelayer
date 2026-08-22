@@ -155,10 +155,18 @@ def handle(ctx: HookContext, payload: dict) -> HookOutput:
             "output": text_out,
         }
     )
+    # Post-scan reconcile: clear stale obligations that the scan didn't
+    # need to create. This ensures the output shows only genuinely new
+    # obligations, not a snapshot of the stale session state.
+    try:
+        from tracelayer.hooks.post_mutation import reconcile_pending_obligations as _reconcile
+        _reconcile(ctx.project, ctx.state, ctx.session_id)
+    except Exception:
+        pass
     return render_allowed(text_out, json_data)
 
 
-# trace:exempt reason=internal-detail
+# trace:exempt reason=internal-helper
 def _read_text(root, rel: str) -> str | None:
     path = resolve_path(root, rel)
     if path is None or not path.is_file():
