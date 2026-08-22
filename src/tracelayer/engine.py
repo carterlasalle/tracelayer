@@ -1254,6 +1254,12 @@ class Engine:
         lifecycle = policy.lifecycle_for(lifecycle) if policy is not None else (lifecycle or "wip")
         revision = self.gitrepo.rev() if self.gitrepo is not None else None
         if scope == "changed" and self.gitrepo is not None:
+            if not self.store.all_nodes():
+                # Cold store (fresh CI checkout / deleted cache): a partial
+                # diff index would miss nodes that changed-scope edges
+                # target (TL002 missing-node false positives). Build the
+                # full index first; the incremental pass is then a no-op.
+                self.index_all()
             self.index_changed()
             changed = self.gitrepo.changed_files()
             if not changed:
