@@ -1,2 +1,8 @@
 [work."WORK-TL-001"]
 title = "Enforce first-marker traceability (TL012 standard profile)"
+[work."WORK-fix-the-trace-layer-typer-cli-version-command-so-it-is-registered-and-ava"]
+title = "Fix the TraceLayer Typer CLI version command so it is registered and ava\u2026"
+status = "done"
+origin.source = "new_feature"
+origin.intent = "Fix the TraceLayer Typer CLI version command so it is registered and available via trace and tracelayer."
+origin.session = "default"

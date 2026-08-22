@@ -59,5 +59,6 @@ paths = [
   "docs/marker-protocol.md",
   "docs/relationships.md",
   "skills/traceability/references/marker-protocol.md",
+  "src/tracelayer/cli.py",
   "adapters/claude-code/settings.template.json",
 ]

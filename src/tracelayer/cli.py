@@ -47,6 +47,20 @@ app = typer.Typer(
     help="TraceLayer: agent-native software traceability",
 )
 
+# trace:v1 id=impl.src-tracelayer-cli.version-cmd work=WORK-fix-the-trace-layer-typer-cli-version-command-so-it-is-registered-and-ava satisfies=REQ-implement-fix-the-trace-layer-typer-cli-version-command-so-it-is-regist implements=PLAN-fix-the-trace-layer-typer-cli-version-command-so-it-is-registered-and-ava
+@app.command(name="version")
+def version_cmd() -> None:
+    """Print the TraceLayer version."""
+    from tracelayer import __version__
+    typer.echo(__version__)
+
+
+def _version_option(value: bool) -> None:
+    if value:
+        version_cmd()
+        raise typer.Exit()
+
+
 
 # --------------------------------------------------------------------------
 # Shared plumbing
@@ -66,6 +80,9 @@ def _callback(
     ),
     debug: bool = typer.Option(
         False, "--debug", help="Emit structured performance diagnostics to stderr (spec 58)"
+    ),
+    version: bool = typer.Option(
+        False, "--version", callback=_version_option, is_eager=True, help="Print the TraceLayer version."
     ),
 ) -> None:
     """Global options; commands may also pass ``-C`` after the subcommand."""
@@ -90,7 +107,7 @@ def _maybe_hint_unconfigured(root: Path) -> None:
         return
     if "hook" in [a for a in args if not a.startswith("-")]:
         return  # ambient infrastructure: hooks bootstrap silently
-    if any(a in ("init", "install", "--help", "-h", "--version") for a in args):
+    if any(a in ("init", "install", "--help", "-h") for a in args):
         return
     if (root / ".trace" / "trace.toml").exists():
         return
