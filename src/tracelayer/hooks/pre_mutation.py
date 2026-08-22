@@ -269,6 +269,7 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
                 "output": text,
             },
         )
+    existing_ids = _file_marker_ids(proposed)
     rewrite = None
     if "content" in payload:
         # Write: inject markers into the content (unchanged).
@@ -290,7 +291,6 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
                     "old_string": payload["old_string"],
                     "new_string": inject + new_content,
                 }
-    existing_ids = _file_marker_ids(proposed)
     for boundary, change_kind in untraced[:20]:
         state.add_obligation(
             ctx.session_id,

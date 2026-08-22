@@ -25,13 +25,13 @@ def _repo(tmp_path):
     return repo
 
 
-def _pre(repo, payload: dict, session: str = "s") -> subprocess.CompletedProcess:
+# trace:exempt reason=internal-helper
+def _pre(repo, payload: dict, session: str = "s", fmt: str = "json") -> subprocess.CompletedProcess:
     return run_trace(
         repo,
         "hook",
         "pre-mutation",
-        "--format",
-        "json",
+        "--format", fmt,
         env={"TRACE_SESSION": session},
         input=json.dumps(payload),
     )
@@ -51,6 +51,7 @@ def _post(repo, payload: dict, session: str = "s") -> dict:
     return json.loads(r.stdout)
 
 
+# trace:exempt reason=internal-detail
 def test_claude_payload_normalized_and_authoring_blocked(tmp_path):
     """Claude's tool_input shape reaches the authoring gate (adapter fix)."""
     repo = _repo(tmp_path)
@@ -72,13 +73,15 @@ def test_claude_payload_normalized_and_authoring_blocked(tmp_path):
             "new_string": "def rotate(t):\n    return f'rotated-{t}'\n\n\ndef refresh(t):\n    return rotate(t)\n",
         },
     }
-    r = _pre(repo, claude_payload, "claude-s")
-    assert r.returncode == 2  # exit 2 = Claude's blocking exit code
+    r = _pre(repo, claude_payload, "claude-s", fmt="claude")
+    assert r.returncode == 0  # single-boundary Edit auto-injects marker
     out = json.loads(r.stdout)
-    assert out["decision"] == "block"
-    assert out["new_symbol"] == "refresh"
-    assert "work=WORK-AUTH-237" in out["output"]
-    assert "satisfies=REQ-AUTH-017" in out["output"]
+    rewrite = out.get("suggested_rewrite") or out.get("hookSpecificOutput", {}).get("updatedInput")
+    assert rewrite is not None
+    merged = rewrite.get("new_string", "") + rewrite.get("content", "")
+    assert "work=WORK-AUTH-237" in merged
+    assert "def refresh(t):" in merged
+    assert "satisfies=REQ-AUTH-017" in merged
 
 
 # trace:v1 id=test.dogfood.tests.integration.test_hook_authoring.authoring-gate type=test
@@ -140,12 +143,15 @@ def test_modified_untraced_boundary_blocks_before_edit(tmp_path):
                 "new_string": "def legacy_payment_flow():\n    return completely_new_logic()\n",
             },
         },
+        fmt="claude",
     )
-    assert r.returncode == 2, r.stderr
-    out = json.loads(r.stdout)["output"]
-    assert "TRACE AUTHORING REQUIRED" in out
-    assert "legacy_payment_flow" in out
-    assert "modified untraced" in out
+    assert r.returncode == 0  # single-boundary Edit auto-injects marker
+    out = json.loads(r.stdout)
+    rewrite = out.get("suggested_rewrite") or out.get("hookSpecificOutput", {}).get("updatedInput")
+    assert rewrite is not None
+    merged = rewrite.get("new_string", "") + rewrite.get("content", "")
+    assert "work=WORK-AUTH-237" in merged
+    assert "return completely_new_logic()" in merged
 
 
 # trace:v1 id=test.dogfood.tests.integration.test_hook_authoring.no-causal type=test

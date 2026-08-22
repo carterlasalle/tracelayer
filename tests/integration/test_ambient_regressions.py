@@ -189,7 +189,7 @@ def test_obligation_resolves_by_marker_id_despite_symbol_mismatch(tmp_path):
         "hook",
         "pre-mutation",
         "--format",
-        "json",
+        "claude",
         env={"TRACE_SESSION": "s"},
         input=json.dumps(
             {
@@ -201,11 +201,11 @@ def test_obligation_resolves_by_marker_id_despite_symbol_mismatch(tmp_path):
             }
         ),
     )
-    assert r.returncode == 0  # auto-injects marker
+    assert r.returncode == 0  # auto-injects marker (claude format)
     obl = json.loads(r.stdout)
-    rewrite = obl.get("suggested_rewrite")
-    assert rewrite is not None
-    content = rewrite["content"]
+    hso = obl["hookSpecificOutput"]
+    assert hso["permissionDecision"] == "allow"
+    content = hso["updatedInput"]["content"]
     import re as _re
 
     m = _re.search(r"id=([A-Za-z0-9._:/-]+)", content)
@@ -262,7 +262,7 @@ def test_obligation_resolves_same_boundary_across_path_form(tmp_path):
         "hook",
         "pre-mutation",
         "--format",
-        "json",
+        "claude",
         env={"TRACE_SESSION": "s"},
         input=json.dumps(
             {
@@ -276,9 +276,9 @@ def test_obligation_resolves_same_boundary_across_path_form(tmp_path):
     )
     assert r.returncode == 0
     obl = json.loads(r.stdout)
-    rewrite = obl.get("suggested_rewrite")
-    assert rewrite is not None
-    content = rewrite["content"]
+    hso = obl["hookSpecificOutput"]
+    assert hso["permissionDecision"] == "allow"
+    content = hso["updatedInput"]["content"]
     import re as _re
 
     m = _re.search(r"id=([A-Za-z0-9._:/-]+)", content)
