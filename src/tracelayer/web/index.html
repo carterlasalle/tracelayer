@@ -128,10 +128,13 @@ async function loadGraph() {
     });
 }
 
+let _showNodeSeq = 0;
 async function showNode(id) {
+  const seq = ++_showNodeSeq;
   const r = await fetch(`/api/node/${encodeURIComponent(id)}`);
-  if (!r.ok) return;
+  if (!r.ok || seq !== _showNodeSeq) return;  // superseded by a newer click
   const d = await r.json();
+  if (seq !== _showNodeSeq) return;
   const panel = document.getElementById("panel");
   const html = [];
   html.push(`<button class="close">×</button>`);

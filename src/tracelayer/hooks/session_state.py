@@ -251,6 +251,14 @@ class SessionState:
                     # tree already accounts for (marker landed since). Keep
                     # it satisfied — never resurrect cleared work.
                     return False
+                # Pending re-proposal: refresh the coaching metadata (work /
+                # requirement / suggested marker may have changed since the
+                # obligation was first created — e.g. the agent picked a
+                # requirement mid-session). State stays pending.
+                for field in ("work", "requirement", "suggested_marker", "kind"):
+                    if obligation.get(field):
+                        existing[field] = obligation[field]
+                self._write(session_id, data)
                 return False  # dedupe by path+symbol
         obligations.append(obligation)
         self._write(session_id, data)

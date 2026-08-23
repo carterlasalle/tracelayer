@@ -544,16 +544,19 @@ def _resolve_obligations_in(state, session_id: str, project, path: str, text: st
         if not isinstance(symbol_name, str) or not symbol_name:
             continue
         # the expected boundary, found by qualified name or slug (cosmetic
-        # renames like saveUser -> save_user keep the slug)
-        expected = next(
-            (
-                s
-                for s in symbols
-                if str(getattr(s, "qualified_name", "") or s.name) == symbol_name
-                or _slug(str(s.name)) == _slug(symbol_name.rsplit(".", 1)[-1])
-            ),
-            None,
-        )
+        # renames like saveUser -> save_user keep the slug). Exact match
+        # wins; the slug fallback applies ONLY when it is unambiguous —
+        # multiple same-slug boundaries would let a marker on an unrelated
+        # sibling resolve the obligation (false gate pass).
+        exact = [
+            s for s in symbols if str(getattr(s, "qualified_name", "") or s.name) == symbol_name
+        ]
+        expected = exact[0] if exact else None
+        if expected is None:
+            want = _slug(symbol_name.rsplit(".", 1)[-1])
+            by_slug = [s for s in symbols if _slug(str(s.name)) == want]
+            if len(by_slug) == 1:
+                expected = by_slug[0]
         if expected is None:
             # Boundary no longer exists. Stale ONLY when the file doesn't
             # carry the obligation's suggested marker id: a file rewritten

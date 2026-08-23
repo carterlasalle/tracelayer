@@ -1260,6 +1260,17 @@ class Engine:
                 # target (TL002 missing-node false positives). Build the
                 # full index first; the incremental pass is then a no-op.
                 self.index_all()
+            else:
+                # Stale warm store (branch switch / fast-forward pull): the
+                # indexed revision no longer matches HEAD, so most nodes
+                # describe files that no longer exist. A partial diff would
+                # evaluate against ghost nodes — rebuild fully.
+                current = self.gitrepo.rev()
+                revisions = {
+                    n.revision for n in self.store.all_nodes(active_only=True) if n.revision
+                }
+                if len(revisions) > 1 or (revisions and current not in revisions):
+                    self.index_all()
             self.index_changed()
             changed = self.gitrepo.changed_files()
             if not changed:

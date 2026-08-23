@@ -278,19 +278,41 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
         )
     elif "old_string" in payload and "new_string" in payload:
         # Edit with a single untraced boundary: inject the marker directly
-        # into the new_string so the agent sees marked code without rewriting.
-        # Multi-boundary: deny with a shorter reminder (no full plan).
+        # into the new_string so the agent sees marked code without
+        # rewriting. JSON cannot carry comment markers (sidecar required) —
+        # fall back to deny + plan rather than an identity rewrite that
+        # claims markers were injected.
         if len(untraced) == 1:
             boundary, change_kind = untraced[0]
             marker = _suggested_marker(boundary, work, req, plan, rel_path, exercised, existing_ids)
-            if marker:
+            if marker and boundary.language != "json":
                 new_content = payload["new_string"]
-                inject = marker + "\n" if boundary.language != "json" else ""
-                rewrite = {
-                    "file_path": rel_path,
-                    "old_string": payload["old_string"],
-                    "new_string": inject + new_content,
-                }
+                new_lines = new_content.splitlines()
+                proposed_lines = proposed.splitlines() if proposed else []
+                sig = (
+                    proposed_lines[boundary.start_line - 1]
+                    if 0 <= boundary.start_line - 1 < len(proposed_lines)
+                    else None
+                )
+                placed_at = None
+                if sig is not None:
+                    # Insert directly above the boundary's signature line
+                    # when the edited hunk actually contains it; prepending
+                    # to the hunk top would leave the marker detached from
+                    # mid-body hunks.
+                    for idx, ln in enumerate(new_lines):
+                        if ln == sig:
+                            placed_at = idx
+                            break
+                if placed_at is not None:
+                    new_lines.insert(placed_at, marker)
+                    rewrite = {
+                        "file_path": rel_path,
+                        "old_string": payload["old_string"],
+                        "new_string": "\n".join(new_lines),
+                    }
+                else:
+                    rewrite = None  # signature outside this hunk: deny + plan
     for boundary, change_kind in untraced[:20]:
         state.add_obligation(
             ctx.session_id,
@@ -310,12 +332,15 @@ def _authoring_block(ctx: HookContext, path: str, payload: dict) -> HookOutput |
         text = ""  # single boundary: injected, no block needed
     else:
         text = _authoring_plan_text(untraced, rel_path, work, reqs, plan, exercised)
+    # Report the FIRST untraced boundary consistently — the loop above left
+    # `boundary` bound to its last iteration.
+    first_boundary = untraced[0][0] if untraced else boundary
     payload_out = {
         "event": "pre_mutation",
         "decision": "block",
         "path": path,
         "line": line,
-        "new_symbol": boundary.name,
+        "new_symbol": first_boundary.name,
         "obligation": True,
         "output": text,
     }
