@@ -57,6 +57,11 @@ class DiscoveryConfig(BaseModel):
             ".venv/**",
             "dist/**",
             "build/**",
+            "**/__pycache__/**",
+            "*.pyc",
+            "*.pyo",
+            ".DS_Store",
+            "**/.DS_Store",
         ]
     )
     generated: list[str] = Field(default_factory=lambda: ["src/generated/**"])
@@ -369,6 +374,11 @@ paths = [
   "generated/**",
   "docs/vendor/**",
   ".trace/**",
+  ".DS_Store",
+  "**/.DS_Store",
+  "**/__pycache__/**",
+  "*.pyc",
+  "*.pyo",
   ".gitignore",
   "AGENTS.md",
   "CLAUDE.md",
