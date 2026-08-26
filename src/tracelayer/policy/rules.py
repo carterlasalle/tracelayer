@@ -414,19 +414,41 @@ def rule_tl012(ctx: EvalContext) -> list[Diagnostic]:
     for path in sorted(ctx.changed_paths):
         if any(fnmatch(path, pat) for pat in excluded):
             continue
-        if path not in traced:
-            diags.append(
-                make(
-                    "TL012",
-                    path=path,
-                    lifecycle=ctx.lifecycle,
-                    message=(
-                        f"Changed path {path} has no traced behavior marker "
-                        f"(no active node claims it)"
-                    ),
-                )
+        if path in traced:
+            continue
+        # A path whose every boundary is trace-accounted (an attached
+        # canonical marker, or an explicit exempt comment with a reason)
+        # counts as traced even without an indexed node — the hooks accept
+        # exemption as one of the three valid authoring mechanisms, so the
+        # merge gate must too.
+        if _path_fully_traced(ctx, path):
+            continue
+        diags.append(
+            make(
+                "TL012",
+                path=path,
+                lifecycle=ctx.lifecycle,
+                message=(
+                    f"Changed path {path} has no traced behavior marker (no active node claims it)"
+                ),
             )
+        )
     return diags
+
+
+# trace:exempt reason=internal-detail
+def _path_fully_traced(ctx: EvalContext, path: str) -> bool:
+    """True when the current file has boundaries and every one is accounted."""
+    if not supported_extension(path):
+        return False  # unsupported files still need a node (or exclusion)
+    try:
+        text = (ctx.project.root / path).read_text(encoding="utf-8")
+        bounds = extract_boundaries(path, text)
+    except Exception:
+        return False
+    if not bounds:
+        return False  # no recognized boundaries: can't verify authoring here
+    return all(boundary_is_traced(text, bounds, b, ctx.project.root, ctx.store) for b in bounds)
 
 
 # --------------------------------------------------------------------------
