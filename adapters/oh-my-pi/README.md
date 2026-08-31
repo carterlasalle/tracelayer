@@ -1,8 +1,7 @@
 # TraceLayer × Oh My Pi (omp)
 <!-- trace:v1 id=doc.tracelayer.omp-adapter -->
-
-[Oh My Pi](https://github.com/earendil-works/pi) (package
-`@earendil-works/pi-coding-agent`) provides a native extension API
+[Oh My Pi](https://github.com/can1357/oh-my-pi) (package
+`@oh-my-pi/pi-coding-agent`) provides a native extension API
 (`pi.on("tool_call" | "tool_result" | "session_stop", ...)`). This adapter
 enforces TraceLayer's authoring gate, post-edit coaching, and the
 fail-closed completion gate inside omp:
@@ -84,9 +83,9 @@ are emitted. The factory is the single source
   coaching); Bash/patch results run the working-tree scan. Guidance is
   appended to the tool result the model sees.
 - `session_stop`: runs the stop gate (verify + obligations) and blocks
-  with the failures; the engine's stop hook also runs the merge-grade
-  auto-finalizer internally. The extension API has no `log` method —
-  diagnostics go to stderr.
+  with the failures (`{ decision: "block", reason }`); the engine's stop
+  hook also runs the merge-grade auto-finalizer internally. Diagnostics
+  go to stderr (the OMP log).
 - Session ids resolve from `ctx.session.id` (legacy) or
   `ctx.sessionManager.getSessionId()` (current `ExtensionContext`).
 

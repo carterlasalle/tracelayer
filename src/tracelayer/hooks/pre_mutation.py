@@ -143,8 +143,15 @@ def _parser_for(path: str):
     suffix = path.rsplit(".", 1)[-1].lower() if "." in path else ""
     _EXT = {
         "py": "python",
+        "pyi": "python",
         "ts": "typescript",
+        "tsx": "typescript",
+        "mts": "typescript",
+        "cts": "typescript",
         "js": "javascript",
+        "jsx": "javascript",
+        "mjs": "javascript",
+        "cjs": "javascript",
         "go": "go",
         "rs": "rust",
         "java": "java",

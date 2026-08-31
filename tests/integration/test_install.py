@@ -240,12 +240,17 @@ def test_bundled_skill_dir_found():
 
 # trace:v1 id=test.dogfood.tests.integration.test_install.test_omp_adapter_contract type=test
 def test_omp_adapter_contract(tmp_path):
-    """The shipped OMP extension must not regress on two runtime failures:
+    """The shipped OMP extension must not regress on runtime failures:
 
-    1. pi.log does not exist in the OMP extension API (crash at runtime);
-    2. Bun.spawnSync ignores the `input` option, silently dropping every
-       hook payload — the gate must use node:child_process spawnSync so
-       paths/content/sessions actually reach the engine.
+    1. It must import the canonical extension API package
+       ``@oh-my-pi/pi-coding-agent`` — importing the legacy
+       ``@earendil-works/pi-coding-agent`` leaves the stop gate dead,
+       because that package's ExtensionAPI union has no ``session_stop``.
+    2. ``pi.log`` does not exist in the OMP extension API (crash at
+       runtime); diagnostics go to stderr.
+    3. ``Bun.spawnSync`` ignores the ``input`` option, silently dropping
+       every hook payload — the gate must use node:child_process
+       spawnSync so paths/content/sessions actually reach the engine.
     It must also map the CURRENT OMP Edit input shape (edits[{oldText,
     newText}]) onto the engine's old_string/new_string contract.
     """
@@ -254,12 +259,16 @@ def test_omp_adapter_contract(tmp_path):
     adapter = (repo / ".omp" / "extensions" / "tracelayer" / "trace-gate.ts").read_text(
         encoding="utf-8"
     )
+    assert '"@oh-my-pi/pi-coding-agent"' in adapter  # canonical package import
+    assert (
+        'from "@earendil-works/pi-coding-agent"' not in adapter
+    )  # legacy import leaves stop gate dead
+    assert "session_stop" in adapter  # stop-gate event wiring preserved
     assert "pi.log" not in adapter  # the crash: pi.log is not a function
     assert "pi." in adapter  # the extension API surface is still used
     assert 'from "node:child_process"' in adapter  # payload delivery, not Bun.spawnSync
     assert "Bun.spawnSync([" not in adapter  # the broken input-dropping variant
     assert "oldText" in adapter and "newText" in adapter  # current OMP Edit shape
-    assert "session_stop" in adapter  # stop-gate event wiring preserved
 
 
 # trace:v1 id=test.dogfood.tests.integration.test_install.test_omp_extension_package_layout type=test

@@ -39,6 +39,7 @@ _CLAUDE_EVENT_NAMES: dict[str, str] = {
 PROTECTING_PREDICATES = ("satisfies", "work")
 
 
+# trace:exempt reason=internal-helper
 @dataclass
 class HookContext:
     """Everything a hook handler needs for one event."""
@@ -59,6 +60,7 @@ class HookOutput:
     output: str = ""
     json: dict[str, Any] = field(default_factory=dict)
 
+    # trace:exempt reason=internal-helper
     def render(self, fmt: str) -> str:
         """Render for the requested adapter format."""
         if fmt == "json":
@@ -142,12 +144,12 @@ def policy_excluded(project, rel_path: str, git_repo=None) -> bool:
     patterns.  A file the gate never flags must not be blocked by
     the hooks either.
     """
-    import fnmatch
+    from tracelayer.discovery.ignore import glob_match
 
     if project.policy is None:
         return False
     p = str(rel_path).replace("\\", "/")
-    if any(fnmatch.fnmatch(p, pat) for pat in project.policy.exclusions.paths):
+    if any(glob_match(p, [pat]) for pat in project.policy.exclusions.paths):
         return True
     try:
         from tracelayer.discovery.ignore import build_ignored
@@ -160,6 +162,7 @@ def policy_excluded(project, rel_path: str, git_repo=None) -> bool:
     return False
 
 
+# trace:exempt reason=internal-helper
 def sanitize_text(text: str, max_chars: int = 200) -> str:
     """Flatten untrusted repository text (T1): collapse whitespace, strip
     control characters, hard-bound, and delimit as repository data."""
@@ -169,6 +172,7 @@ def sanitize_text(text: str, max_chars: int = 200) -> str:
     return "repository data: " + flat
 
 
+# trace:exempt reason=internal-helper
 def fit(text: str, max_chars: int) -> str:
     """Hard-bound output text; a zero or negative cap yields empty output."""
     if max_chars <= 0 or not text:
@@ -178,6 +182,7 @@ def fit(text: str, max_chars: int) -> str:
     return text[: max_chars - 1] + "\u2026"
 
 
+# trace:exempt reason=internal-helper
 def resolve_path(root: Path, rel: str) -> Path | None:
     """Resolve a repo-relative path confined to root (T2/T3); None when outside."""
     try:
@@ -190,6 +195,7 @@ def resolve_path(root: Path, rel: str) -> Path | None:
     return path
 
 
+# trace:exempt reason=internal-helper
 def hook_context(
     project: Project,
     store: GraphStore | None,
@@ -207,6 +213,7 @@ def render_allowed(output: str, json: dict) -> HookOutput:
     return HookOutput(decision="allow", output=output, json=json)
 
 
+# trace:exempt reason=internal-helper
 def render_blocked(output: str, json: dict) -> HookOutput:
     """Wrap a blocking hook result (pre-mutation gate, stop gate)."""
     return HookOutput(decision="block", output=output, json=json)
@@ -215,6 +222,7 @@ def render_blocked(output: str, json: dict) -> HookOutput:
 # -- deterministic graph helpers (duck-typed on GraphStore) ------------------
 
 
+# trace:exempt reason=internal-helper
 def node_at_path(store: Any, path: str, line: int | None) -> Node | None:
     """Active node for `path`; prefer range containment of `line`, else the
     first node at the path sorted by start line then trace id."""
@@ -234,11 +242,13 @@ def node_at_path(store: Any, path: str, line: int | None) -> Node | None:
     return min(candidates, key=lambda n: (n.source_start_line or 0, n.trace_id))
 
 
+# trace:exempt reason=internal-helper
 def is_protected(store: Any, node: Node) -> bool:
     """True when the node carries satisfies/work edges (protected behavior)."""
     return any(store.edges_from(node.entity_uid, predicate=p) for p in PROTECTING_PREDICATES)
 
 
+# trace:exempt reason=internal-helper
 def edge_target_ids(store: Any, uid: str, predicates: tuple[str, ...]) -> list[str]:
     """Sorted trace ids reachable from `uid` via outgoing edges of `predicates`."""
     ids: set[str] = set()
@@ -250,6 +260,7 @@ def edge_target_ids(store: Any, uid: str, predicates: tuple[str, ...]) -> list[s
     return sorted(ids)
 
 
+# trace:exempt reason=internal-helper
 def linked_test_ids(store: Any, node: Node, satisfied: list[str]) -> list[str]:
     """Tests verifying the satisfied requirements or exercising the node."""
     uids: set[str] = set()

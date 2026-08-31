@@ -218,6 +218,8 @@ def test_tl011_clean_when_requirement_not_in_changed_set(project, store):
 
 
 def test_tl012_flags_untraced_changed_path(project, store):
+    (project.root / "src").mkdir(exist_ok=True)
+    (project.root / "src" / "untraced.py").write_text("def f():\n    pass\n")
     traced = make_node("IMPL:1", "implementation", path="src/app.py")
     store.replace_all([traced], [])
     c = ctx_for(project, store, changed_paths={"src/untraced.py"})
@@ -242,6 +244,35 @@ def test_tl012_respects_policy_exclusion_globs(project, store):
 def test_tl012_whole_repo_scope_emits_nothing(project, store):
     c = ctx_for(project, store)  # no changed paths
     assert rule("TL012", c) == []
+
+
+def test_tl012_skips_deleted_paths(project, store):
+    """F3: a deleted file can host no marker — TL012 must not demand one.
+
+    Deletion hygiene is TL030's contract (inactive nodes with dangling
+    incoming edges); TL012's remediation is impossible on an absent path.
+    """
+    (project.root / "src").mkdir(exist_ok=True)
+    (project.root / "src" / "app.py").write_text("def f():\n    pass\n")
+    traced = make_node("IMPL:1", "implementation", path="src/app.py")
+    store.replace_all([traced], [])
+    # the file is deleted from the working tree; only the path remains
+    (project.root / "src" / "app.py").unlink()
+    c = ctx_for(project, store, changed_paths={"src/app.py"})
+    assert rule("TL012", c) == []
+
+
+def test_tl012_flags_untraced_path_that_exists(project, store):
+    """F3 companion: an existing untraced path still gets TL012 (guard is
+    existence-scoped, not a blanket skip)."""
+    (project.root / "src").mkdir(exist_ok=True)
+    (project.root / "src" / "untraced.py").write_text("def f():\n    pass\n")
+    traced = make_node("IMPL:1", "implementation", path="src/app.py")
+    store.replace_all([traced], [])
+    c = ctx_for(project, store, changed_paths={"src/untraced.py"})
+    diags = rule("TL012", c)
+    assert [d.rule_id for d in diags] == ["TL012"]
+    assert diags[0].path == "src/untraced.py"
 
 
 # --------------------------------------------------------------------------

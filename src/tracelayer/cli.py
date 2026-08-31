@@ -392,6 +392,15 @@ def _run_init(
     if not observe and not pol.exists():
         pol.write_text(default_policy_toml(), encoding="utf-8")
         written.append(pol)
+    wt = dot / "work.toml"
+    if not wt.exists():
+        # Seeded adapters (e.g. omp trace-gate.ts) reference WORK-TL-001;
+        # without a node the fresh-init repo fails its own TL002 gate (F1).
+        wt.write_text(
+            '[work."WORK-TL-001"]\ntitle = "Enforce first-marker traceability"\n',
+            encoding="utf-8",
+        )
+        written.append(wt)
     gi = root / ".gitignore"
     line = ".trace/cache/"
     content = gi.read_text(encoding="utf-8") if gi.exists() else ""
@@ -961,6 +970,23 @@ def _resolve_plan_for(engine, work_id: str) -> str | None:
     return next(iter(plans)) if len(plans) == 1 else None
 
 
+# trace:exempt reason=internal-helper
+def _expected_missing(engine, plan_uid: str, expected_id: str) -> bool:
+    """True when a plan's expected artifact is absent, inactive, or unlinked.
+
+    One store lookup per candidate (the previous inline expression hit the
+    store three times and leaned on implicit None-safety).
+    """
+    target = engine.store.get_node(trace_id=expected_id)
+    if target is None or not target.active:
+        return True
+    return not any(
+        e.status == "active" and e.predicate == "implements"
+        for e in engine.store.edges_to(plan_uid)
+        if e.from_uid == target.entity_uid
+    )
+
+
 # trace:v1 id=impl.cli.plan-sync work=WORK-TL-001
 @plan_app.command("sync")
 def plan_sync(
@@ -996,18 +1022,7 @@ def plan_sync(
             for t in [engine.store.get_node(uid=e.from_uid)]
             if t is not None and t.active
         }
-        missing = sorted(
-            d
-            for d in declared
-            if engine.store.get_node(trace_id=d) is None
-            or not engine.store.get_node(trace_id=d).active
-            or engine.store.get_node(trace_id=d).entity_uid
-            not in {
-                e.from_uid
-                for e in engine.store.edges_to(node.entity_uid)
-                if e.status == "active" and e.predicate == "implements"
-            }
-        )
+        missing = sorted(d for d in declared if _expected_missing(engine, node.entity_uid, d))
         discovered = sorted(implemented - declared)
         typer.echo(f"plan: {plan_id}")
         typer.echo(f"declared:   {sorted(declared) or '(none)'}")
@@ -1497,14 +1512,46 @@ def graph(
         engine.close()
 
 
+# trace:exempt reason=internal-helper
+def _persist_work_entry(root: Path, trace_id: str, title: str) -> bool:
+    """Append a ``[work."ID"]`` entry to .trace/work.toml (F12).
+
+    ``trace new`` previously only echoed an id: a fresh-init TL002 said
+    "Create it: trace new work --name X" but the command never wrote the
+    node, so the remediation loop never converged. Work-type mints now
+    persist a work.toml entry the indexer reads as a declared node.
+    Returns True when an entry was written.
+    """
+    from tracelayer.protocol.ids import infer_node_type
+
+    if infer_node_type(trace_id) != "work":
+        return False
+    wt = root / ".trace" / "work.toml"
+    txt = wt.read_text(encoding="utf-8") if wt.exists() else ""
+    header = f'[work."{trace_id}"]'
+    if header in txt:
+        return False
+    block = f'\n{header}\ntitle = "{title}"\n'
+    wt.parent.mkdir(parents=True, exist_ok=True)
+    wt.write_text(txt + block, encoding="utf-8")
+    return True
+
+
 @app.command()
 def new(
     ctx: typer.Context,
     node_type: str = typer.Argument(..., help="Artifact type"),
     name: str = typer.Option(..., "--name", help="Human name to derive the id from"),
+    title: str = typer.Option(None, "--title", help="Title for persisted work entries"),
     root: Path | None = _root_opt(),
 ) -> None:
-    """Generate a fresh stable trace id (FR-020)."""
+    """Generate a fresh stable trace id (FR-020).
+
+    A name that is already a valid ID of the requested type is used
+    verbatim. Work-type mints also persist a ``[work."ID"]`` entry to
+    ``.trace/work.toml`` so the node exists for the indexer (the
+    fresh-init TL002 remediation previously never converged).
+    """
     root = _resolve_root(ctx, root)
     engine, _diags = _open(root)
     try:
@@ -1514,6 +1561,8 @@ def new(
         raise typer.Exit(2) from exc
     finally:
         engine.close()
+    if _persist_work_entry(root, tid, title or name):
+        typer.echo(f"work entry persisted: .trace/work.toml [{tid}]", err=True)
     typer.echo(tid)
 
 
@@ -1563,16 +1612,18 @@ def ignore_cmd(
     added = 0
     for pat in patterns:
         p = pat.rstrip("/") if not pat.endswith("*") else pat
-        if not p.endswith("**") and "/" not in p:
+        # A slash-less pattern is only a directory when it IS one on disk
+        # (or ends like a bare file with no glob). `trace ignore build.sh`
+        # must exclude the file itself, not silently add `build.sh/**`
+        # which never matches the bare path (F2). Filesystem is the
+        # tiebreaker; non-existent paths stay verbatim (deleted files,
+        # forward-looking ignores).
+        looks_like_dir = "/" not in p and "*" not in p and (root / p).is_dir()
+        if not p.endswith("**") and looks_like_dir:
             p = p + "/**"
         if p not in existing:
             existing.append(p)
             added += 1
-    if not patterns:
-        typer.echo("Current policy exclusions:")
-        for p in existing:
-            typer.echo(f"  {p}")
-        return
     _write_policy_exclusions(project, existing)
     typer.echo(f"added {added} exclusion(s); {len(existing)} total")
     typer.echo("Current exclusions:")

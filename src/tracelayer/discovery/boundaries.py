@@ -20,8 +20,15 @@ from typing import Any
 
 _EXT_LANG = {
     "py": "python",
+    "pyi": "python",
     "ts": "typescript",
+    "tsx": "typescript",
+    "mts": "typescript",
+    "cts": "typescript",
     "js": "javascript",
+    "jsx": "javascript",
+    "mjs": "javascript",
+    "cjs": "javascript",
     "go": "go",
     "rs": "rust",
     "java": "java",
@@ -115,6 +122,7 @@ def boundary_is_traced(
     return False
 
 
+# trace:exempt reason=internal-helper
 def _config_key_traced(lines: list[str], boundary: Boundary) -> bool:
     """A config-key boundary is traced by a marker directly above it."""
     for i in range(max(0, boundary.start_line - 2), boundary.start_line):
@@ -123,6 +131,7 @@ def _config_key_traced(lines: list[str], boundary: Boundary) -> bool:
     return False
 
 
+# trace:exempt reason=internal-helper
 def _json_sidecar_traced(boundary: Boundary, root: Path | None) -> bool:
     """JSON config keys are traced via the sidecar anchor (no comments)."""
     if root is None or not boundary.path:
@@ -170,8 +179,14 @@ def _code_boundaries(language: str, path: str, text: str) -> list[Boundary]:
     return out
 
 
+# trace:exempt reason=internal-helper
 def _config_boundaries(ext: str, path: str, text: str) -> list[Boundary]:
-    """Top-level keys of a config file are boundaries (contracts)."""
+    """Top-level keys of a config file are boundaries (contracts).
+
+    YAML/JSON multi-line values (list items, folded scalars) are not keys:
+    only ``key:``/``key=`` lines at the file's base indent are boundaries,
+    and a dangling ``-`` list marker without a key is ignored.
+    """
     out: list[Boundary] = []
     if ext == "json":
         return _json_boundaries(path, text)
@@ -181,18 +196,21 @@ def _config_boundaries(ext: str, path: str, text: str) -> list[Boundary]:
         line = raw.strip()
         if not line or line.startswith(("#", "//", "[", "---")):
             continue
-        if ext == "toml" and line.startswith("["):
-            out.append(Boundary(line.strip("[]"), "config-key", i, i, raw, ext, path))
+        # A trailing comma changes the raw line but not the contract key:
+        # strip it before comparing so reorderings with/without trailing
+        # commas produce the same fingerprint (F5).
+        norm = line.rstrip(",").rstrip()
+        if ":" not in norm and "=" not in norm:
             continue
-        if ":" not in line and "=" not in line:
-            continue
-        key = line.split(":", 1)[0].split("=", 1)[0].strip().strip("\"'")
+        key = norm.split(":", 1)[0].split("=", 1)[0].strip().strip("\"'")
         cur_indent = len(raw) - len(raw.lstrip())
         if indent is None:
             indent = cur_indent
         if cur_indent > indent:
-            continue  # nested keys are covered by the parent boundary
-        out.append(Boundary(key, "config-key", i, i, raw, ext, path))
+            # nested key or list item under a parent key: covered by the
+            # parent boundary (base indent governs what is "top-level").
+            continue
+        out.append(Boundary(key, "config-key", i, i, norm, ext, path))
     return out
 
 
@@ -220,6 +238,7 @@ def _json_boundaries(path: str, text: str) -> list[Boundary]:
     return out
 
 
+# trace:exempt reason=internal-helper
 def _markdown_boundaries(path: str, text: str) -> list[Boundary]:
     """Headings are boundaries; body extends to the next same-or-higher heading."""
     import re
@@ -243,6 +262,7 @@ def _markdown_boundaries(path: str, text: str) -> list[Boundary]:
     return out
 
 
+# trace:exempt reason=internal-helper
 def _heading_is_node(boundary: Boundary) -> bool:
     """True when the heading's first token infers a node type (REQ-/ADR-/...)."""
     import re
@@ -255,6 +275,7 @@ def _heading_is_node(boundary: Boundary) -> bool:
     return infer_node_type(token) is not None
 
 
+# trace:exempt reason=internal-helper
 def _exempt(lines: list[str], boundary: Boundary) -> bool:
     """Explicit exemption directly above the boundary, with a reason.
 
@@ -271,6 +292,7 @@ def _exempt(lines: list[str], boundary: Boundary) -> bool:
     return False
 
 
+# trace:exempt reason=internal-helper
 def _inherit_target(lines: list[str], boundary: Boundary) -> str | None:
     """The declared inheritance target id, or None.
 
@@ -304,6 +326,7 @@ def _inherit_target(lines: list[str], boundary: Boundary) -> str | None:
     return None
 
 
+# trace:exempt reason=internal-helper
 def _inherit_valid(
     lines: list[str], boundary: Boundary, boundaries: list[Boundary], store: Any
 ) -> bool:
@@ -384,6 +407,7 @@ _COMMENT_PREFIX = {
 _MAX_GAP = 3  # mirrors the indexer's marker->symbol attachment window
 
 
+# trace:exempt reason=internal-helper
 def _marker_attached(lines: list[str], boundary: Boundary) -> bool:
     """The indexer's attachment rule, not a body scan.
 
@@ -393,18 +417,19 @@ def _marker_attached(lines: list[str], boundary: Boundary) -> bool:
     indexer absorbs those markers into the block).
     """
     if boundary.language == "markdown":
-        # Canonical styles: marker directly under the heading, one blank
-        # line under it, or directly above the heading. Prose between the
-        # heading and the marker breaks attachment.
+        # Unified with the indexer's absorption window
+        # (artifacts.markdown.EDGE_WINDOW_LINES): a marker strictly below
+        # the heading within that window, or directly above it, attaches.
+        # The indexer's window is purely positional — no prose check —
+        # and a checker stricter than the indexer is the divergence bug
+        # this fixes (F4).
+        from tracelayer.artifacts.markdown import EDGE_WINDOW_LINES
+
         heading_idx = boundary.start_line - 1
-        candidates = [heading_idx + 1, heading_idx + 2, heading_idx - 1]
-        for i in candidates:
-            if not (0 <= i < len(lines)) or "trace:v1" not in lines[i]:
-                continue
-            if i == heading_idx + 2 and lines[heading_idx + 1].strip():
-                continue  # prose on the line between heading and marker
-            return True
-        return False
+        candidates = [heading_idx - 1] + list(
+            range(heading_idx + 1, min(len(lines), heading_idx + 1 + EDGE_WINDOW_LINES))
+        )
+        return any("trace:v1" in lines[i] for i in candidates if 0 <= i < len(lines))
     prefixes = _COMMENT_PREFIX.get(boundary.language, ("#",))
     for marker_idx in range(max(0, boundary.start_line - 1 - _MAX_GAP), boundary.start_line):
         if "trace:v1" not in lines[marker_idx]:
@@ -414,6 +439,7 @@ def _marker_attached(lines: list[str], boundary: Boundary) -> bool:
     return False
 
 
+# trace:exempt reason=internal-helper
 def _gap_ok(lines: list[str], start: int, end: int, prefixes: tuple[str, ...]) -> bool:
     for i in range(start, end):
         stripped = lines[i].strip()

@@ -9,21 +9,11 @@
 // layout double-registers the factory and was removed deliberately.
 //
 // Type-only import (erased at runtime): the canonical package name is
-// @earendil-works/pi-coding-agent; older runtimes used @oh-my-pi/... The
-// extension runtime never type-checks this file.
+// @oh-my-pi/pi-coding-agent (omp 18.x); legacy runtimes used
+// @earendil-works/pi-coding-agent. The extension runtime never type-checks
+// this file.
 import { spawnSync } from "node:child_process";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-
-// The session_stop event is a compat surface of the OMP runtime (it fires
-// in current versions too) even though the published ExtensionAPI type
-// union does not list it. Extend the type rather than fighting it.
-// trace:exempt reason=internal-helper
-type SessionStopCompat = ExtensionAPI & {
-  on(
-    event: "session_stop",
-    handler: (event: unknown, ctx: unknown) => Promise<unknown> | unknown
-  ): void;
-};
+import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
 
 // trace:v1 id=impl.omp.trace-gate work=WORK-TL-001
 export default function hook(pi: ExtensionAPI): void {
@@ -151,14 +141,11 @@ export default function hook(pi: ExtensionAPI): void {
   });
 
   // Fail-closed completion gate: block while trace obligations or verify
-  // fail. OMP's SessionStopEventResult carries decision/reason (or
-  // continuation fields) — not a `block` property. The engine's stop hook
-  // ALSO runs the merge-grade auto-finalizer internally.
-  (pi as SessionStopCompat).on("session_stop", async (_event, ctx) => {
-    const body = JSON.stringify({
-      lifecycle: "wip",
-      session_id: sessionId(ctx),
-    });
+  // fail. SessionStopEventResult carries decision/reason (or continuation
+  // fields) — not a `block` property. The engine's stop hook ALSO runs the
+  // merge-grade auto-finalizer internally.
+  pi.on("session_stop", async (event, _ctx) => {
+    const body = JSON.stringify({ lifecycle: "wip", session_id: event.session_id });
     const res = run(["hook", "stop", "--format", "json"], body);
     if (res.code !== 0) {
       let reason = "trace verification has blocking failures";
@@ -168,8 +155,8 @@ export default function hook(pi: ExtensionAPI): void {
       } catch {
         // keep default reason
       }
-      // The extension API has no `log` method — stderr lands in the OMP
-      // log, and the block reason is returned to the session result.
+      // Diagnostics go to stderr (the OMP log); the block reason is returned
+      // to the session result.
       console.error(`trace gate: ${reason}`);
       return { decision: "block", reason };
     }

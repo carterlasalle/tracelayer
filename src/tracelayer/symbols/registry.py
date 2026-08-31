@@ -21,11 +21,13 @@ _CLASSES: dict[str, str] = {
 _instances: dict[str, SymbolParser] = {}
 
 
+# trace:exempt reason=internal-helper
 def supported_languages() -> list[str]:
     """All languages with a registered SymbolParser (sorted, deterministic)."""
     return sorted(_CLASSES)
 
 
+# trace:exempt reason=internal-helper
 def get_parser(language: str) -> SymbolParser:
     """Return the cached SymbolParser for a language; ValueError if unknown.
 
@@ -38,5 +40,11 @@ def get_parser(language: str) -> SymbolParser:
         ensure_tree_sitter_gc_safety()
         module = importlib.import_module(f"tracelayer.symbols.{language}")
         cls = getattr(module, _CLASSES[language])
-        _instances[language] = cls(_pack_get_parser(language))
+        # typescript boundaries are parsed with the tsx grammar: it is a
+        # strict superset of typescript that also parses JSX, which the
+        # plain typescript grammar mangles in one-liners (e.g. `return
+        # <div/>` swallows the enclosing function declaration), losing
+        # symbols in real React code (F7).
+        grammar = "tsx" if language == "typescript" else language
+        _instances[language] = cls(_pack_get_parser(grammar))
     return _instances[language]

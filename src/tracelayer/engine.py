@@ -1086,10 +1086,9 @@ class Engine:
                 entity_uid=edge.to_uid,
                 trace_id=edge.to_uid,
                 node_type=ntype,
+                source_kind="suggested",
                 canonical_path=edge.source_path or "",
                 artifact_fingerprint=None,
-                source_hash=None,
-                ast_hash=None,
                 metadata={"stub": True, "bootstrapped_by": edge.source_path},
                 active=True,
                 first_seen_at=now,
@@ -1463,12 +1462,25 @@ class Engine:
 
     # trace:exempt reason=internal-detail
     def new_id(self, node_type: str, name: str) -> str:
-        """Generate a fresh schema-compliant ID (``trace new``)."""
+        """Generate a fresh schema-compliant ID (``trace new``).
+
+        When ``name`` is already a valid ID for the requested type (e.g.
+        ``trace new work --name WORK-TL-001``), it is used verbatim —
+        remediation texts name exact IDs and minting a slugified variant
+        leaves the original edge dangling (F12).
+        """
         from tracelayer.protocol.ontology import NODE_TYPES
 
         if node_type not in NODE_TYPES:
             raise ValueError(f"unknown node type {node_type!r}; choose from {sorted(NODE_TYPES)}")
         taken = {n.trace_id for n in self.store.all_nodes(active_only=False)}
+        from tracelayer.protocol.ids import TYPE_PREFIX, is_valid_id
+
+        prefix = TYPE_PREFIX.get(node_type, f"{node_type}.")
+        if is_valid_id(name) and name.startswith(prefix):
+            if name in taken:
+                raise ValueError(f"trace id {name!r} already exists")
+            return name
         return generate_id(node_type, name, taken=taken)
 
     # trace:exempt reason=internal-detail

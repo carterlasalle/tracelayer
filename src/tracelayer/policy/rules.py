@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import subprocess
 from collections.abc import Callable
-from fnmatch import fnmatch
 
 from tracelayer.diagnostics import Diagnostic, make
 from tracelayer.discovery.boundaries import (
@@ -29,6 +28,7 @@ from tracelayer.discovery.boundaries import (
     extract_boundaries,
     supported_extension,
 )
+from tracelayer.discovery.ignore import glob_match
 from tracelayer.graph.models import Node
 from tracelayer.policy.models import EvalContext
 from tracelayer.protocol.ontology import OBSERVED_EDGES, SEMANTIC_EDGES
@@ -262,7 +262,7 @@ def rule_tl013(ctx: EvalContext) -> list[Diagnostic]:
         return diags
     excluded = ctx.project.policy.exclusions.paths if ctx.project.policy else []
     for path in sorted(ctx.changed_paths):
-        if any(fnmatch(path, pat) for pat in excluded):
+        if any(glob_match(path, [pat]) for pat in excluded):
             continue
         if not supported_extension(path):
             continue
@@ -412,10 +412,12 @@ def rule_tl012(ctx: EvalContext) -> list[Diagnostic]:
     excluded = ctx.project.policy.exclusions.paths if ctx.project.policy else []
     traced = {n.canonical_path for n in ctx.store.all_nodes(active_only=True) if n.canonical_path}
     for path in sorted(ctx.changed_paths):
-        if any(fnmatch(path, pat) for pat in excluded):
+        if any(glob_match(path, [pat]) for pat in excluded):
             continue
         if path in traced:
             continue
+        if not (ctx.project.root / path).exists():
+            continue  # deleted path: marker placement impossible; TL030 governs leftovers
         # A path whose every boundary is trace-accounted (an attached
         # canonical marker, or an explicit exempt comment with a reason)
         # counts as traced even without an indexed node — the hooks accept
@@ -438,17 +440,49 @@ def rule_tl012(ctx: EvalContext) -> list[Diagnostic]:
 
 # trace:exempt reason=internal-detail
 def _path_fully_traced(ctx: EvalContext, path: str) -> bool:
-    """True when the current file has boundaries and every one is accounted."""
+    """True when the current file is fully trace-accounted.
+
+    Two acceptance paths (F10):
+    1. Every extracted boundary is accounted (marker/exempt/inherit/sidecar).
+    2. A file with no recognized boundaries (shell scripts, plain text)
+       whose author recorded an explicit file-level exemption
+       ``trace:exempt reason=<why>`` — the only authorable statement for
+       languages with no symbol parser. The reason must be non-empty
+       (``_exempt`` semantics: no silent exemptions).
+    """
     if not supported_extension(path):
-        return False  # unsupported files still need a node (or exclusion)
+        if _file_level_exempt(ctx, path):
+            return True  # e.g. .sh: no parser, but the author exempted it
+        return False
     try:
         text = (ctx.project.root / path).read_text(encoding="utf-8")
         bounds = extract_boundaries(path, text)
     except Exception:
         return False
     if not bounds:
-        return False  # no recognized boundaries: can't verify authoring here
+        return _file_level_exempt(ctx, path)
     return all(boundary_is_traced(text, bounds, b, ctx.project.root, ctx.store) for b in bounds)
+
+
+# trace:exempt reason=internal-helper
+def _file_level_exempt(ctx: EvalContext, path: str) -> bool:
+    """True when the file carries ``# trace:exempt reason=<non-empty>``.
+
+    Comment prefix is language-appropriate via the grammar's accepted
+    openers (#, //, --, %, ;) — the marker grammar already accepts these
+    prefixes, so the exempt scan accepts them too.
+    """
+    try:
+        text = (ctx.project.root / path).read_text(encoding="utf-8")
+    except OSError:
+        return False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if "trace:exempt" in stripped and "reason=" in stripped:
+            _, _, reason = stripped.partition("reason=")
+            if reason.strip():
+                return True
+    return False
 
 
 # --------------------------------------------------------------------------
