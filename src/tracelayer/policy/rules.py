@@ -268,7 +268,7 @@ def rule_tl013(ctx: EvalContext) -> list[Diagnostic]:
             continue
         try:
             current = (ctx.project.root / path).read_text(encoding="utf-8")
-        except OSError:
+        except (OSError, UnicodeDecodeError):
             continue
         baseline = _baseline_text(ctx.gitrepo, path) or ""
         try:
@@ -474,7 +474,7 @@ def _file_level_exempt(ctx: EvalContext, path: str) -> bool:
     """
     try:
         text = (ctx.project.root / path).read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return False
     for line in text.splitlines():
         stripped = line.strip()

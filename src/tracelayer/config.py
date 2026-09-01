@@ -333,6 +333,7 @@ exclude = [
   ".hermes/**",
   ".cursor/**",
   ".serena/**",
+  ".scc/**",
   ".mcp.json",
   "opencode.json"
 ]
@@ -402,6 +403,7 @@ paths = [
   ".omp/**",
   ".hermes/**",
   ".serena/**",
+  ".scc/**",
   "opencode.json",
   "tests/**",
   ".agents/skills/**",

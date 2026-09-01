@@ -228,6 +228,24 @@ def test_tl012_flags_untraced_changed_path(project, store):
     assert diags[0].path == "src/untraced.py"
 
 
+def test_tl012_binary_changed_file_does_not_crash(project, store):
+    """Regression: a binary changed file (e.g. an SCC SQLite state DB)
+    must not crash the gate. Before the fix, _file_level_exempt's
+    read_text raised UnicodeDecodeError (a ValueError, not OSError) and
+    verify aborted; the gate must skip non-UTF-8 files instead.
+    """
+    (project.root / "state").mkdir(exist_ok=True)
+    # 0xfb is an invalid UTF-8 start byte at a fixed early offset, the
+    # same failure signature as a real SQLite database header.
+    (project.root / "state" / "scc.db").write_bytes(b"SQLite format 3\x01" + b"\xfb" * 64)
+    c = ctx_for(project, store, changed_paths={"state/scc.db"})
+    diags = rule("TL012", c)
+    # The path is still untraced (a binary file can host no marker), but
+    # the rule must COMPLETE and flag it, not crash.
+    assert [d.rule_id for d in diags] == ["TL012"]
+    assert diags[0].path == "state/scc.db"
+
+
 def test_tl012_clean_when_path_is_traced(project, store):
     traced = make_node("IMPL:1", "implementation", path="src/app.py")
     store.replace_all([traced], [])
