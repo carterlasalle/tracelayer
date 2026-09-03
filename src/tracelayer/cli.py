@@ -883,6 +883,104 @@ def work_beads(
         typer.echo("mode: native TraceLayer tasks (no downgrade)")
 
 
+# trace:v1 id=impl.cli.work-mirror work=WORK-beads-task-mirror-with-completion-reconciliation satisfies=REQ-task-mirror-with-mapping
+@work_app.command("mirror")
+def work_mirror(
+    ctx: typer.Context,
+    work_id: str | None = typer.Argument(None, help="WORK-... id (default: session active work)"),
+    apply: bool = typer.Option(False, "--apply", help="Create beads and links in Beads"),
+    session: str | None = typer.Option(
+        None, "--session", help="Session id (default: $TRACE_SESSION or 'default')"
+    ),
+    json_flag: bool = typer.Option(False, "--json", help="Emit machine-readable JSON"),
+    root: Path | None = _root_opt(),
+) -> None:
+    """Mirror native TASKs into Beads with TRACE external refs (spec 33-34)."""
+    from tracelayer.beads import mirror_tasks
+    from tracelayer.config import load_project
+    from tracelayer.hooks.session_state import SessionState
+
+    root = _resolve_root(ctx, root)
+    project, _diags = load_project(root)
+    wid = work_id
+    if wid is None:
+        sid = session or os.environ.get("TRACE_SESSION") or "default"
+        wid = SessionState(project).active_work(sid)
+    if not wid:
+        typer.echo("no work item: pass WORK-... or activate one first", err=True)
+        raise typer.Exit(2)
+    engine, _diags = _open(root)
+    try:
+        try:
+            result = mirror_tasks(engine.store, root, wid, apply=apply)
+        except ValueError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(2) from exc
+    finally:
+        engine.close()
+    if json_flag:
+        typer.echo(json.dumps(result, indent=2, sort_keys=True))
+        return
+    for entry in result["created"]:
+        if entry.get("preview"):
+            typer.echo(f"would create bead for {entry['task']}")
+        elif entry.get("bead"):
+            typer.echo(f"created {entry['bead']} for {entry['task']}")
+        else:
+            typer.echo(f"failed {entry['task']}: {entry.get('error', 'unknown error')}")
+    for entry in result["linked"]:
+        typer.echo(f"linked {entry['bead']} {entry['type']} {entry['blocks']}")
+    for entry in result["skipped"]:
+        typer.echo(f"exists {entry['bead']} for {entry['task']}")
+
+
+# trace:v1 id=impl.cli.work-reconcile work=WORK-beads-task-mirror-with-completion-reconciliation satisfies=REQ-completion-reconciliation
+@work_app.command("reconcile")
+def work_reconcile(
+    ctx: typer.Context,
+    work_id: str | None = typer.Argument(None, help="WORK-... id (default: session active work)"),
+    session: str | None = typer.Option(
+        None, "--session", help="Session id (default: $TRACE_SESSION or 'default')"
+    ),
+    json_flag: bool = typer.Option(False, "--json", help="Emit machine-readable JSON"),
+    root: Path | None = _root_opt(),
+) -> None:
+    """Beads-vs-TraceLayer completion check (spec Sections 37, 39)."""
+    from tracelayer.beads import reconcile
+    from tracelayer.config import load_project
+    from tracelayer.hooks.session_state import SessionState
+
+    root = _resolve_root(ctx, root)
+    project, _diags = load_project(root)
+    wid = work_id
+    if wid is None:
+        sid = session or os.environ.get("TRACE_SESSION") or "default"
+        wid = SessionState(project).active_work(sid)
+    if not wid:
+        typer.echo("no work item: pass WORK-... or activate one first", err=True)
+        raise typer.Exit(2)
+    engine, _diags = _open(root)
+    try:
+        try:
+            result = reconcile(engine.store, root, wid)
+        except ValueError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(2) from exc
+    finally:
+        engine.close()
+    if json_flag:
+        typer.echo(json.dumps(result, indent=2, sort_keys=True))
+        return
+    if result["complete"]:
+        typer.echo("beads and TraceLayer agree")
+        return
+    for mismatch in result["mismatches"]:
+        typer.echo(f"WORK STATE MISMATCH: {mismatch['task']} ({mismatch['bead']}): {mismatch['issue']}")
+    for blocked in result["question_blocked"]:
+        typer.echo(f"QUESTION BLOCKED: {blocked['task']}: {'; '.join(blocked['reasons'])}")
+    raise typer.Exit(1)
+
+
 # trace:v1 id=impl.cli.knowledge work=WORK-durable-knowledge-nodes-and-canonical-facts satisfies=REQ-knowledge-node-ontology
 @app.command()
 def knowledge(
