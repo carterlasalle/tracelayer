@@ -569,6 +569,25 @@ def update(
     _install_agents(root, targets, global_install=global_install, update=True)
 
 
+# trace:v1 id=impl.cli.setup work=WORK-global-setup-filesystem-hygiene-web-work-view-and-skill-refresh satisfies=REQ-global-setup-command
+@app.command()
+def setup(
+    ctx: typer.Context,
+    link: bool = typer.Option(False, "--link", help="Symlink the skill instead of copying"),
+) -> None:
+    """One-shot global setup: skill + hooks into every detected agent (spec 55)."""
+    root = _resolve_root(ctx, None)
+    targets = sorted(detect_agents())
+    if not targets:
+        typer.echo(
+            "no agents detected; run `trace install --list` or pass "
+            f"--agent ({', '.join(sorted(INSTALL_AGENTS))}) via `trace install`",
+            err=True,
+        )
+        raise typer.Exit(2)
+    _install_agents(root, targets, global_install=True, link=link)
+
+
 marker_app = typer.Typer(no_args_is_help=True, help="Marker authoring helpers")
 app.add_typer(marker_app, name="marker")
 
@@ -705,6 +724,163 @@ def plan_status(
     finally:
         engine.close()
 
+
+work_app = typer.Typer(no_args_is_help=True, help="Native work/task tracking (no Beads required)")
+app.add_typer(work_app, name="work")
+
+
+# trace:v1 id=impl.cli.work-ready work=WORK-trace-layer-native-work-task-question-decision-model satisfies=REQ-native-ready-state-computation
+@work_app.command("ready")
+def work_ready(
+    ctx: typer.Context,
+    work_id: str | None = typer.Argument(None, help="WORK-... id (default: session active work)"),
+    session: str | None = typer.Option(
+        None, "--session", help="Session id (default: $TRACE_SESSION or 'default')"
+    ),
+    json_flag: bool = typer.Option(False, "--json", help="Emit machine-readable JSON"),
+    root: Path | None = _root_opt(),
+) -> None:
+    """READY/BLOCKED tasks for a work item, from native graph state (spec 35)."""
+    from tracelayer.config import load_project
+    from tracelayer.hooks.session_state import SessionState
+    from tracelayer.work import compute_readiness
+
+    root = _resolve_root(ctx, root)
+    project, _diags = load_project(root)
+    wid = work_id
+    if wid is None:
+        sid = session or os.environ.get("TRACE_SESSION") or "default"
+        wid = SessionState(project).active_work(sid)
+    if not wid:
+        typer.echo("no work item: pass WORK-... or activate one first", err=True)
+        raise typer.Exit(2)
+    engine, _diags = _open(root)
+    try:
+        try:
+            result = compute_readiness(engine.store, wid)
+        except ValueError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(2) from exc
+    finally:
+        engine.close()
+    if json_flag:
+        typer.echo(json.dumps(result, indent=2, sort_keys=True))
+        return
+    titles = result.get("titles", {})
+    ids: set[str] = {wid}
+    for _section in ("ready", "in_progress", "partial", "open_questions", "done", "deferred",
+                     "cancelled", "not_implemented"):
+        ids.update(result.get(_section, []))
+    ids.update(result.get("blocked", {}))
+    labels = {
+        tid: tid if titles.get(tid, tid) == tid else f"{tid} — {titles[tid]}" for tid in ids
+    }
+
+    work_title = titles.get(wid, wid)
+    typer.echo(f"{wid} — {work_title}")
+    for section in ("ready", "in_progress", "partial"):
+        items = result.get(section, [])
+        typer.echo(f"{section.upper().replace('_', ' ')} ({len(items)})")
+        for tid in items:
+            typer.echo(f"  {labels.get(tid, tid)}")
+    blocked = result.get("blocked", {})
+    typer.echo(f"BLOCKED ({len(blocked)})")
+    for tid, reasons in blocked.items():
+        typer.echo(f"  {labels.get(tid, tid)}")
+        for reason in reasons:
+            typer.echo(f"    {reason}")
+    for section in ("open_questions", "done", "deferred", "cancelled", "not_implemented"):
+        items = result.get(section, [])
+        if items:
+            typer.echo(f"{section.upper().replace('_', ' ')} ({len(items)})")
+            for tid in items:
+                typer.echo(f"  {labels.get(tid, tid)}")
+
+
+# trace:v1 id=impl.cli.work-sync-todos work=WORK-harness-todo-sync-beads-detection-and-fulfillment-status satisfies=REQ-harness-todo-adapters
+@work_app.command("sync-todos")
+def work_sync_todos(
+    ctx: typer.Context,
+    harness: str = typer.Option(..., "--harness", help="Todo source: claude | omp | codex"),
+    plan: str | None = typer.Option(None, "--plan", help="PLAN-... id (default: active plan)"),
+    apply: bool = typer.Option(False, "--apply", help="Append TASK blocks to the plan document"),
+    session: str | None = typer.Option(
+        None, "--session", help="Session id (default: $TRACE_SESSION or 'default')"
+    ),
+    root: Path | None = _root_opt(),
+) -> None:
+    """Persist harness TODOs as native TASK nodes (spec Sections 10-11)."""
+    from tracelayer.config import load_project
+    from tracelayer.harness import normalize_todos, render_task_blocks
+    from tracelayer.hooks.session_state import SessionState
+
+    try:
+        items = json.loads(_read_payload_text())
+    except json.JSONDecodeError as exc:
+        typer.echo(f"todos payload is not valid JSON: {exc}", err=True)
+        raise typer.Exit(2) from exc
+    if not isinstance(items, list):
+        typer.echo("todos payload must be a JSON array of todo objects", err=True)
+        raise typer.Exit(2)
+    try:
+        tasks = normalize_todos(harness, items)
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(2) from exc
+    root = _resolve_root(ctx, root)
+    project, _diags = load_project(root)
+    state = SessionState(project)
+    sid = session or os.environ.get("TRACE_SESSION") or "default"
+    work_id = state.active_work(sid)
+    if not work_id:
+        typer.echo("no active work item: begin or activate one first", err=True)
+        raise typer.Exit(2)
+    plan_id = plan or state.active_plan(sid)
+    if apply and not plan_id:
+        typer.echo("no plan: pass --plan PLAN-... or activate one first", err=True)
+        raise typer.Exit(2)
+    engine, _diags = _open(root)
+    try:
+        blocks = render_task_blocks(engine.store, work_id, tasks)
+        if not apply:
+            typer.echo(blocks if blocks else "no todos to sync")
+            return
+        node = engine.store.get_node(trace_id=plan_id)
+        if node is None or not node.active or not node.canonical_path:
+            typer.echo(f"no active plan document: {plan_id}", err=True)
+            raise typer.Exit(2)
+        doc = root / node.canonical_path
+        doc.write_text(doc.read_text(encoding="utf-8").rstrip("\n") + "\n\n" + blocks + "\n",
+                       encoding="utf-8")
+        engine.index_changed()
+        typer.echo(f"synced {len(tasks)} task(s) into {node.canonical_path}")
+    finally:
+        engine.close()
+
+
+# trace:v1 id=impl.cli.work-beads work=WORK-harness-todo-sync-beads-detection-and-fulfillment-status satisfies=REQ-beads-optional-detection
+@work_app.command("beads")
+def work_beads(
+    ctx: typer.Context,
+    json_flag: bool = typer.Option(False, "--json", help="Emit machine-readable JSON"),
+    root: Path | None = _root_opt(),
+) -> None:
+    """Beads detection status: enhancement availability, never a dependency (spec 5)."""
+    from tracelayer.beads import detect_beads
+
+    root = _resolve_root(ctx, root)
+    result = detect_beads(root)
+    if json_flag:
+        typer.echo(json.dumps(result, indent=2, sort_keys=True))
+        return
+    beads = result["beads"]
+    typer.echo(f"available: {beads['available']}")
+    typer.echo(f"repository_initialized: {beads['repository_initialized']}")
+    typer.echo(f"active: {beads['active']}")
+    if beads["active"]:
+        typer.echo("mode: first-class enhancement over native TraceLayer tasks")
+    else:
+        typer.echo("mode: native TraceLayer tasks (no downgrade)")
 
 # trace:v1 id=impl.cli.task-context work=WORK-TL-001
 @app.command()
@@ -1065,6 +1241,25 @@ def plan_sync(
         engine.close()
 
 
+# trace:v1 id=impl.cli.plan-suggest work=WORK-knowledge-first-ambient-bootstrap-with-artifact-planning satisfies=REQ-artifact-planning-engine
+@plan_app.command("suggest")
+def plan_suggest(
+    prompt: str = typer.Argument(..., help="Natural-language intent to plan artifacts for"),
+    kind: str = typer.Option("new_feature", "--kind", help="Task kind (refactor, new_feature, ...)"),
+    requirements: int = typer.Option(1, "--requirements", help="Expected requirement count"),
+) -> None:
+    """Proportional artifact plan for an intent (spec Sections 19-20)."""
+    from tracelayer.planning import plan_artifacts
+
+    typer.echo(
+        json.dumps(
+            plan_artifacts(prompt, kind=kind, num_requirements=requirements),
+            indent=2,
+            sort_keys=True,
+        )
+    )
+
+
 @app.command()
 def summary(
     ctx: typer.Context,
@@ -1296,6 +1491,7 @@ def search(
             typer.echo(f"{n.trace_id}  {label}")
 
 
+# trace:v1 id=impl.cli.context-briefing work=WORK-documentation-artifact-system-and-useful-context-engine satisfies=REQ-engineering-briefing-context
 @app.command()
 def context(
     ctx: typer.Context,
@@ -1343,6 +1539,11 @@ def context(
                             for v in result.verification
                         ],
                         "staleness": result.staleness,
+                        "related": [
+                            {"section": header, "trace_id": n.trace_id}
+                            for header, n in result.related
+                        ],
+                        "adjacent_context": result.adjacent,
                         "provenance": result.provenance,
                     },
                     indent=2,

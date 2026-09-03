@@ -36,7 +36,12 @@ _NODE_TYPES: list[tuple[str, str, str]] = [
         "An architecture decision record (ADR) or equivalent decision.",
     ),
     ("work", "decision/planning", "A work item (issue, ticket, task) that produced artifacts."),
+    ("task", "decision/planning", "A durable engineering task with lifecycle state."),
+    ("question", "decision/planning", "A material open question blocking work."),
+    ("spec", "intent", "A specification document."),
+    ("rfc", "decision/planning", "A request-for-comments design proposal."),
     ("plan", "decision/planning", "A plan or plan step; first-class ID (PLAN-X/P3)."),
+    ("plan_step", "decision/planning", "A single step within a plan."),
     ("implementation", "realization", "Source code realizing a requirement/decision."),
     ("config", "realization", "Configuration with contractual significance."),
     ("operation", "realization", "Deployment, runbook-adjacent operational behavior."),
@@ -79,6 +84,18 @@ _SEMANTIC: list[tuple[str, str, str]] = [
     ("produces", "source activity produces target", "plan/CI -> implementation/evidence"),
     ("consumes", "source relies on target artifact or data", "implementation -> data/config"),
     ("blocks", "source must resolve before target progresses", "work/requirement -> work/release"),
+    ("blocked_by", "source is blocked by target", "task -> task/question"),
+    ("related_to", "source is related to target", "artifact -> artifact"),
+    ("discovered_from", "source was discovered while working on target", "task/work -> task/work"),
+    ("asks", "source poses target question", "task/work -> question"),
+    ("answers", "source answers target question", "decision -> question"),
+    ("answered_by", "source question is answered by target", "question -> decision"),
+    ("resolves", "source resolves target", "decision/implementation -> question/task"),
+    ("proposes", "source proposes target design", "rfc -> spec/decision"),
+    ("decides", "source records the decision for target", "decision -> question/requirement"),
+    ("parent", "source is the parent of target in a work hierarchy", "work/task -> task"),
+    ("child", "source is a child of target in a work hierarchy", "task -> work/task"),
+    ("introduced_by", "source was introduced by target activity", "artifact -> work/commit"),
 ]
 
 _STRUCTURAL: list[tuple[str, str, str]] = [
@@ -103,6 +120,7 @@ _OBSERVED: list[tuple[str, str, str]] = [
 ]
 
 
+# trace:v1 id=impl.protocol.work-model-ontology work=WORK-trace-layer-native-work-task-question-decision-model satisfies=REQ-native-work-task-question-decision-ontology
 def _build_nodes() -> dict[str, NodeTypeDef]:
     return {name: NodeTypeDef(name, cat, desc) for name, cat, desc in _NODE_TYPES}
 

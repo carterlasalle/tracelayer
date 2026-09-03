@@ -41,7 +41,7 @@ unknown_keys = "error"
 
 [hooks]
 max_context_chars = 1500
-pre_edit_require_context = true
+pre_edit_require_context = false
 pre_edit_block_once = true
 prompt_search_limit = 5
 

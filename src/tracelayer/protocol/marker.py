@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from tracelayer.diagnostics import Diagnostic, make
 from tracelayer.protocol import grammar, ids, ontology
 
-BUILTIN_PROPERTIES = frozenset({"id", "type", "title", "policy"})
+BUILTIN_PROPERTIES = frozenset({"id", "type", "title", "policy", "state"})
 
 # Convenience relation-like keys (spec 11.3, 33.1): `work` and `plan` are
 # graph edges; `plan` is an alias for `implements`.
@@ -96,6 +96,7 @@ def parse_marker_hit(hit: MarkerHit, *, unknown_keys: str = "error") -> MarkerPa
     )
 
 
+# trace:v1 id=impl.protocol.marker-state work=WORK-trace-layer-native-work-task-question-decision-model satisfies=REQ-native-work-task-question-decision-ontology
 def _parse_payload(
     payload: str, *, raw: str, path: str, line: int, column: int, unknown_keys: str
 ) -> MarkerParseResult:
@@ -148,6 +149,8 @@ def _parse_payload(
             marker.properties["policy"] = tok.value
         elif tok.key == "expects":
             marker.properties["expects"] = _validated_targets(tok, path, line, diags)
+        elif tok.key == "state":
+            marker.properties["state"] = tok.value
         elif tok.key in CONVENIENCE_EDGES:
             edge = CONVENIENCE_EDGES[tok.key]
             marker.edges.setdefault(edge, []).extend(_validated_targets(tok, path, line, diags))
@@ -241,6 +244,8 @@ def render_marker(marker: ParsedMarker) -> str:
         parts.append(f"title={grammar.quote_value(marker.title)}")
     if "policy" in marker.properties:
         parts.append(f"policy={grammar.quote_value(marker.properties['policy'])}")
+    if "state" in marker.properties:
+        parts.append(f"state={grammar.quote_value(marker.properties['state'])}")
     if "expects" in marker.properties:
         parts.append(f"expects={','.join(marker.properties['expects'])}")
     for edge in ontology.EDGE_ORDER:

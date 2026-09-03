@@ -1,4 +1,10 @@
 {
+  "adjacent_context": {
+    "excerpt": "def rotate_refresh_token(token: str) -> str:\n    \"\"\"Rotate a refresh token.\"\"\"\n    return \"rotated-\" + token",
+    "leading_comments": [
+      "# trace:v1 id=impl.auth.refresh work=WORK-AUTH-237 satisfies=REQ-AUTH-017 implements=ADR-0042"
+    ]
+  },
   "downstream": [
     {
       "predicate": "exercises",
@@ -14,6 +20,7 @@
     "first_seen": "<sha>",
     "last_modified": "<sha>"
   },
+  "related": [],
   "staleness": "current",
   "status": "current",
   "symbol": "src.auth.tokens.rotate_refresh_token",

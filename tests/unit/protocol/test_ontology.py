@@ -17,17 +17,22 @@ from tracelayer.protocol import (
 )
 from tracelayer.protocol.ontology import EdgeTypeDef, NodeTypeDef
 
-# Spec Section 12.1 — five categories, twenty node classes.
+# Spec Section 12.1 — five categories, twenty-five node classes (vNext work model).
 SPEC_NODE_TYPES = [
     # intent
     "goal",
     "prd",
     "requirement",
     "nfr",
+    "spec",
     # decision/planning
     "decision",
     "work",
+    "task",
+    "question",
+    "rfc",
     "plan",
+    "plan_step",
     # realization
     "implementation",
     "config",
@@ -47,14 +52,15 @@ SPEC_NODE_TYPES = [
 ]
 
 SPEC_NODE_CATEGORIES = {
-    "intent": ["goal", "prd", "requirement", "nfr"],
-    "decision/planning": ["decision", "work", "plan"],
+    "intent": ["goal", "prd", "requirement", "nfr", "spec"],
+    "decision/planning": ["decision", "work", "task", "question", "rfc", "plan", "plan_step"],
     "realization": ["implementation", "config", "operation", "data", "prompt"],
     "verification/documentation": ["test", "document", "runbook", "evidence"],
     "provenance": ["commit", "pull_request", "ci_run", "external"],
 }
 
-# Spec 12.2 (13 edges) plus the `work` convenience edge (spec 11.3/33.1).
+# Spec 12.2 (13 edges) plus the `work` convenience edge (spec 11.3/33.1),
+# plus the vNext work-relationship edges (spec Sections 6, 77).
 SPEC_SEMANTIC = [
     "work",
     "derived_from",
@@ -70,6 +76,18 @@ SPEC_SEMANTIC = [
     "produces",
     "consumes",
     "blocks",
+    "blocked_by",
+    "related_to",
+    "discovered_from",
+    "asks",
+    "answers",
+    "answered_by",
+    "resolves",
+    "proposes",
+    "decides",
+    "parent",
+    "child",
+    "introduced_by",
 ]
 
 # Spec 12.3.
@@ -92,7 +110,7 @@ SPEC_OBSERVED = ["executed", "passed", "failed", "built_in", "deployed_in", "att
 # trace:v1 id=test.dogfood.tests.unit.protocol.test_ontology.py type=test
 def test_node_type_registry_matches_spec() -> None:
     assert sorted(NODE_TYPES) == sorted(SPEC_NODE_TYPES)
-    assert len(NODE_TYPES) == 20
+    assert len(NODE_TYPES) == 25
 
 
 def test_node_type_defs_well_formed() -> None:
@@ -109,10 +127,10 @@ def test_node_categories_match_spec() -> None:
 
 
 def test_edge_counts() -> None:
-    assert len(SEMANTIC_EDGES) == 14
+    assert len(SEMANTIC_EDGES) == 26
     assert len(STRUCTURAL_EDGES) == 9
     assert len(OBSERVED_EDGES) == 6
-    assert len(EDGE_TYPES) == 29
+    assert len(EDGE_TYPES) == 41
 
 
 def test_semantic_edges_match_spec() -> None:

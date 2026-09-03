@@ -299,6 +299,8 @@ def _node_from_marker(
         meta["yaml_key_path"] = key_path
     if "expects" in marker.properties:
         meta["expects"] = marker.properties["expects"]
+    if "state" in marker.properties:
+        meta["state"] = marker.properties["state"]
     if scope:
         meta["scope"] = scope
 
@@ -413,7 +415,7 @@ def _process_file(
                 meta["generated"] = True
             if scope:
                 meta["scope"] = scope
-            for prop in ("expects",):
+            for prop in ("expects", "state"):
                 if prop in props_by_tid.get(block.trace_id, {}):
                     meta[prop] = props_by_tid[block.trace_id][prop]
             first = next((ln.strip() for ln in block.body.splitlines() if ln.strip()), None)
@@ -1161,7 +1163,7 @@ class Engine:
     def context(self, trace_id: str):
         from tracelayer.query.context import build_context
 
-        return build_context(self.store, self.gitrepo, trace_id)
+        return build_context(self.store, self.gitrepo, trace_id, root=self.project.root)
 
     # trace:exempt reason=internal-detail
     def why(self, trace_id: str):

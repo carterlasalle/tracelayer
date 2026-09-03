@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 .trace/cache/
+.trace/var/
 .build/
 dist/
 build/
@@ -9,6 +10,7 @@ build/
 .coverage
 htmlcov/
 .ruff_cache/
+.hypothesis/
 .mypy_cache/
 node_modules/
 .serena/

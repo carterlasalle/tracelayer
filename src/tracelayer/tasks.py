@@ -193,31 +193,35 @@ def validate_bundle(bundle: object) -> list[str]:
     return errors
 
 
-# trace:exempt reason=internal-helper
+# trace:v1 id=impl.ambient.bundle-plan work=WORK-knowledge-first-ambient-bootstrap-with-artifact-planning satisfies=REQ-real-bootstrap-plan-generation
 def bundle_from_prompt(prompt: str) -> dict:
-    """Deterministic minimal bundle derived from the user's prose.
+    """Deterministic bundle derived from the user's prose.
 
-    The semantic agent may refine this (``--json``) later; this primitive
-    makes the zero-ceremony path real: prose alone yields work + spec +
-    requirement + plan with no user-facing TraceLayer input (review P0).
+    The semantic agent may refine this (``--json``) later; this makes the
+    zero-ceremony path real: prose alone yields work + spec + requirement +
+    a proportional multi-step plan with no user-facing TraceLayer input.
     """
+    from tracelayer.planning import classify_scope, plan_steps_for
+
     text = " ".join(str(prompt).split())
     title = (text[:72] + "…") if len(text) > 72 else text
     if not title:
         title = "Task"
+    req_title = "Implement " + (title[:60] + "…" if len(title) > 60 else title)
+    scope = classify_scope(text, "new_feature", 1)["scope"]
     return {
         "title": title,
         "kind": "new_feature",
         "intent": text,
         "requirements": [
             {
-                "title": "Implement " + (title[:60] + "…" if len(title) > 60 else title),
+                "title": req_title,
                 "statement": text,
             }
         ],
         "plan": {
             "recommended": True,
-            "steps": [("Implement: " + text[:200]) + ("…" if len(text) > 200 else "")],
+            "steps": plan_steps_for([req_title], scope),
         },
     }
 

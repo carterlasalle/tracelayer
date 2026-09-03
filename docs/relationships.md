@@ -20,6 +20,18 @@
 | `produces` | source activity produces target | plan/CI -> implementation/evidence |
 | `consumes` | source relies on target artifact or data | implementation -> data/config |
 | `blocks` | source must resolve before target progresses | work/requirement -> work/release |
+| `blocked_by` | source is blocked by target | task -> task/question |
+| `related_to` | source is related to target | artifact -> artifact |
+| `discovered_from` | source was discovered while working on target | task/work -> task/work |
+| `asks` | source poses target question | task/work -> question |
+| `answers` | source answers target question | decision -> question |
+| `answered_by` | source question is answered by target | question -> decision |
+| `resolves` | source resolves target | decision/implementation -> question/task |
+| `proposes` | source proposes target design | rfc -> spec/decision |
+| `decides` | source records the decision for target | decision -> question/requirement |
+| `parent` | source is the parent of target in a work hierarchy | work/task -> task |
+| `child` | source is a child of target in a work hierarchy | task -> work/task |
+| `introduced_by` | source was introduced by target activity | artifact -> work/commit |
 
 ## Structural edges
 

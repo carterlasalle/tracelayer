@@ -109,11 +109,16 @@ surfaces them. This is intended behavior, not an exclusion bug.
 | `nfr` | intent | A non-functional requirement. |
 | `operation` | realization | Deployment, runbook-adjacent operational behavior. |
 | `plan` | decision/planning | A plan or plan step; first-class ID (PLAN-X/P3). |
+| `plan_step` | decision/planning | A single step within a plan. |
 | `prd` | intent | Product requirements document. |
 | `prompt` | realization | Prompt or configuration encoding a product invariant. |
 | `pull_request` | provenance | A pull/merge request. |
+| `question` | decision/planning | A material open question blocking work. |
 | `requirement` | intent | A formal, stable, testable requirement. |
+| `rfc` | decision/planning | A request-for-comments design proposal. |
 | `runbook` | verification/documentation | Operational runbook procedure. |
+| `spec` | intent | A specification document. |
+| `task` | decision/planning | A durable engineering task with lifecycle state. |
 | `test` | verification/documentation | A verification test. |
 | `work` | decision/planning | A work item (issue, ticket, task) that produced artifacts. |
 

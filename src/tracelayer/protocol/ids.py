@@ -10,8 +10,14 @@ _PATTERN_RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"^REQ-"), "requirement"),
     (re.compile(r"^NFR-"), "nfr"),
     (re.compile(r"^ADR-"), "decision"),
+    (re.compile(r"^DEC-"), "decision"),
     (re.compile(r"^WORK-"), "work"),
+    (re.compile(r"^TASK-"), "task"),
+    (re.compile(r"^Q-"), "question"),
+    (re.compile(r"^SPEC-"), "spec"),
+    (re.compile(r"^RFC-"), "rfc"),
     (re.compile(r"^PLAN-"), "plan"),
+    (re.compile(r"^PSTEP-"), "plan_step"),
     (re.compile(r"^impl\."), "implementation"),
     (re.compile(r"^test\."), "test"),
     (re.compile(r"^ops\."), "operation"),
@@ -28,14 +34,17 @@ _PATTERN_RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"^EVIDENCE-"), "evidence"),
     (re.compile(r"^CI-"), "ci_run"),
 ]
-
-# ID prefix used by `trace new <type>` when generating new identities.
 TYPE_PREFIX = {
     "requirement": "REQ-",
     "nfr": "NFR-",
     "decision": "ADR-",
     "work": "WORK-",
+    "task": "TASK-",
+    "question": "Q-",
+    "spec": "SPEC-",
+    "rfc": "RFC-",
     "plan": "PLAN-",
+    "plan_step": "PSTEP-",
     "implementation": "impl.",
     "test": "test.",
     "document": "doc.",
@@ -54,6 +63,7 @@ def is_valid_id(value: str) -> bool:
     return bool(ID_PATTERN.match(value))
 
 
+# trace:v1 id=impl.protocol.work-model-ids work=WORK-trace-layer-native-work-task-question-decision-model satisfies=REQ-native-work-task-question-decision-ontology
 def infer_node_type(trace_id: str) -> str | None:
     """Deterministic artifact-type inference from the ID namespace (OQ-002)."""
     for pattern, node_type in _PATTERN_RULES:

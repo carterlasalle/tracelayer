@@ -97,6 +97,17 @@ def node_detail(engine: Engine, trace_id: str) -> dict | None:
     }
 
 
+# trace:v1 id=impl.web.work-ready work=WORK-global-setup-filesystem-hygiene-web-work-view-and-skill-refresh satisfies=REQ-web-work-view-data
+def work_payload(engine: Engine, work_id: str) -> dict | None:
+    """Ready/blocked work state for the work view (spec Section 65)."""
+    from tracelayer.work import compute_readiness
+
+    try:
+        return compute_readiness(engine.store, work_id)
+    except ValueError:
+        return None
+
+
 def _read_html() -> bytes:
     try:
         return _HTML_PATH.read_bytes()
@@ -112,6 +123,7 @@ def _read_vendor() -> bytes:
         return b"// vendor asset missing (broken install)"
 
 
+# trace:exempt reason=internal-routing
 class _Handler(BaseHTTPRequestHandler):
     engine: Engine | None = None  # set by run_web
 
@@ -132,6 +144,7 @@ class _Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    # trace:exempt reason=internal-routing
     def do_GET(self) -> None:  # noqa: N802 (http.server API)
         path = urlparse(self.path).path
         if path == "/":
@@ -160,6 +173,14 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send_json({"error": f"unknown trace id: {trace_id}"}, status=404)
             else:
                 self._send_json(detail)
+            return
+        if path.startswith("/api/work/") and path.endswith("/ready"):
+            work_id = unquote(path[len("/api/work/") : -len("/ready")])
+            payload = work_payload(self._engine(), work_id)
+            if payload is None:
+                self._send_json({"error": f"unknown work item: {work_id}"}, status=404)
+            else:
+                self._send_json(payload)
             return
         self._send_json({"error": "not found"}, status=404)
 

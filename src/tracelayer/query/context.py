@@ -9,12 +9,13 @@ staleness state, and Git provenance when available.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from tracelayer.evidence.freshness import proof_level
 from tracelayer.git.repo import GitRepo
 from tracelayer.graph.models import Edge, Node
 from tracelayer.graph.store import GraphStore
+from tracelayer.work import normalize_question_state, normalize_task_state
 
 # Upstream intent predicates in render order (spec 28.3).
 _UPSTREAM_PREDICATES = ("work", "satisfies", "implements", "addresses", "derived_from")
@@ -23,6 +24,32 @@ _DOWNSTREAM_PREDICATES = ("verifies", "exercises", "documents", "deploys")
 _PREDICATE_RANK = {p: i for i, p in enumerate(_UPSTREAM_PREDICATES + _DOWNSTREAM_PREDICATES)}
 _VERIFY_PREDICATES = ("verifies", "exercises")  # predicates that link tests
 _MAX_COMMITS = 50  # bound on the provenance commit list
+# Workflow edges shown in the engineering briefing (spec Section 49).
+_WORKFLOW_OUT = (
+    "blocked_by",
+    "blocks",
+    "depends_on",
+    "asks",
+    "answers",
+    "answered_by",
+    "contains",
+    "parent",
+    "child",
+    "related_to",
+    "discovered_from",
+)
+_WORKFLOW_HEADERS = {
+    "blocked_by": "Blocked by",
+    "depends_on": "Depends on",
+    "asks": "Asks",
+    "answers": "Answers",
+    "answered_by": "Answered by",
+    "contains": "Contains",
+    "parent": "Parent",
+    "child": "Child",
+    "related_to": "Related to",
+    "discovered_from": "Discovered from",
+}
 
 
 @dataclass
@@ -33,6 +60,7 @@ class VerificationStatus:
     current: bool
 
 
+# trace:exempt reason=data-container
 @dataclass
 class ContextResult:
     node: Node
@@ -41,6 +69,8 @@ class ContextResult:
     verification: list[VerificationStatus]
     staleness: str
     provenance: dict  # first_seen/last_modified/commits; may be absent
+    related: list[tuple[str, Node]] = field(default_factory=list)
+    adjacent: dict = field(default_factory=dict)
 
 
 def _framework_id_of(test_node: Node) -> str:
@@ -53,8 +83,47 @@ def _framework_id_of(test_node: Node) -> str:
     return str(value) if value else test_node.trace_id
 
 
+# trace:v1 id=impl.context.adjacent work=WORK-documentation-artifact-system-and-useful-context-engine satisfies=REQ-engineering-briefing-context
+def extract_adjacent(root, node: Node) -> dict:
+    """Leading comments + source excerpt for a node (spec Section 44).
+
+    Language-agnostic: consecutive comment lines directly above the symbol
+    plus the opening lines of its body, bounded for briefing use.
+    """
+    from pathlib import Path
+
+    start = node.source_start_line
+    if not root or not node.canonical_path or not start:
+        return {}
+    try:
+        lines = (Path(root) / node.canonical_path).read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):
+        return {}
+    prefixes = ("#", "//", "--", "%", ";", "*", "<!--")
+    comments: list[str] = []
+    idx = start - 2
+    while idx >= 0 and len(comments) < 8:
+        stripped = lines[idx].strip()
+        if not stripped or not stripped.startswith(prefixes):
+            break
+        comments.append(lines[idx].rstrip())
+        idx -= 1
+    comments.reverse()
+    end = node.source_end_line or start + 11
+    excerpt = "\n".join(lines[start - 1 : min(end, start + 11)])
+    adjacent: dict = {}
+    if comments:
+        adjacent["leading_comments"] = comments
+    if excerpt.strip():
+        adjacent["excerpt"] = excerpt[:1200]
+    return adjacent
+
+# trace:v1 id=impl.context.briefing work=WORK-documentation-artifact-system-and-useful-context-engine satisfies=REQ-engineering-briefing-context
 def build_context(
-    store: GraphStore, gitrepo: GitRepo | None, trace_id: str
+    store: GraphStore,
+    gitrepo: GitRepo | None,
+    trace_id: str,
+    root=None,
 ) -> ContextResult | None:
     """Build the context summary for ``trace_id``, or None when unknown.
 
@@ -110,6 +179,24 @@ def build_context(
             "commits": gitrepo.commits_touching(node.canonical_path, max_count=_MAX_COMMITS),
         }
 
+    related: list[tuple[str, Node]] = []
+    for edge in store.edges_from(uid):
+        if edge.predicate not in _WORKFLOW_OUT:
+            continue
+        header = _WORKFLOW_HEADERS.get(edge.predicate, edge.predicate.capitalize())
+        if edge.predicate == "blocks":
+            header = "Blocks"
+        target = store.get_node(uid=edge.to_uid)
+        if target is not None:
+            related.append((header, target))
+    for edge in store.edges_to(uid, "blocks"):
+        if edge.status != "active":
+            continue
+        source = store.get_node(uid=edge.from_uid)
+        if source is not None:
+            related.append(("Blocked by", source))
+    related.sort(key=lambda p: (p[0], p[1].trace_id))
+
     return ContextResult(
         node=node,
         upstream=upstream,
@@ -117,6 +204,8 @@ def build_context(
         verification=verification,
         staleness=node.status(),
         provenance=provenance,
+        related=[(header, target) for header, target in related],
+        adjacent=extract_adjacent(root, node),
     )
 
 
@@ -132,8 +221,19 @@ def _section_header(predicate: str, node_type: str) -> str:
     )
 
 
+# trace:exempt reason=internal-helper
+def _related_label(target: Node) -> str:
+    """Trace id with lifecycle state for task/question nodes."""
+    if target.node_type == "task":
+        return f"{target.trace_id} [{normalize_task_state(target.metadata.get('state'))}]"
+    if target.node_type == "question":
+        return f"{target.trace_id} [{normalize_question_state(target.metadata.get('state'))}]"
+    return target.trace_id
+
+
+# trace:v1 id=impl.context.briefing-render work=WORK-documentation-artifact-system-and-useful-context-engine satisfies=REQ-engineering-briefing-context
 def render_context_text(ctx: ContextResult) -> str:
-    """Render the context summary in the spec 28.3 layout."""
+    """Render the context summary in the spec 28.3 layout plus briefing sections."""
     lines: list[str] = [ctx.node.trace_id]
     if ctx.node.canonical_path:
         location = ctx.node.canonical_path
@@ -155,6 +255,28 @@ def render_context_text(ctx: ContextResult) -> str:
         lines.append("")
         lines.append(f"{header}:")
         lines.extend(f"  {item}" for item in items)
+
+    groups: dict[str, list[str]] = {}
+    for header, target in ctx.related:
+        item = _related_label(target)
+        groups.setdefault(header, [])
+        if item not in groups[header]:
+            groups[header].append(item)
+    for header, items in groups.items():
+        lines.append("")
+        lines.append(f"{header}:")
+        lines.extend(f"  {item}" for item in items)
+
+    adjacent = ctx.adjacent or {}
+    comments = adjacent.get("leading_comments") or []
+    excerpt = adjacent.get("excerpt") or ""
+    if comments or excerpt.strip():
+        lines.append("")
+        lines.append("Nearby context:")
+        lines.extend(f"  {comment}" for comment in comments)
+        if excerpt.strip():
+            lines.append("  ---")
+            lines.extend(f"  {line}" for line in excerpt.splitlines())
 
     if ctx.verification:
         lines.append("")
