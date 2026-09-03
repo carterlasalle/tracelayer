@@ -32,6 +32,19 @@
 | `parent` | source is the parent of target in a work hierarchy | work/task -> task |
 | `child` | source is a child of target in a work hierarchy | task -> work/task |
 | `introduced_by` | source was introduced by target activity | artifact -> work/commit |
+| `applies_to` | source knowledge applies to target artifact | knowledge -> artifact |
+| `learned_from` | source knowledge was learned from target | knowledge -> work/task |
+| `establishes` | source establishes target fact | decision -> fact/value |
+| `canonicalizes` | source file is the canonical source of target fact | file -> fact/value |
+| `depends_on_value` | source relies on target canonical value | artifact -> value |
+| `documents_value` | source documents target canonical value | document -> value/fact |
+| `mirrors_value` | source mirrors target canonical value | artifact -> value |
+| `derives_value` | source value is derived from target | value -> value |
+| `generated_from` | source is generated from target | artifact -> value/fact |
+| `historical_reference` | source references target as history | document -> value/fact |
+| `explains` | source explains target | knowledge/document -> artifact |
+| `warns_against` | source warns against target approach | anti_pattern -> artifact |
+| `recommended_for` | source is recommended for target | convention -> artifact |
 
 ## Structural edges
 

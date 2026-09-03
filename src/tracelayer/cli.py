@@ -882,6 +882,113 @@ def work_beads(
     else:
         typer.echo("mode: native TraceLayer tasks (no downgrade)")
 
+
+# trace:v1 id=impl.cli.knowledge work=WORK-durable-knowledge-nodes-and-canonical-facts satisfies=REQ-knowledge-node-ontology
+@app.command()
+def knowledge(
+    ctx: typer.Context,
+    knowledge_id: str | None = typer.Argument(None, help="Knowledge node id to show"),
+    for_artifact: str | None = typer.Option(
+        None, "--for", help="List knowledge governing an artifact (spec 91)"
+    ),
+    limit: int = typer.Option(3, "--limit", help="Maximum knowledge items"),
+    json_flag: bool = typer.Option(False, "--json", help="Emit machine-readable JSON"),
+    root: Path | None = _root_opt(),
+) -> None:
+    """Durable engineering knowledge: scoped injection and detail (spec 81-91)."""
+    from tracelayer.knowledge import KNOWLEDGE_TYPES, knowledge_for
+
+    root = _resolve_root(ctx, root)
+    engine, _diags = _open(root)
+    try:
+        if for_artifact is not None:
+            items = knowledge_for(engine.store, for_artifact, limit=limit)
+            if json_flag:
+                typer.echo(json.dumps(items, indent=2, sort_keys=True))
+                return
+            if not items:
+                typer.echo(f"no governing knowledge for {for_artifact}")
+                return
+            for item in items:
+                typer.echo(f"{item['id']} [{item['type']}] — {item['title']}")
+            return
+        if knowledge_id is None:
+            typer.echo("pass a knowledge id or --for <artifact>", err=True)
+            raise typer.Exit(2)
+        node = engine.store.get_node(trace_id=knowledge_id)
+        if node is None or not node.active or node.node_type not in KNOWLEDGE_TYPES:
+            typer.echo(f"no active knowledge node: {knowledge_id}", err=True)
+            raise typer.Exit(2)
+        detail = {
+            "id": node.trace_id,
+            "type": node.node_type,
+            "state": node.metadata.get("state", "ACTIVE"),
+            "title": node.title or node.trace_id,
+            "path": node.canonical_path,
+            "governs": sorted(
+                {
+                    t.trace_id
+                    for e in engine.store.edges_from(node.entity_uid)
+                    if e.status == "active"
+                    for t in [engine.store.get_node(uid=e.to_uid)]
+                    if t is not None and t.active
+                }
+            ),
+        }
+        if json_flag:
+            typer.echo(json.dumps(detail, indent=2, sort_keys=True))
+        else:
+            typer.echo(f"{detail['id']} [{detail['type']}] ({detail['state']})")
+            typer.echo(f"  {detail['title']}")
+            for target in detail["governs"]:
+                typer.echo(f"  governs: {target}")
+    finally:
+        engine.close()
+
+
+# trace:v1 id=impl.cli.facts work=WORK-durable-knowledge-nodes-and-canonical-facts satisfies=REQ-canonical-fact-tracking
+@app.command()
+def facts(
+    ctx: typer.Context,
+    fact_id: str | None = typer.Argument(None, help="FACT-/VALUE-... id for detail"),
+    verify: bool = typer.Option(False, "--verify", help="Verify all facts against sources"),
+    json_flag: bool = typer.Option(False, "--json", help="Emit machine-readable JSON"),
+    root: Path | None = _root_opt(),
+) -> None:
+    """Canonical facts: list, detail, and drift verification (spec 106)."""
+    from tracelayer.facts import verify_facts
+
+    root = _resolve_root(ctx, root)
+    engine, _diags = _open(root)
+    try:
+        results = verify_facts(engine.store, root)
+        if fact_id is not None:
+            results = [r for r in results if r["id"] == fact_id]
+            if not results:
+                typer.echo(f"no active fact with a canonical source: {fact_id}", err=True)
+                raise typer.Exit(2)
+        if json_flag:
+            typer.echo(json.dumps(results, indent=2, sort_keys=True))
+            return
+        if not results:
+            typer.echo("no canonical facts with sources")
+            return
+        stale = 0
+        for result in results:
+            typer.echo(f"{result['id']} [{result['status']}] <- {result['canonical_source']}")
+            for dep in result["dependents"]:
+                mark = "ok" if dep["status"] == "CURRENT" else "STALE"
+                if dep["status"] != "CURRENT":
+                    stale += 1
+                typer.echo(f"  {mark} {dep['predicate']} {dep['id']}")
+            if result["status"] != "CURRENT":
+                stale += 1
+        if verify and stale:
+            raise typer.Exit(1)
+    finally:
+        engine.close()
+
+
 # trace:v1 id=impl.cli.task-context work=WORK-TL-001
 @app.command()
 def task(

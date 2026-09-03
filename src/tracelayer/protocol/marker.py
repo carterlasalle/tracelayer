@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from tracelayer.diagnostics import Diagnostic, make
 from tracelayer.protocol import grammar, ids, ontology
 
-BUILTIN_PROPERTIES = frozenset({"id", "type", "title", "policy", "state"})
+BUILTIN_PROPERTIES = frozenset({"id", "type", "title", "policy", "state", "canonical_source", "value"})
 
 # Convenience relation-like keys (spec 11.3, 33.1): `work` and `plan` are
 # graph edges; `plan` is an alias for `implements`.
@@ -151,6 +151,8 @@ def _parse_payload(
             marker.properties["expects"] = _validated_targets(tok, path, line, diags)
         elif tok.key == "state":
             marker.properties["state"] = tok.value
+        elif tok.key in ("canonical_source", "value"):
+            marker.properties[tok.key] = tok.value
         elif tok.key in CONVENIENCE_EDGES:
             edge = CONVENIENCE_EDGES[tok.key]
             marker.edges.setdefault(edge, []).extend(_validated_targets(tok, path, line, diags))
@@ -246,6 +248,9 @@ def render_marker(marker: ParsedMarker) -> str:
         parts.append(f"policy={grammar.quote_value(marker.properties['policy'])}")
     if "state" in marker.properties:
         parts.append(f"state={grammar.quote_value(marker.properties['state'])}")
+    for key in ("canonical_source", "value"):
+        if key in marker.properties:
+            parts.append(f"{key}={grammar.quote_value(marker.properties[key])}")
     if "expects" in marker.properties:
         parts.append(f"expects={','.join(marker.properties['expects'])}")
     for edge in ontology.EDGE_ORDER:

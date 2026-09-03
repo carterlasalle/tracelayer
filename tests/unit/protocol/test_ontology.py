@@ -49,6 +49,14 @@ SPEC_NODE_TYPES = [
     "pull_request",
     "ci_run",
     "external",
+    # knowledge (addendum Sections 82, 122)
+    "finding",
+    "learning",
+    "anti_pattern",
+    "convention",
+    "constraint",
+    "fact",
+    "value",
 ]
 
 SPEC_NODE_CATEGORIES = {
@@ -57,6 +65,8 @@ SPEC_NODE_CATEGORIES = {
     "realization": ["implementation", "config", "operation", "data", "prompt"],
     "verification/documentation": ["test", "document", "runbook", "evidence"],
     "provenance": ["commit", "pull_request", "ci_run", "external"],
+    "knowledge": ["finding", "learning", "anti_pattern", "convention", "constraint",
+                  "fact", "value"],
 }
 
 # Spec 12.2 (13 edges) plus the `work` convenience edge (spec 11.3/33.1),
@@ -88,6 +98,19 @@ SPEC_SEMANTIC = [
     "parent",
     "child",
     "introduced_by",
+    "applies_to",
+    "learned_from",
+    "establishes",
+    "canonicalizes",
+    "depends_on_value",
+    "documents_value",
+    "mirrors_value",
+    "derives_value",
+    "generated_from",
+    "historical_reference",
+    "explains",
+    "warns_against",
+    "recommended_for",
 ]
 
 # Spec 12.3.
@@ -110,7 +133,7 @@ SPEC_OBSERVED = ["executed", "passed", "failed", "built_in", "deployed_in", "att
 # trace:v1 id=test.dogfood.tests.unit.protocol.test_ontology.py type=test
 def test_node_type_registry_matches_spec() -> None:
     assert sorted(NODE_TYPES) == sorted(SPEC_NODE_TYPES)
-    assert len(NODE_TYPES) == 25
+    assert len(NODE_TYPES) == 32
 
 
 def test_node_type_defs_well_formed() -> None:
@@ -127,10 +150,10 @@ def test_node_categories_match_spec() -> None:
 
 
 def test_edge_counts() -> None:
-    assert len(SEMANTIC_EDGES) == 26
+    assert len(SEMANTIC_EDGES) == 39
     assert len(STRUCTURAL_EDGES) == 9
     assert len(OBSERVED_EDGES) == 6
-    assert len(EDGE_TYPES) == 41
+    assert len(EDGE_TYPES) == 54
 
 
 def test_semantic_edges_match_spec() -> None:

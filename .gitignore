@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 .trace/cache/
 .trace/var/
+.trace/receipts/
 .build/
 dist/
 build/

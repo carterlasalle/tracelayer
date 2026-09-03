@@ -34,7 +34,7 @@ _PATH_CLASSES: dict[str, dict] = {
     },
     "LOCAL_PROJECT_STATE": {
         "tracked": False,
-        "gitignore": [".trace/cache/", ".trace/var/"],
+        "gitignore": [".trace/cache/", ".trace/var/", ".trace/receipts/"],
         "description": "Machine-local trace runtime: caches, sessions, receipts, indexes.",
     },
     "GLOBAL_AGENT_INSTALLATION": {

@@ -64,6 +64,14 @@ Not every artifact requires every node. A tiny fix can be
 `WORK -> IMPLEMENTATION -> TEST -> EVIDENCE`; a decision can exist without a
 plan. The graph is what you actually have, not a ceremony you must fill.
 
+Two more dimensions ride the same graph. **Knowledge** — findings, learnings,
+anti-patterns, conventions, constraints — is what future agents should not
+rediscover: query it with `trace knowledge --for <artifact>` before tricky
+edits, record reusable lessons as typed nodes with `applies_to`, and keep
+lifecycle honest with `state=` (`SUPERSEDED` beats silent rot). **Canonical
+facts** (`FACT`/`VALUE` with `canonical_source`) pin values like versions and
+defaults to one authority; `trace facts --verify` reports drift.
+
 Three kinds of truth stay separate:
 
 - **declared** — what markers say (commitments, not facts);
@@ -143,6 +151,9 @@ The user never sees or types a TraceLayer ID.
    `exercises=` links it to the implementation it runs.
    Declare workflow state with `state=` on task/question markers
    (`PARTIALLY_COMPLETE`, `BLOCKED`, ...) — never mark partial work DONE.
+   When you learn something reusable (a surprise, a pitfall, a convention),
+   ask: will a future agent hit this? If yes, record a typed knowledge node
+   with conclusion, evidence, and `applies_to` — not raw reasoning.
 8. **Preserve trace identity through refactors.** Move the marker with the
    behavior; never rewrite the ID because a file or symbol moved. Provenance
    (SHAs, line numbers, paths) is derived — never hand-written.
@@ -243,7 +254,10 @@ trace work ready [WORK-ID]            # READY/BLOCKED tasks from native graph st
 trace work sync-todos --harness claude < todos.json  # persist harness TODOs as TASKs
 trace work beads                      # Beads detection (enhancement, never required)
 trace plan suggest "<intent>"         # proportional artifact plan (tiny/small/medium/large)
-trace setup                           # one-shot global skill + hooks install
+trace knowledge --for <artifact>      # governing findings/learnings/anti-patterns
+trace knowledge <id>                  # knowledge detail
+trace facts                           # canonical facts and dependents
+trace facts --verify                  # drift check (exit 1 when stale)
 trace verify --changed                # required before completion
 trace status                          # repository health
 trace new <type> --name NAME          # mint a fresh stable ID
