@@ -1321,7 +1321,7 @@ class Engine:
 
         store = self.store
         test_id_map: dict[str, str] = {}
-        impl_symbols: dict[str, tuple[int, int]] = {}
+        impl_symbols: dict[str, list[tuple[int, int]]] = {}
         for n in store.all_nodes(active_only=True):
             if n.node_type == "test" and n.symbol_qualified_name:
                 test_id_map[n.symbol_qualified_name] = n.trace_id
@@ -1330,9 +1330,11 @@ class Engine:
                 and n.canonical_path
                 and n.source_start_line is not None
             ):
-                impl_symbols[n.canonical_path] = (
-                    n.source_start_line,
-                    n.source_end_line or n.source_start_line,
+                impl_symbols.setdefault(n.canonical_path, []).append(
+                    (
+                        n.source_start_line,
+                        n.source_end_line or n.source_start_line,
+                    )
                 )
         result = ingest(
             self.project,

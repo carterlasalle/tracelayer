@@ -97,7 +97,7 @@ def test_per_test_collection_maps_contexts_to_test_uids(fake_coverage, tmp_path)
     db.write_bytes(b"fake coverage sqlite")
     records = collect_pytest_per_test(
         coverage_db=str(db),
-        impl_symbols={"src/app.py": (10, 20)},
+        impl_symbols={"src/app.py": [(10, 20)]},
         test_id_map={
             "tests.app.test_a.test_one": "TEST:ONE",
             "tests.app.test_a.test_two": "TEST:TWO",
@@ -120,7 +120,7 @@ def test_per_test_collection_skips_unmapped_contexts(fake_coverage, tmp_path):
     db.write_bytes(b"fake coverage sqlite")
     records = collect_pytest_per_test(
         coverage_db=str(db),
-        impl_symbols={"src/app.py": (10, 20)},
+        impl_symbols={"src/app.py": [(10, 20)]},
         test_id_map={},  # nothing maps -> no records
     )
     assert records == []
@@ -130,7 +130,7 @@ def test_per_test_collection_missing_db_raises(fake_coverage):
     with pytest.raises(RuntimeError, match="coverage database not found"):
         collect_pytest_per_test(
             coverage_db="/nonexistent/path.db",
-            impl_symbols={"src/app.py": (10, 20)},
+            impl_symbols={"src/app.py": [(10, 20)]},
             test_id_map={},
         )
 
@@ -155,7 +155,7 @@ def test_per_test_collection_unreadable_db_raises(fake_coverage, tmp_path):
         with pytest.raises(RuntimeError, match="cannot read coverage database"):
             collect_pytest_per_test(
                 coverage_db=str(db),
-                impl_symbols={"src/app.py": (10, 20)},
+                impl_symbols={"src/app.py": [(10, 20)]},
                 test_id_map={},
             )
     finally:

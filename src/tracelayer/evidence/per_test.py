@@ -11,6 +11,7 @@ import hashlib
 import os
 import sqlite3
 
+from tracelayer.evidence.cobertura import match_report_path
 from tracelayer.evidence.models import COVERAGE_PER_TEST, ExecutionRecord, entity_uid_for
 
 
@@ -41,7 +42,7 @@ def _context_to_framework_id(context: str) -> str:
 
 def collect_pytest_per_test(
     coverage_db: str,
-    impl_symbols: dict[str, tuple[int, int]],
+    impl_symbols: dict[str, list[tuple[int, int]]],
     test_id_map: dict[str, str],
 ) -> list[ExecutionRecord]:
     """Build per-test execution records from a coverage sqlite database.
@@ -49,7 +50,9 @@ def collect_pytest_per_test(
     Each pytest context (test nodeid) is normalized to a framework id and
     mapped through ``test_id_map`` (framework_id -> test trace id) to a
     test_uid; executed lines are intersected with ``impl_symbols`` ranges
-    (canonical path -> (start, end) inclusive).  ``run_id`` is left empty
+    (canonical path -> [(start, end)] inclusive, every range checked).
+    Report filenames map to canonical paths tolerantly (see
+    ``cobertura.match_report_path``).  ``run_id`` is left empty
     for the caller to assign.  Contexts and files without a mapped test are
     skipped — aggregate coverage without contexts yields no records, which
     is the honest answer (suite coverage cannot produce per-test proof).
@@ -76,19 +79,26 @@ def collect_pytest_per_test(
             context_tests[ctx] = entity_uid_for(trace_id)
 
     hits: dict[tuple[str, str], int] = {}
-    files = set(data.measured_files()) & set(impl_symbols)
-    for filename in sorted(files):
-        start, end = impl_symbols[filename]
+    canons = sorted(impl_symbols)
+    canonical_of = {
+        filename: next((c for c in canons if match_report_path(c, [filename]) is not None), None)
+        for filename in data.measured_files()
+    }
+    for filename in sorted(canonical_of):
+        canonical = canonical_of[filename]
+        if canonical is None:
+            continue
         by_line = data.contexts_by_lineno(filename) or {}
-        for line, contexts in by_line.items():
-            if not (start <= line <= end):
-                continue
-            for ctx in contexts:
-                test_uid = context_tests.get(ctx)
-                if test_uid is None:
+        for start, end in impl_symbols[canonical]:
+            for line, contexts in by_line.items():
+                if not (start <= line <= end):
                     continue
-                key = (test_uid, implementation_uid_for(filename))
-                hits[key] = hits.get(key, 0) + 1
+                for ctx in contexts:
+                    test_uid = context_tests.get(ctx)
+                    if test_uid is None:
+                        continue
+                    key = (test_uid, implementation_uid_for(canonical))
+                    hits[key] = hits.get(key, 0) + 1
 
     return [
         ExecutionRecord(

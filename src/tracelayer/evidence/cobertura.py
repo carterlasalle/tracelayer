@@ -65,3 +65,21 @@ def parse_cobertura(path: Path) -> dict[str, list[int]]:
                 hits.append(line_no)
         files[filename] = sorted(set(hits))
     return files
+
+
+# trace:exempt reason=internal-helper
+def match_report_path(canonical: str, reported) -> str | None:
+    """Report filename matching a canonical path (exact, then suffix).
+
+    Coverage tools often prefix-strip the source root; trailing-segment
+    equality in sorted order keeps the match deterministic.
+    """
+    candidates = sorted(reported)
+    if canonical in candidates:
+        return canonical
+    canon = canonical.replace("\\", "/")
+    for candidate in candidates:
+        rep = candidate.replace("\\", "/")
+        if canon.endswith("/" + rep) or rep.endswith("/" + canon):
+            return candidate
+    return None

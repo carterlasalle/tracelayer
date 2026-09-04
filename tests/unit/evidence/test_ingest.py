@@ -112,7 +112,7 @@ def test_ingest_suite_execution_edges_from_cobertura_intersection(project, store
         store,
         coverage=coverage,
         revision="abc123",
-        impl_symbols={"src/app.py": (10, 20)},
+        impl_symbols={"src/app.py": [(10, 20)]},
     )
     assert result.executions_ingested == 1
     edges = store.execution_edges_for(impl_a.entity_uid)
@@ -136,9 +136,55 @@ def test_ingest_no_edge_when_coverage_misses_implementation_range(project, store
         store,
         coverage=coverage,
         revision="abc123",
-        impl_symbols={"src/app.py": (10, 20)},
+        impl_symbols={"src/app.py": [(10, 20)]},
     )
     assert result.executions_ingested == 0
+
+
+# trace:v1 id=test.evidence.coverage-map type=test
+def test_ingest_prefix_stripped_report_path_maps(project, store):
+    impl_a, _impl_b = impl_graph(store)
+    coverage = write_file(
+        project.root,
+        "coverage.xml",
+        "<coverage><packages><classes>"
+        "<class filename='app.py'><lines><line number='12' hits='1'/>"
+        "</lines></class>"
+        "</classes></packages></coverage>",
+    )
+    result = ingest(
+        project,
+        store,
+        coverage=coverage,
+        revision="abc123",
+        impl_symbols={"src/app.py": [(10, 20)]},
+    )
+    assert result.executions_ingested == 1
+    assert len(store.execution_edges_for(impl_a.entity_uid)) == 1
+
+
+# trace:v1 id=test.evidence.multi-range type=test
+def test_ingest_emits_edge_per_overlapping_range(project, store):
+    impl_a, impl_b = impl_graph(store)
+    coverage = write_file(
+        project.root,
+        "coverage.xml",
+        "<coverage><packages><classes>"
+        "<class filename='src/app.py'><lines><line number='12' hits='1'/>"
+        "<line number='32' hits='1'/>"
+        "</lines></class>"
+        "</classes></packages></coverage>",
+    )
+    result = ingest(
+        project,
+        store,
+        coverage=coverage,
+        revision="abc123",
+        impl_symbols={"src/app.py": [(10, 20), (30, 40)]},
+    )
+    assert result.executions_ingested == 2
+    assert len(store.execution_edges_for(impl_a.entity_uid)) == 1
+    assert len(store.execution_edges_for(impl_b.entity_uid)) == 1
 
 
 def test_ingest_resolves_real_node_uid_over_synthetic(project, store):
@@ -155,7 +201,7 @@ def test_ingest_resolves_real_node_uid_over_synthetic(project, store):
         store,
         coverage=coverage,
         revision="abc123",
-        impl_symbols={"src/app.py": (10, 20)},
+        impl_symbols={"src/app.py": [(10, 20)]},
     )
     # the edge binds to the indexed node's uid, not the synthetic scheme
     assert store.execution_edges_for(impl_a.entity_uid)

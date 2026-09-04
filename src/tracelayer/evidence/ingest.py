@@ -110,6 +110,15 @@ def _implementation_uid(store: GraphStore, path: str, start: int, end: int) -> s
     return implementation_uid_for(path)
 
 
+# trace:v1 id=impl.evidence.coverage-map work=WORK-fix-coverage-to-implementation-execution-mapping satisfies=REQ-execution-edge-mapping
+def _hits_for(coverage_hits: dict[str, list[int]], canonical: str) -> list[int]:
+    """Hit lines for a canonical path under coverage's own path scheme."""
+    from tracelayer.evidence.cobertura import match_report_path
+
+    matched = match_report_path(canonical, coverage_hits.keys())
+    return coverage_hits[matched] if matched is not None else []
+
+
 def ingest(
     project: Project,
     store: GraphStore,
@@ -122,7 +131,7 @@ def ingest(
     provider: str | None = None,
     workflow: str | None = None,
     test_id_map: dict[str, str] | None = None,
-    impl_symbols: dict[str, tuple[int, int]] | None = None,
+    impl_symbols: dict[str, list[tuple[int, int]]] | None = None,
 ) -> IngestResult:
     """Ingest evidence files into the graph store as one evidence run.
 
@@ -230,20 +239,21 @@ def ingest(
 
     records: list[ExecutionRecord] = []
     if coverage_hits and impl_symbols:
-        for path, (start, end) in sorted(impl_symbols.items()):
-            hit_lines = coverage_hits.get(path) or []
-            hit_count = sum(1 for line in hit_lines if start <= line <= end)
-            if hit_count == 0:
-                continue
-            records.append(
-                ExecutionRecord(
-                    run_id=run_id,
-                    test_uid=SUITE_TEST_UID,
-                    implementation_uid=_implementation_uid(store, path, start, end),
-                    coverage_kind=COVERAGE_SUITE,
-                    hit_count=hit_count,
+        for path, ranges in sorted(impl_symbols.items()):
+            hit_lines = _hits_for(coverage_hits, path)
+            for start, end in ranges:
+                hit_count = sum(1 for line in hit_lines if start <= line <= end)
+                if hit_count == 0:
+                    continue
+                records.append(
+                    ExecutionRecord(
+                        run_id=run_id,
+                        test_uid=SUITE_TEST_UID,
+                        implementation_uid=_implementation_uid(store, path, start, end),
+                        coverage_kind=COVERAGE_SUITE,
+                        hit_count=hit_count,
+                    )
                 )
-            )
     if normalized_ev is not None:
         for rec in normalized_ev.execution_edges:
             records.append(
