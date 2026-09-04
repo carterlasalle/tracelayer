@@ -115,6 +115,38 @@ def work_payload(engine: Engine, work_id: str) -> dict | None:
         return None
 
 
+# trace:v1 id=impl.web.facts-view work=WORK-close-adversarial-audit-gaps-on-knowledge-and-facts satisfies=REQ-confined-live-fact-verification
+def facts_payload(engine: Engine) -> list[dict]:
+    """Live fact verification for the Facts view (spec 119)."""
+    from tracelayer.facts import verify_facts
+
+    try:
+        return verify_facts(engine.store, engine.project.root)
+    except Exception:
+        return []
+
+
+# trace:v1 id=impl.web.knowledge-view work=WORK-close-adversarial-audit-gaps-on-knowledge-and-facts satisfies=REQ-transitive-knowledge-relevance
+def knowledge_payload(engine: Engine) -> list[dict]:
+    """Active knowledge nodes grouped client-side (spec 118)."""
+    from tracelayer.knowledge import KNOWLEDGE_TYPES, normalize_knowledge_state
+
+    items = []
+    for node in sorted(engine.store.all_nodes(active_only=True), key=lambda n: n.trace_id):
+        if node.node_type not in KNOWLEDGE_TYPES:
+            continue
+        items.append(
+            {
+                "id": node.trace_id,
+                "type": node.node_type,
+                "state": normalize_knowledge_state(node.metadata.get("state")),
+                "title": node.title or node.trace_id,
+                "path": node.canonical_path or "",
+            }
+        )
+    return items
+
+
 def _read_html() -> bytes:
     try:
         return _HTML_PATH.read_bytes()
@@ -189,7 +221,12 @@ class _Handler(BaseHTTPRequestHandler):
             else:
                 self._send_json(payload)
             return
-        self._send_json({"error": "not found"}, status=404)
+        if path == "/api/facts":
+            self._send_json({"facts": facts_payload(self._engine())})
+            return
+        if path == "/api/knowledge":
+            self._send_json({"knowledge": knowledge_payload(self._engine())})
+            return
 
 
 def run_web(

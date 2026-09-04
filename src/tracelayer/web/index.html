@@ -47,6 +47,8 @@
   <h1>TraceLayer <small>markers only</small></h1>
   <input id="search" placeholder="Filter by id or title…" />
   <select id="workview"><option value="">Work view…</option></select>
+  <button id="factsview" title="Canonical facts health">Facts</button>
+  <button id="knowledgeview" title="Findings, learnings, anti-patterns">Knowledge</button>
   <span id="counts"></span>
 </div>
 <div id="empty">No trace nodes yet — run <code>trace index --all</code>, then refresh.</div>
@@ -222,6 +224,59 @@ async function showWork(id) {
     document.getElementById("workview").value = "";
   });
 }
+
+async function showFacts() {
+  const panel = document.getElementById("panel");
+  const r = await fetch("/api/facts");
+  if (!r.ok) return;
+  const d = await r.json();
+  const html = [`<button class="close">×</button>`, `<h2>Canonical facts</h2>`,
+    `<div class="meta">live source vs live dependents</div>`];
+  (d.facts || []).forEach((f) => {
+    html.push(`<h3>${escapeHtml(f.id)} [${escapeHtml(f.status)}]</h3><ul>`);
+    html.push(`<li>canonical: ${escapeHtml(f.canonical ?? "unreadable")} <span style="color:#7d8b9c">${escapeHtml(f.canonical_source || "")}</span></li>`);
+    (f.dependents || []).forEach((dep) => {
+      const mark = dep.status === "CURRENT" ? "✓" : dep.status === "UNVERIFIED" ? "?" : "!";
+      const detail = dep.observed !== dep.expected
+        ? `observed ${dep.observed ?? "—"}, expected ${dep.expected ?? "—"}`
+        : "in sync";
+      html.push(`<li>${mark} ${escapeHtml(dep.predicate)} ${escapeHtml(dep.id)} <span style="color:#7d8b9c">${escapeHtml(detail)}</span></li>`);
+    });
+    html.push(`</ul>`);
+  });
+  if (!(d.facts || []).length) html.push(`<div class="meta">no facts with sources</div>`);
+  panel.innerHTML = html.join("");
+  panel.style.display = "block";
+  panel.querySelector(".close").addEventListener("click", () => (panel.style.display = "none"));
+}
+
+async function showKnowledge() {
+  const panel = document.getElementById("panel");
+  const r = await fetch("/api/knowledge");
+  if (!r.ok) return;
+  const d = await r.json();
+  const groups = {};
+  (d.knowledge || []).forEach((k) => {
+    (groups[k.type] = groups[k.type] || []).push(k);
+  });
+  const html = [`<button class="close">×</button>`, `<h2>Knowledge</h2>`,
+    `<div class="meta">findings · learnings · anti-patterns · conventions · constraints</div>`];
+  Object.keys(groups).sort().forEach((type) => {
+    html.push(`<h3>${escapeHtml(type)} (${groups[type].length})</h3><ul>`);
+    groups[type].forEach((k) => html.push(
+      `<li data-id="${escapeHtml(k.id)}">${escapeHtml(k.title)} <span style="color:#7d8b9c">[${escapeHtml(k.state)}]</span></li>`));
+    html.push(`</ul>`);
+  });
+  if (!Object.keys(groups).length) html.push(`<div class="meta">no knowledge nodes</div>`);
+  panel.innerHTML = html.join("");
+  panel.style.display = "block";
+  panel.querySelectorAll("[data-id]").forEach((el) =>
+    el.addEventListener("click", () => showNode(el.dataset.id)));
+  panel.querySelector(".close").addEventListener("click", () => (panel.style.display = "none"));
+}
+
+document.getElementById("factsview").addEventListener("click", showFacts);
+document.getElementById("knowledgeview").addEventListener("click", showKnowledge);
 
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) =>

@@ -134,8 +134,13 @@ def _indexed_repo_with_tasks(tmp_path) -> Path:
                 "## TASK-1 - First task\n\n"
                 "<!-- \x74race:v1 id=TASK-1 type=task state=TODO work=WORK-AUTH-237 -->\n\n"
                 "## TASK-2 - Second task\n\n"
-                "<!-- \x74race:v1 id=TASK-2 type=task state=TODO work=WORK-AUTH-237 blocked_by=TASK-1 -->\n"
+                "<!-- \x74race:v1 id=TASK-2 type=task state=TODO work=WORK-AUTH-237 blocked_by=TASK-1 -->\n\n"
+                "## VALUE-1 - Pkg version\n\n"
+                "<!-- \x74race:v1 id=VALUE-1 type=value canonical_source=vals.toml::pkg.version value=2.0 work=WORK-AUTH-237 -->\n\n"
+                "## ANTI-1 - No direct glob\n\n"
+                "<!-- \x74race:v1 id=ANTI-1 type=anti_pattern state=ACTIVE work=WORK-AUTH-237 -->\n"
             ),
+            "vals.toml": '[pkg]\nversion = "2.0"\n',
         },
     )
     (repo / ".trace").mkdir(parents=True)
@@ -176,5 +181,32 @@ def test_web_node_detail_has_related_and_adjacent(tmp_path):
         sections = {(r["section"], r["id"]) for r in detail["related"]}
         assert ("Blocked by", "TASK-1") in sections
         assert "adjacent" in detail
+    finally:
+        proc.terminate()
+
+
+# trace:v1 id=test.web.facts-endpoint type=test verifies=REQ-confined-live-fact-verification
+def test_web_facts_endpoint(tmp_path):
+    root = _indexed_repo_with_tasks(tmp_path)
+    proc, port = _spawn_web(root)
+    try:
+        data = _fetch(f"http://127.0.0.1:{port}/api/facts")
+        by_id = {f["id"]: f for f in data["facts"]}
+        assert by_id["VALUE-1"]["status"] == "CURRENT"
+        html = _fetch(f"http://127.0.0.1:{port}/")
+        assert "showFacts" in html and "showKnowledge" in html
+    finally:
+        proc.terminate()
+
+
+# trace:v1 id=test.web.knowledge-endpoint type=test verifies=REQ-transitive-knowledge-relevance
+def test_web_knowledge_endpoint(tmp_path):
+    root = _indexed_repo_with_tasks(tmp_path)
+    proc, port = _spawn_web(root)
+    try:
+        data = _fetch(f"http://127.0.0.1:{port}/api/knowledge")
+        by_id = {k["id"]: k for k in data["knowledge"]}
+        assert by_id["ANTI-1"]["type"] == "anti_pattern"
+        assert by_id["ANTI-1"]["state"] == "ACTIVE"
     finally:
         proc.terminate()
