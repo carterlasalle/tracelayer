@@ -16,6 +16,10 @@ _KEY_RE = re.compile(r"[A-Za-z][A-Za-z0-9_]*")
 _COMMENT_PREFIXES = ("<!--", "/*", "//", "#", "--", "%", ";", "*")
 
 _ESCAPE_MAP = {"\\": "\\", '"': '"', "n": "\n", "t": "\t"}
+# Regex class escapes pass through literally so selector patterns like
+# ``regex:Version (\S+)`` survive quoted marker values. Every member
+# previously errored, so no valid document changes meaning.
+_REGEX_PASSTHROUGH = frozenset("dDsSwWbBAZ")
 
 
 def extract_marker_payload(line: str) -> str | None:
@@ -117,6 +121,7 @@ def tokenize_fields(
     return tokens, diags
 
 
+# trace:v1 id=impl.protocol.regex-passthrough work=WORK-close-adversarial-audit-gaps-on-knowledge-and-facts satisfies=REQ-confined-live-fact-verification
 def _parse_quoted(s: str, pos: int, path: str, line: int) -> tuple[str, int, Diagnostic | None]:
     """Parse a double-quoted value starting at s[pos] == '"'.
 
@@ -136,6 +141,10 @@ def _parse_quoted(s: str, pos: int, path: str, line: int) -> tuple[str, int, Dia
                 )
             e = s[i + 1]
             if e not in _ESCAPE_MAP:
+                if e in _REGEX_PASSTHROUGH:
+                    out.append("\\" + e)
+                    i += 2
+                    continue
                 return (
                     "".join(out),
                     i + 2,

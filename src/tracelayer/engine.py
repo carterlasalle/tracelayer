@@ -301,7 +301,16 @@ def _node_from_marker(
         meta["expects"] = marker.properties["expects"]
     if "state" in marker.properties:
         meta["state"] = marker.properties["state"]
-    for key in ("canonical_source", "value"):
+    for key in (
+        "canonical_source",
+        "value",
+        "selector",
+        "scope",
+        "severity",
+        "confidence",
+        "strength",
+        "evidence",
+    ):
         if key in marker.properties:
             meta[key] = marker.properties[key]
     if scope:
@@ -418,7 +427,18 @@ def _process_file(
                 meta["generated"] = True
             if scope:
                 meta["scope"] = scope
-            for prop in ("expects", "state", "canonical_source", "value"):
+            for prop in (
+                "expects",
+                "state",
+                "canonical_source",
+                "value",
+                "selector",
+                "scope",
+                "severity",
+                "confidence",
+                "strength",
+                "evidence",
+            ):
                 if prop in props_by_tid.get(block.trace_id, {}):
                     meta[prop] = props_by_tid[block.trace_id][prop]
             first = next((ln.strip() for ln in block.body.splitlines() if ln.strip()), None)

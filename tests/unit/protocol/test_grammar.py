@@ -121,6 +121,13 @@ def test_tokenize_escapes() -> None:
     assert tokens[0].quoted is True
 
 
+# trace:v1 id=test.grammar.regex-passthrough type=test verifies=REQ-confined-live-fact-verification
+def test_tokenize_regex_escapes_pass_through() -> None:
+    tokens, diags = tokenize(f'{PREFIX} title="v (\\S+)"')
+    assert diags == []
+    assert tokens[0].value == "v (\\S+)"
+
+
 def test_tokenize_unknown_escape() -> None:
     _tokens, diags = tokenize(f'{PREFIX} title="\\q"')
     unknown = [d for d in diags if "Unknown escape" in d.message]

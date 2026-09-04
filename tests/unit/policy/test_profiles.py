@@ -16,7 +16,7 @@ from tracelayer.policy.profiles import (
 # rules; TL012 (changed path must be traced) is standard-or-later; strict
 # adds TL022/TL030/TL061; safety-critical adds TL050/TL060/TL062.
 _BASE = {"TL001", "TL002", "TL003", "TL004", "TL005", "TL006", "TL007", "TL040"}
-_SEMANTIC = {"TL010", "TL011", "TL020", "TL021", "TL100"}
+_SEMANTIC = {"TL010", "TL011", "TL020", "TL021", "TL070", "TL100"}
 _STANDARD_EXTRA = {"TL012", "TL013", "TL014"}
 _STRICT_EXTRA = {"TL022", "TL030", "TL061"}
 _SC_EXTRA = {"TL050", "TL060", "TL062"}

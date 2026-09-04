@@ -47,6 +47,7 @@ _BASE_RULES: dict[str, set[str]] = {
         "TL014",
         "TL020",
         "TL021",
+        "TL070",
         "TL100",
     },
     "strict": {
@@ -69,6 +70,7 @@ _BASE_RULES: dict[str, set[str]] = {
         "TL022",
         "TL030",
         "TL061",
+        "TL070",
     },
     "safety-critical": {
         "TL001",
@@ -93,6 +95,7 @@ _BASE_RULES: dict[str, set[str]] = {
         "TL050",
         "TL060",
         "TL062",
+        "TL070",
     },
 }
 

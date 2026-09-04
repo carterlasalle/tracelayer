@@ -22,6 +22,13 @@ TEMPLATE_TYPES = (
     "reference",
     "migration",
     "incident",
+    "finding",
+    "learning",
+    "anti_pattern",
+    "convention",
+    "constraint",
+    "fact",
+    "value",
 )
 
 _TEMPLATES: dict[str, dict] = {
@@ -167,6 +174,55 @@ _TEMPLATES: dict[str, dict] = {
         "required": ["summary", "root cause", "remediation"],
         "states": ["OPEN", "INVESTIGATING", "RESOLVED", "RETIRED"],
         "relationships": ["discovered_from", "related_to", "resolves"],
+    },
+    "finding": {
+        "sections": ["context", "finding", "evidence", "consequence", "applies to"],
+        "required": ["finding"],
+        "states": ["ACTIVE", "UNDER_REVIEW", "SUPERSEDED", "INVALIDATED", "ARCHIVED"],
+        "relationships": ["applies_to", "learned_from", "explains", "discovered_from"],
+    },
+    "learning": {
+        "sections": ["context", "finding", "consequence", "correct approach", "applies to"],
+        "required": ["finding", "correct approach"],
+        "states": ["ACTIVE", "UNDER_REVIEW", "SUPERSEDED", "INVALIDATED", "ARCHIVED"],
+        "relationships": ["applies_to", "learned_from", "explains", "discovered_from"],
+    },
+    "anti_pattern": {
+        "sections": ["pattern", "why", "consequence", "correct approach", "applies to"],
+        "required": ["pattern", "correct approach"],
+        "states": ["ACTIVE", "UNDER_REVIEW", "SUPERSEDED", "INVALIDATED", "ARCHIVED"],
+        "relationships": ["applies_to", "warns_against", "learned_from"],
+    },
+    "convention": {
+        "sections": ["convention", "rationale", "examples", "applies to"],
+        "required": ["convention"],
+        "states": ["ACTIVE", "UNDER_REVIEW", "SUPERSEDED", "INVALIDATED", "ARCHIVED"],
+        "relationships": ["applies_to", "recommended_for", "learned_from"],
+    },
+    "constraint": {
+        "sections": ["constraint", "rationale", "consequence", "applies to"],
+        "required": ["constraint"],
+        "states": ["ACTIVE", "UNDER_REVIEW", "SUPERSEDED", "INVALIDATED", "ARCHIVED"],
+        "relationships": ["applies_to", "learned_from"],
+    },
+    "fact": {
+        "sections": ["fact", "canonical source", "consumers"],
+        "required": ["fact", "canonical source"],
+        "states": ["ACTIVE", "UNDER_REVIEW", "SUPERSEDED", "INVALIDATED", "ARCHIVED"],
+        "relationships": ["canonicalizes", "documents_value", "establishes"],
+    },
+    "value": {
+        "sections": ["value", "canonical source", "consumers"],
+        "required": ["value", "canonical source"],
+        "states": ["ACTIVE", "UNDER_REVIEW", "SUPERSEDED", "INVALIDATED", "ARCHIVED"],
+        "relationships": [
+            "canonicalizes",
+            "mirrors_value",
+            "depends_on_value",
+            "documents_value",
+            "derives_value",
+            "generated_from",
+        ],
     },
 }
 

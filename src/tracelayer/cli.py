@@ -1053,6 +1053,124 @@ def knowledge(
         engine.close()
 
 
+# trace:exempt reason=internal-helper
+def _nest_body_sections(body: str, tid: str) -> str:
+    """Nest body sections under the captured node (TL013-clean authoring).
+
+    A captured item is one ``## Title`` node. Body ATX headings are demoted
+    one level and given an explicit ``trace:inherit`` declaration so they
+    read as sections of the node instead of untraced siblings. Headings
+    that open with an ID token keep full enforcement (no inherit line) —
+    a new requirement boundary smuggled into body text must still be
+    traced on its own. Fenced code is left untouched.
+    """
+    import re
+
+    from tracelayer.protocol.ids import infer_node_type
+
+    out = []
+    fenced = False
+    for line in body.splitlines():
+        if re.match(r"^ {0,3}(`{3,}|~{3,})", line):
+            fenced = not fenced
+            out.append(line)
+            continue
+        if not fenced:
+            match = re.match(r"^(#{1,5})(\s+)(.*)$", line)
+            if match:
+                token = match.group(3).split(None, 1)[0] if match.group(3).strip() else ""
+                line = "#" + line
+                if not token or infer_node_type(token) is None:
+                    out.append(f'<!-- trace:inherit {tid} reason="template section" -->')
+        out.append(line)
+    return "\n".join(out)
+
+
+# trace:v1 id=impl.cli.knowledge-capture work=WORK-close-adversarial-audit-gaps-on-knowledge-and-facts satisfies=REQ-transitive-knowledge-relevance
+@app.command("knowledge-capture")
+def knowledge_capture(
+    ctx: typer.Context,
+    kind: str = typer.Option(
+        ..., "--type", help="finding | learning | anti_pattern | convention | constraint"
+    ),
+    title: str = typer.Option(..., "--title", help="Short human title"),
+    body: str = typer.Option("", "--body", help="Finding body (markdown)"),
+    applies_to: list[str] | None = typer.Option(
+        None, "--applies-to", help="Governed artifact id (repeatable)"
+    ),
+    state: str = typer.Option("ACTIVE", "--state", help="Lifecycle state"),
+    work: str | None = typer.Option(None, "--work", help="WORK id (default: session active work)"),
+    session: str | None = typer.Option(
+        None, "--session", help="Session id (default: $TRACE_SESSION or 'default')"
+    ),
+    root: Path | None = _root_opt(),
+) -> None:
+    """Capture durable engineering knowledge into docs/knowledge.md (spec 88)."""
+    from tracelayer.config import load_project
+    from tracelayer.hooks.session_state import SessionState
+    from tracelayer.knowledge import KNOWLEDGE_TYPES, normalize_knowledge_state
+    from tracelayer.templates import get_template, validate_structure
+
+    kind = kind.strip().lower()
+    if kind not in KNOWLEDGE_TYPES:
+        typer.echo(
+            f"unknown knowledge type {kind!r}; choose from {', '.join(KNOWLEDGE_TYPES)}", err=True
+        )
+        raise typer.Exit(2)
+    if not title.strip():
+        typer.echo("title must be non-empty", err=True)
+        raise typer.Exit(2)
+    root = _resolve_root(ctx, root)
+    project, _diags = load_project(root)
+    sid = session or os.environ.get("TRACE_SESSION") or "default"
+    wid = work or SessionState(project).active_work(sid)
+    if not wid:
+        typer.echo("no work item: pass --work WORK-... or activate one first", err=True)
+        raise typer.Exit(2)
+    engine, _diags = _open(root)
+    try:
+        tid = engine.new_id(kind, title)
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(2) from exc
+    finally:
+        engine.close()
+    normalized_state = normalize_knowledge_state(state, default="ACTIVE")
+    edges = [f"applies_to={','.join(applies_to)}"] if applies_to else []
+    marker = (
+        f"<!-- trace:v1 id={tid} type={kind} state={normalized_state} work={wid}"
+        + (f" {' '.join(edges)}" if edges else "")
+        + " -->"
+    )
+    doc = root / "docs" / "knowledge.md"
+    if not doc.exists():
+        doc.parent.mkdir(parents=True, exist_ok=True)
+        doc.write_text(
+            "# Engineering knowledge\n\n<!-- trace:v1 id=doc.knowledge -->\n", encoding="utf-8"
+        )
+    with doc.open("a", encoding="utf-8") as handle:
+        handle.write(
+            f"\n## {title.strip()}\n\n{marker}\n\n{_nest_body_sections(body, tid).strip()}\n"
+        )
+    template = get_template(kind)
+    missing = (
+        validate_structure(kind, [ln.strip("# ").strip() for ln in body.splitlines()])
+        if template is not None
+        else []
+    )
+    engine, _diags = _open(root)
+    try:
+        engine.index_changed()
+    finally:
+        engine.close()
+    typer.echo(tid)
+    if missing:
+        typer.echo(
+            f"guidance: captured node is missing recommended sections: {', '.join(missing)}",
+            err=True,
+        )
+
+
 # trace:v1 id=impl.cli.facts work=WORK-durable-knowledge-nodes-and-canonical-facts satisfies=REQ-canonical-fact-tracking
 @app.command()
 def facts(

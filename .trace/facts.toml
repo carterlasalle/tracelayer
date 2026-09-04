@@ -1,0 +1,23 @@
+# Canonical facts manifest: values and consumers for artifacts that cannot
+# carry markers (generated files, JSON configs, excluded sources).
+# Markable docs declare documents_value edges via markers instead.
+
+[facts."VALUE-TL-VERSION"]
+canonical_source = "pyproject.toml::project.version"
+value = "0.2.40"
+
+[[facts."VALUE-TL-VERSION".consumers]]
+for = "VALUE-TL-VERSION"
+path = "src/tracelayer/__init__.py"
+selector = "__version__"
+predicate = "mirrors_value"
+
+[[facts."VALUE-TL-VERSION".consumers]]
+for = "VALUE-TL-VERSION"
+path = "adapters/oh-my-pi/package.json"
+selector = "version"
+predicate = "mirrors_value"
+
+[facts."VALUE-TL-PYTHON-MIN"]
+canonical_source = "pyproject.toml::project.requires-python"
+value = ">=3.12"

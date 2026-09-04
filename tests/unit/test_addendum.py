@@ -228,3 +228,36 @@ def test_source_adapters_yaml_python_claims(tmp_path) -> None:
     assert read_canonical(tmp_path, r"notes.md::regex:Python (3\.\d+)") == (True, "3.12")
     (tmp_path / "app.env").write_text("PORT=20128\n", encoding="utf-8")
     assert read_canonical(tmp_path, "app.env::PORT") == (True, "20128")
+
+
+# trace:v1 id=test.knowledge.transitive type=test verifies=REQ-knowledge-node-ontology
+def test_knowledge_for_traverses_work_requirement_and_scope(tmp_path) -> None:
+    nodes = [
+        make_node("impl.foo", "implementation", canonical_path="src/foo.py"),
+        make_node("WORK-X", "work"),
+        make_node("REQ-X", "requirement"),
+        make_node("ANTI-W", "anti_pattern", metadata={"state": "ACTIVE"}),
+        make_node("CONV-R", "convention", metadata={"state": "ACTIVE"}),
+        make_node("LEARN-S", "learning", metadata={"state": "ACTIVE", "scope": "src/foo.py"}),
+        make_node("ANTI-D", "anti_pattern", metadata={"state": "ACTIVE"}),
+    ]
+    edges = [
+        make_edge("impl.foo", "work", "WORK-X"),
+        make_edge("impl.foo", "satisfies", "REQ-X"),
+        make_edge("ANTI-W", "applies_to", "WORK-X"),
+        make_edge("CONV-R", "applies_to", "REQ-X"),
+        make_edge("ANTI-D", "applies_to", "impl.foo"),
+    ]
+    store = open_store(tmp_path, nodes, edges)
+    try:
+        items = knowledge_for(store, "impl.foo", limit=10)
+    finally:
+        store.close()
+    by_id = {i["id"]: i["via"] for i in items}
+    assert by_id == {
+        "ANTI-D": "direct",
+        "ANTI-W": "work",
+        "CONV-R": "requirement",
+        "LEARN-S": "scope",
+    }
+    assert [i["id"] for i in items] == ["ANTI-D", "ANTI-W", "CONV-R", "LEARN-S"]

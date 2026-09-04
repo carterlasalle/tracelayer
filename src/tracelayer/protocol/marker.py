@@ -13,7 +13,22 @@ from tracelayer.diagnostics import Diagnostic, make
 from tracelayer.protocol import grammar, ids, ontology
 
 BUILTIN_PROPERTIES = frozenset(
-    {"id", "type", "title", "policy", "state", "canonical_source", "value"}
+    {
+        "id",
+        "type",
+        "title",
+        "policy",
+        "state",
+        "canonical_source",
+        "value",
+        "selector",
+        "scope",
+        "severity",
+        "confidence",
+        "strength",
+        "knowledge_strength",
+        "evidence",
+    }
 )
 
 # Convenience relation-like keys (spec 11.3, 33.1): `work` and `plan` are
@@ -153,8 +168,18 @@ def _parse_payload(
             marker.properties["expects"] = _validated_targets(tok, path, line, diags)
         elif tok.key == "state":
             marker.properties["state"] = tok.value
-        elif tok.key in ("canonical_source", "value"):
+        elif tok.key in (
+            "canonical_source",
+            "value",
+            "selector",
+            "scope",
+            "severity",
+            "confidence",
+            "evidence",
+        ):
             marker.properties[tok.key] = tok.value
+        elif tok.key in ("strength", "knowledge_strength"):
+            marker.properties["strength"] = tok.value
         elif tok.key in CONVENIENCE_EDGES:
             edge = CONVENIENCE_EDGES[tok.key]
             marker.edges.setdefault(edge, []).extend(_validated_targets(tok, path, line, diags))
@@ -250,7 +275,16 @@ def render_marker(marker: ParsedMarker) -> str:
         parts.append(f"policy={grammar.quote_value(marker.properties['policy'])}")
     if "state" in marker.properties:
         parts.append(f"state={grammar.quote_value(marker.properties['state'])}")
-    for key in ("canonical_source", "value"):
+    for key in (
+        "canonical_source",
+        "value",
+        "selector",
+        "scope",
+        "severity",
+        "confidence",
+        "strength",
+        "evidence",
+    ):
         if key in marker.properties:
             parts.append(f"{key}={grammar.quote_value(marker.properties[key])}")
     if "expects" in marker.properties:

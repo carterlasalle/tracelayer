@@ -401,6 +401,13 @@ def test_node_defining_keys() -> None:
         "state",
         "canonical_source",
         "value",
+        "selector",
+        "scope",
+        "severity",
+        "confidence",
+        "strength",
+        "knowledge_strength",
+        "evidence",
     }
     assert CONVENIENCE_EDGES == {"work": "work", "plan": "implements"}
     # Every built-in property and semantic edge key is accepted by the parser;
