@@ -2508,6 +2508,80 @@ def _canonicalize_path(payload: dict, root: Path) -> dict:
     return payload
 
 
+release_app = typer.Typer(no_args_is_help=True, help="Release artifact checks")
+app.add_typer(release_app, name="release")
+
+
+# trace:v1 id=impl.cli.release-check work=WORK-centralized-release-artifact-checks satisfies=REQ-release-check-command
+@release_app.command("check")
+def release_check(
+    ctx: typer.Context,
+    build: bool = typer.Option(False, "--build", help="Run `uv build` first"),
+    dist: Path | None = typer.Option(None, "--dist", help="Artifact dir (default: ./dist)"),
+    smoke: bool = typer.Option(
+        False, "--smoke", help="Clean-install the wheel and run `trace --version`"
+    ),
+    json_flag: bool = typer.Option(False, "--json", help="Emit machine-readable JSON"),
+    root: Path | None = _root_opt(),
+) -> None:
+    """Inspect release artifacts for must-include/must-exclude drift (spec 60)."""
+    import subprocess
+    import tempfile
+
+    from tracelayer.release import _project_version, check_dists
+
+    root = _resolve_root(ctx, root)
+    dist_dir = dist.resolve() if dist is not None else root / "dist"
+    if build:
+        proc = subprocess.run(["uv", "build"], capture_output=True, text=True, cwd=str(root))
+        if proc.returncode != 0:
+            typer.echo(f"uv build failed:\n{proc.stderr[-2000:]}", err=True)
+            raise typer.Exit(1)
+    result = check_dists(dist_dir)
+    if json_flag:
+        typer.echo(json.dumps(result, indent=2, sort_keys=True))
+    else:
+        for artifact in result.get("artifacts", []):
+            status = "ok" if artifact["ok"] else "FAIL"
+            typer.echo(f"{status} {artifact['file']}")
+            for missing in artifact.get("missing", []):
+                typer.echo(f"  missing: {missing}")
+            for forbidden in artifact.get("forbidden", []):
+                typer.echo(f"  forbidden: {forbidden}")
+        if result.get("error"):
+            typer.echo(f"error: {result['error']}", err=True)
+    if not result["ok"]:
+        raise typer.Exit(1)
+    if smoke:
+        wheels = sorted(dist_dir.glob("*.whl"))
+        if not wheels:
+            typer.echo("smoke needs a wheel; run with --build", err=True)
+            raise typer.Exit(2)
+        expected = _project_version(root)
+        with tempfile.TemporaryDirectory() as tmp:
+            venv = Path(tmp) / "venv"
+            proc = subprocess.run(["uv", "venv", str(venv)], capture_output=True, text=True)
+            if proc.returncode != 0:
+                typer.echo(f"uv venv failed:\n{proc.stderr[-1000:]}", err=True)
+                raise typer.Exit(1)
+            proc = subprocess.run(
+                ["uv", "pip", "install", "--python", str(venv / "bin" / "python"),
+                 "--no-deps", str(wheels[-1])],
+                capture_output=True, text=True,
+            )
+            if proc.returncode != 0:
+                typer.echo(f"wheel install failed:\n{proc.stderr[-1000:]}", err=True)
+                raise typer.Exit(1)
+            proc = subprocess.run(
+                [str(venv / "bin" / "trace"), "--version"], capture_output=True, text=True
+            )
+            observed = proc.stdout.strip()
+            if proc.returncode != 0 or observed != (expected or observed):
+                typer.echo(f"smoke failed: trace --version -> {observed!r}", err=True)
+                raise typer.Exit(1)
+            typer.echo(f"smoke ok: trace --version -> {observed}")
+
+
 # trace:v1 id=impl.cli.hook-dispatch work=WORK-TL-001
 @app.command()
 def hook(
@@ -2542,3 +2616,4 @@ def hook(
 
 if __name__ == "__main__":
     main()
+
