@@ -124,7 +124,7 @@ def test_web_unknown_node_404(tmp_path):
         proc.terminate()
 
 
-# trace:v1 id=test.web.work-ready type=test
+# trace:v1 id=test.web.work-fixture type=test
 def _indexed_repo_with_tasks(tmp_path) -> Path:
     repo = make_git_repo(
         tmp_path,

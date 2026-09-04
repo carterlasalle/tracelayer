@@ -606,10 +606,60 @@ def _as_int(value: object) -> int | None:
     return None
 
 
-# trace:exempt reason=internal-detail
+# trace:v1 id=impl.hooks.coaching-block work=WORK-coaching-first-hook-briefings-with-token-budget satisfies=REQ-coaching-first-block-text
+def _titled(store, ids: list, limit: int) -> list[str]:
+    """Trace ids with sanitized titles (purpose lines, not bare identifiers)."""
+    lines = []
+    for tid in ids[:limit]:
+        node = store.get_node(trace_id=tid)
+        title = sanitize_text(node.title, 80) if node is not None and node.title else ""
+        lines.append(f"  {tid}" + (f" — {title}" if title else ""))
+    return lines
+
+
+# trace:exempt reason=internal-helper
+def _open_blocking_questions(store, node) -> list[str]:
+    """OPEN questions with a blocks edge into the edited node (spec 39)."""
+    from tracelayer.work import normalize_question_state
+
+    lines = []
+    for edge in store.edges_to(node.entity_uid, "blocks"):
+        if edge.status != "active":
+            continue
+        src = store.get_node(uid=edge.from_uid)
+        if src is None or src.node_type != "question":
+            continue
+        if normalize_question_state(src.metadata.get("state")) != "OPEN":
+            continue
+        title = sanitize_text(src.title, 80) if src.title else ""
+        lines.append(f"  {src.trace_id}" + (f" — {title}" if title else ""))
+        if len(lines) >= 3:
+            break
+    return lines
+
+
+# trace:exempt reason=internal-helper
+def _relevant_knowledge(store, trace_id: str) -> list[str]:
+    """At most two governing knowledge items (titles, not raw reasoning)."""
+    try:
+        from tracelayer.knowledge import knowledge_for
+
+        items = knowledge_for(store, trace_id, limit=2)
+    except Exception:
+        return []
+    return [f"  {i['id']} — {sanitize_text(i['title'], 80)}" for i in items]
+
+
+# trace:v1 id=impl.hooks.coaching-text work=WORK-coaching-first-hook-briefings-with-token-budget satisfies=REQ-coaching-first-block-text
 def _block_text(ctx: HookContext, node) -> str:
-    """Render the spec 22.3 denial: identity, links, tests, retry steps."""
+    """Coaching-first denial: usable context first, enforcement last (spec 51).
+
+    The enforcement tail is budget-reserved: coaching content is fitted to
+    ``max_context_chars`` minus the action block, so truncation can never
+    remove the required retry steps.
+    """
     store = ctx.store
+    max_chars = ctx.project.config.hooks.max_context_chars
     satisfied = edge_target_ids(store, node.entity_uid, ("satisfies",))
     work = edge_target_ids(store, node.entity_uid, ("work",))
     decisions = edge_target_ids(store, node.entity_uid, ("implements", "addresses"))
@@ -618,14 +668,29 @@ def _block_text(ctx: HookContext, node) -> str:
     label = node.symbol_qualified_name or node.title or None
     if label:
         lines.append(f"  {sanitize_text(label, 160)}")
-    for heading, ids in (("Satisfies", satisfied), ("Work", work), ("Decision", decisions)):
-        if ids:
-            lines += ["", f"{heading}:"] + [f"  {i}" for i in ids[:6]]
+    if satisfied:
+        lines += ["", "Purpose:"] + _titled(store, satisfied, 3)
+        lines += ["", "Satisfies:"] + [f"  {i}" for i in satisfied[:6]]
+    if work:
+        lines += ["", "Work:"] + _titled(store, work, 2)
+    if decisions:
+        lines += ["", "Design:"] + _titled(store, decisions, 2)
+    if node.node_type in ("task", "question"):
+        from tracelayer.work import normalize_question_state, normalize_task_state
+
+        normalize = normalize_question_state if node.node_type == "question" else normalize_task_state
+        lines += ["", f"Status: {normalize(node.metadata.get('state'))}"]
+    questions = _open_blocking_questions(store, node)
+    if questions:
+        lines += ["", "Open questions blocking this edit:"] + questions
+    knowledge = _relevant_knowledge(store, node.trace_id)
+    if knowledge:
+        lines += ["", "Relevant knowledge:"] + knowledge
     if tests:
         lines += ["", "Linked verification:"] + [f"  {t}" for t in tests[:8]]
+    lines += ["", "Preserve:", f"  {node.trace_id}"]
     target = satisfied[0] if satisfied else "the requirement"
-    lines += [
-        "",
+    action = [
         "Before editing:",
         f"1. Run `trace context {node.trace_id}`.",
         f"2. Confirm the intended behavior still satisfies {target}.",
@@ -634,4 +699,9 @@ def _block_text(ctx: HookContext, node) -> str:
         "",
         "Then retry the edit.",
     ]
-    return fit("\n".join(lines), ctx.project.config.hooks.max_context_chars)
+    action_text = "\n".join(action)
+    head_budget = max_chars - len(action_text) - 1
+    head = fit("\n".join(lines), head_budget)
+    if not head:
+        return fit(action_text, max_chars)
+    return f"{head}\n{action_text}"
