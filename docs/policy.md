@@ -70,6 +70,7 @@ Adds configurable formal requirements:
 - explicit waiver records with approver identity;
 - optional signed attestations.
 
+<!-- trace:exempt reason=document-structure -->
 ## Policy IDs
 
 Every deterministic rule has a stable ID, so failures are explainable
