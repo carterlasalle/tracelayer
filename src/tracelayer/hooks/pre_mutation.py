@@ -45,10 +45,14 @@ def handle(ctx: HookContext, payload: dict) -> HookOutput:
         return authoring
     cfg = ctx.project.config.hooks
     node = node_at_path(ctx.store, path, line)
+    fact_lines = _fact_impact_lines(ctx, path)
     if node is None or not is_protected(ctx.store, node):
-        return render_allowed("", {**allow, "path": path})
+        text = fit("\n".join(fact_lines).strip(), cfg.max_context_chars)
+        return render_allowed(text, {**allow, "path": path, "output": text})
     if not (cfg.pre_edit_require_context and cfg.pre_edit_block_once):
         text = _reminder_text(ctx, node)
+        if fact_lines:
+            text = fit("\n".join(fact_lines).strip() + "\n" + text, cfg.max_context_chars)
         return render_allowed(
             text, {**allow, "path": path, "trace_id": node.trace_id, "output": text}
         )
@@ -719,6 +723,28 @@ def _block_text(ctx: HookContext, node) -> str:
     if not head:
         return fit(action_text, max_chars)
     return f"{head}\n{action_text}"
+
+
+# trace:exempt reason=internal-helper
+def _fact_impact_lines(ctx: HookContext, path: str) -> list[str]:
+    """Canonical-value impact briefing when the edited file is a source."""
+    try:
+        from tracelayer.facts import consumers_of
+
+        rel = _relpath(ctx.project.root, path)
+        if rel.startswith(".."):
+            return []
+        items = consumers_of(ctx.store, ctx.project.root, rel)
+    except Exception:
+        return []
+    if not items:
+        return []
+    lines = ["CANONICAL VALUE CHANGE -- editing this file may drift:"]
+    for item in items[:3]:
+        lines.append(f"  {item['id']} (canonical: {item['canonical']})")
+        for dep in item["dependents"][:4]:
+            lines.append(f"    {dep['status']}: {dep['predicate']} {dep['id']}")
+    return lines
 
 
 # trace:v1 id=impl.hooks.reminder-text work=WORK-remind-mode-pre-edit-coaching-when-blocking-is-off satisfies=REQ-reminder-mode-briefing

@@ -1,4 +1,4 @@
-"""Deterministic policy rule functions TL001-TL062 + TL100/TL110.
+"""Deterministic policy rule functions TL001-TL062 + TL070 + TL100/TL110.
 
 Every rule takes an ``EvalContext`` and returns a list of ``Diagnostic``
 built via ``tracelayer.diagnostics.make`` (registry-only rule IDs).
@@ -766,6 +766,63 @@ def rule_tl062(ctx: EvalContext) -> list[Diagnostic]:
     return diags
 
 
+# trace:v1 id=impl.policy.tl070-facts work=WORK-close-adversarial-audit-gaps-on-knowledge-and-facts satisfies=REQ-confined-live-fact-verification
+def rule_tl070(ctx: EvalContext) -> list[Diagnostic]:
+    """Canonical fact drift: live dependents diverging from live sources."""
+    from tracelayer.facts import MANIFEST_FILE, read_manifest, verify_facts
+
+    try:
+        results = verify_facts(ctx.store, ctx.project.root)
+    except Exception:
+        return []
+    manifest_ids: set[str] = set()
+    try:
+        manifest_ids = set(read_manifest(ctx.project.root))
+    except Exception:
+        pass
+    diags: list[Diagnostic] = []
+    for result in results:
+        paths = {result["canonical_source"].partition("::")[0]}
+        paths |= {d.get("path") for d in result["dependents"] if d.get("path")}
+        if result["id"] in manifest_ids:
+            paths.add(MANIFEST_FILE)
+        if ctx.changed_ids is not None and not (paths & ctx.changed_paths):
+            node = ctx.store.get_node(trace_id=result["id"])
+            if node is None or node.trace_id not in {n.trace_id for n in _scope_nodes(ctx)}:
+                continue
+        if result["status"] == "REVIEW_REQUIRED":
+            node = ctx.store.get_node(trace_id=result["id"])
+            diags.append(
+                make(
+                    "TL070",
+                    trace_id=result["id"],
+                    path=node.canonical_path if node is not None else MANIFEST_FILE,
+                    lifecycle=ctx.lifecycle,
+                    message=(
+                        f"Canonical fact {result['id']} needs review "
+                        f"(source {result['canonical_source']})"
+                    ),
+                )
+            )
+        for dep in result["dependents"]:
+            if dep.get("status") != "REVIEW_REQUIRED":
+                continue
+            diags.append(
+                make(
+                    "TL070",
+                    trace_id=dep["id"],
+                    path=dep.get("path"),
+                    lifecycle=ctx.lifecycle,
+                    message=(
+                        f"Dependent {dep['id']} reports {dep.get('observed')!r} "
+                        f"but canonical value is {dep.get('expected')!r} "
+                        f"({result['canonical_source']})"
+                    ),
+                )
+            )
+    return diags
+
+
 # trace:exempt reason=internal-detail
 def rule_tl100(ctx: EvalContext) -> list[Diagnostic]:
     """Configuration errors — re-emitted from the last index/load."""
@@ -820,6 +877,7 @@ RULE_FUNCTIONS: dict[str, RuleFn] = {
     "TL060": rule_tl060,
     "TL061": rule_tl061,
     "TL062": rule_tl062,
+    "TL070": rule_tl070,
     "TL100": rule_tl100,
     "TL110": rule_tl110,
 }

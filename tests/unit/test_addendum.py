@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from tracelayer.facts import read_canonical, verify_facts
 from tracelayer.graph.models import Edge, Node
 from tracelayer.graph.store import GraphStore, entity_uid
@@ -106,10 +108,83 @@ def test_verify_facts_detects_drift(tmp_path) -> None:
     by_id = {r["id"]: r for r in results}
     assert by_id["VALUE-1"]["status"] == "CURRENT"
     assert by_id["VALUE-1"]["dependents"] == [
-        {"id": "doc.a", "predicate": "documents_value", "status": "CURRENT"}
+        {
+            "id": "doc.a",
+            "predicate": "documents_value",
+            "path": None,
+            "status": "CURRENT",
+            "observed": "0.2.40",
+            "expected": "0.2.40",
+        }
     ]
     assert by_id["VALUE-2"]["status"] == "REVIEW_REQUIRED"
     assert by_id["VALUE-2"]["dependents"][0]["status"] == "REVIEW_REQUIRED"
+
+
+# trace:v1 id=test.facts.live-consumer type=test verifies=REQ-canonical-fact-tracking
+def test_stale_readme_without_metadata_is_flagged(tmp_path) -> None:
+    (tmp_path / "py.toml").write_text('[project]\nversion = "2.0"\n', encoding="utf-8")
+    (tmp_path / "README.md").write_text("Current version: 1.0\n", encoding="utf-8")
+    nodes = [
+        make_node(
+            "VALUE-X",
+            "value",
+            metadata={"canonical_source": "py.toml::project.version", "value": "2.0"},
+        ),
+        make_node("doc.readme", "document", metadata={}),
+    ]
+    edges = [make_edge("doc.readme", "documents_value", "VALUE-X")]
+    store = open_store(tmp_path, nodes, edges)
+    try:
+        results = verify_facts(store, tmp_path)
+    finally:
+        store.close()
+    by_id = {r["id"]: r for r in results}
+    assert by_id["VALUE-X"]["status"] == "CURRENT"
+    assert by_id["VALUE-X"]["dependents"] == [
+        {
+            "id": "doc.readme",
+            "predicate": "documents_value",
+            "path": None,
+            "status": "UNVERIFIED",
+            "observed": None,
+            "expected": "2.0",
+        }
+    ]
+
+
+# trace:v1 id=test.facts.readme-claim type=test verifies=REQ-canonical-fact-tracking
+def test_readme_claim_with_selector_is_checked_live(tmp_path) -> None:
+    (tmp_path / "py.toml").write_text('[project]\nversion = "2.0"\n', encoding="utf-8")
+    (tmp_path / "README.md").write_text("Current version: 1.0\n", encoding="utf-8")
+    nodes = [
+        make_node(
+            "VALUE-X",
+            "value",
+            metadata={"canonical_source": "py.toml::project.version", "value": "2.0"},
+        ),
+        make_node(
+            "doc.readme",
+            "document",
+            canonical_path="README.md",
+            metadata={"selector": "regex:Current version: (\\S+)"},
+        ),
+    ]
+    edges = [make_edge("doc.readme", "documents_value", "VALUE-X")]
+    store = open_store(tmp_path, nodes, edges)
+    try:
+        results = verify_facts(store, tmp_path)
+    finally:
+        store.close()
+    dep = {r["id"]: r for r in results}["VALUE-X"]["dependents"][0]
+    assert dep == {
+        "id": "doc.readme",
+        "predicate": "documents_value",
+        "path": "README.md",
+        "status": "REVIEW_REQUIRED",
+        "observed": "1.0",
+        "expected": "2.0",
+    }
 
 
 # trace:v1 id=test.facts.marker type=test verifies=REQ-canonical-fact-tracking
@@ -121,3 +196,35 @@ def test_fact_marker_round_trip() -> None:
     rendered = render_marker(parsed.marker)
     assert "canonical_source=pyproject.toml::project.version" in rendered
     assert "value=0.2.40" in rendered
+
+
+# trace:v1 id=test.facts.confinement type=test verifies=REQ-canonical-fact-tracking
+def test_canonical_source_cannot_escape_root(tmp_path) -> None:
+    outside = tmp_path / "outside.json"
+    outside.write_text('{"secret": "outside"}', encoding="utf-8")
+    root = tmp_path / "repo"
+    root.mkdir()
+    (root / "inside.json").write_text('{"ok": 1}', encoding="utf-8")
+    assert read_canonical(root, "../outside.json::secret") == (False, "")
+    assert read_canonical(root, f"{outside}::secret") == (False, "")
+    assert read_canonical(root, "inside.json::ok") == (True, "1")
+    link = root / "link.json"
+    try:
+        link.symlink_to(outside)
+    except OSError:
+        pytest.skip("symlinks unavailable")
+    assert read_canonical(root, "link.json::secret") == (False, "")
+
+
+# trace:v1 id=test.facts.adapters type=test verifies=REQ-canonical-fact-tracking
+def test_source_adapters_yaml_python_claims(tmp_path) -> None:
+    (tmp_path / "vals.yaml").write_text("server:\n  port: 20128\n", encoding="utf-8")
+    assert read_canonical(tmp_path, "vals.yaml::server.port") == (True, "20128")
+    (tmp_path / "cfg.py").write_text("DEFAULT_TIMEOUT = 30\n", encoding="utf-8")
+    assert read_canonical(tmp_path, "cfg.py::DEFAULT_TIMEOUT") == (True, "30")
+    (tmp_path / "cfg.py").write_text('import os\nX = os.environ["Y"]\n', encoding="utf-8")
+    assert read_canonical(tmp_path, "cfg.py::X") == (False, "")
+    (tmp_path / "notes.md").write_text("Python 3.12 or newer.\n", encoding="utf-8")
+    assert read_canonical(tmp_path, r"notes.md::regex:Python (3\.\d+)") == (True, "3.12")
+    (tmp_path / "app.env").write_text("PORT=20128\n", encoding="utf-8")
+    assert read_canonical(tmp_path, "app.env::PORT") == (True, "20128")

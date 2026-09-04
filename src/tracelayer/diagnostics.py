@@ -164,6 +164,12 @@ RULES: dict[str, RuleDef] = {
         SEVERITY_WARNING,
         "Policy/schema changes alter enforcement; ensure this change is intentional and reviewed.",
     ),
+    "TL070": RuleDef(
+        "TL070",
+        "canonical fact drift",
+        SEVERITY_ERROR,
+        "Update the stale dependent to the canonical value, or confirm the divergence is intentional.",
+    ),
     "TL100": RuleDef(
         "TL100", "configuration error", SEVERITY_ERROR, "Fix the configuration file and re-run."
     ),

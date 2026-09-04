@@ -99,6 +99,7 @@ Every deterministic rule has a stable ID, so failures are explainable
 | TL060 | semantic audit required |
 | TL061 | expired waiver |
 | TL062 | evidence not bound to exact revision |
+| TL070 | canonical fact drift: live dependent diverges from live source |
 | TL100 | configuration error |
 | TL110 | required stale node blocks lifecycle |
 

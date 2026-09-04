@@ -246,3 +246,21 @@ def test_disabled_gate_reminds_instead_of_silence(ctx):
     assert "TRACE REMINDER (edit allowed)" in out.output
     assert "Purpose:" in out.output and "Satisfies:" in out.output
     assert "Then retry the edit." not in out.output
+
+
+# trace:v1 id=test.hooks.fact-coaching type=test verifies=REQ-confined-live-fact-verification
+def test_editing_canonical_source_surfaces_consumers(ctx):
+    from tests.unit.conftest import make_node as _node
+
+    (ctx.project.root / "vals.toml").write_text('[pkg]\nversion = "2.0"\n', encoding="utf-8")
+    value = _node(
+        "VALUE-1",
+        "value",
+        path="docs/facts.md",
+        metadata={"canonical_source": "vals.toml::pkg.version", "value": "2.0"},
+    )
+    ctx.store.replace_all([value], [])
+    out = handle(ctx, {"path": "vals.toml"})
+    assert out.decision == "allow"
+    assert "CANONICAL VALUE CHANGE" in out.output
+    assert "VALUE-1" in out.output

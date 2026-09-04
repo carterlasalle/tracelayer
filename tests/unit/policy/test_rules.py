@@ -572,3 +572,47 @@ def test_tl110_whole_repo_scope(project, store):
     store.replace_all([stale], [])
     c = ctx_for(project, store, lifecycle="merge")
     assert [d.rule_id for d in rule("TL110", c)] == ["TL110"]
+
+
+# trace:v1 id=test.policy.tl070-facts type=test verifies=REQ-confined-live-fact-verification
+def _fact_fixture(project, store, readme_text: str):
+    (project.root / "vals.toml").write_text('[pkg]\nversion = "2.0"\n', encoding="utf-8")
+    (project.root / "notes.md").write_text(readme_text, encoding="utf-8")
+    value = make_node(
+        "VALUE-1",
+        "value",
+        path="docs/facts.md",
+        metadata={"canonical_source": "vals.toml::pkg.version", "value": "2.0"},
+    )
+    doc = make_node(
+        "doc.readme",
+        "document",
+        path="notes.md",
+        metadata={"selector": "regex:version (\\S+)"},
+    )
+    store.replace_all(
+        [value, doc], [make_edge(doc.entity_uid, "documents_value", value.entity_uid)]
+    )
+
+
+# trace:v1 id=test.policy.tl070-clean type=test verifies=REQ-confined-live-fact-verification
+def test_tl070_clean_when_consumer_matches(project, store):
+    _fact_fixture(project, store, "version 2.0\n")
+    c = ctx_for(project, store, changed_ids={"VALUE-1"}, changed_paths={"notes.md"})
+    assert rule("TL070", c) == []
+
+
+# trace:v1 id=test.policy.tl070-drift type=test verifies=REQ-confined-live-fact-verification
+def test_tl070_flags_stale_consumer(project, store):
+    _fact_fixture(project, store, "version 1.0\n")
+    c = ctx_for(project, store, changed_ids={"VALUE-1"}, changed_paths={"notes.md"})
+    diags = rule("TL070", c)
+    assert [d.rule_id for d in diags] == ["TL070"]
+    assert diags[0].path == "notes.md"
+
+
+# trace:v1 id=test.policy.tl070-scope type=test verifies=REQ-confined-live-fact-verification
+def test_tl070_skips_out_of_scope_paths(project, store):
+    _fact_fixture(project, store, "version 1.0\n")
+    c = ctx_for(project, store, changed_ids={"OTHER"}, changed_paths={"other.py"})
+    assert rule("TL070", c) == []
