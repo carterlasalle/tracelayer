@@ -1760,6 +1760,8 @@ def context(
                             for header, n in result.related
                         ],
                         "adjacent_context": result.adjacent,
+                        "knowledge": result.knowledge,
+                        "facts": result.facts,
                         "provenance": result.provenance,
                     },
                     indent=2,

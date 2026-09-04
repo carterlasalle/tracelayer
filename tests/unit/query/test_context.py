@@ -385,3 +385,46 @@ def test_render_context_text_git_section(tmp_path, graph_store, make_node, make_
     assert _SHA.match(lines[idx + 1].removeprefix("  first_seen: "))
     assert _SHA.match(lines[idx + 2].removeprefix("  last_modified: "))
     assert lines[idx + 3] == "  commits: 1"
+
+
+# trace:v1 id=test.context.knowledge-section type=test verifies=REQ-transitive-knowledge-relevance
+def test_build_context_includes_relevant_knowledge(graph_store, make_node, make_edge):
+    graph_store.replace_all(
+        [
+            make_node("WORK-1", "work"),
+            make_node("impl.one", "implementation"),
+            make_node("ANTI-1", "anti_pattern", meta={"state": "ACTIVE"}),
+        ],
+        [
+            make_edge("impl.one", "work", "WORK-1"),
+            make_edge("ANTI-1", "applies_to", "WORK-1"),
+        ],
+    )
+    ctx = build_context(graph_store, None, "impl.one")
+    assert ctx is not None
+    assert [(i["id"], i["via"]) for i in ctx.knowledge] == [("ANTI-1", "work")]
+    rendered = render_context_text(ctx)
+    assert "Relevant knowledge:" in rendered
+    assert "ANTI-1" in rendered
+
+
+# trace:v1 id=test.context.facts-section type=test verifies=REQ-confined-live-fact-verification
+def test_build_context_includes_fact_status(tmp_path, graph_store, make_node, make_edge):
+    (tmp_path / "vals.toml").write_text(
+        "[pkg]" + chr(10) + 'version = "2.0"' + chr(10), encoding="utf-8"
+    )
+    graph_store.replace_all(
+        [
+            make_node(
+                "VALUE-1",
+                "value",
+                meta={"canonical_source": "vals.toml::pkg.version", "value": "2.0"},
+            ),
+        ],
+        [],
+    )
+    ctx = build_context(graph_store, None, "VALUE-1", root=tmp_path)
+    assert ctx is not None
+    assert [f["id"] for f in ctx.facts] == ["VALUE-1"]
+    assert ctx.facts[0]["status"] == "CURRENT"
+    assert "Canonical fact VALUE-1 [CURRENT]:" in render_context_text(ctx)

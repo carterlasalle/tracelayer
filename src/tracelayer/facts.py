@@ -27,7 +27,7 @@ from tracelayer.graph.store import GraphStore
 FACT_TYPES = ("fact", "value")
 
 # Dependent predicates from the dependent's perspective (spec Sections 98, 121).
-_DEPENDENT_PREDICATES = (
+DEPENDENT_PREDICATES = (
     "depends_on_value",
     "documents_value",
     "mirrors_value",
@@ -273,7 +273,7 @@ def _verify_node(
             if isinstance(consumer, dict) and consumer.get("for") == fact_id:
                 manifest_consumers.append(consumer)
     for edge in edges:
-        if edge.status != "active" or edge.predicate not in _DEPENDENT_PREDICATES:
+        if edge.status != "active" or edge.predicate not in DEPENDENT_PREDICATES:
             continue
         consumer = store.get_node(uid=edge.from_uid)
         if consumer is None or not consumer.active:

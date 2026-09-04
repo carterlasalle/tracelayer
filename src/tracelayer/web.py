@@ -99,6 +99,8 @@ def node_detail(engine: Engine, trace_id: str) -> dict | None:
             {"section": header, "id": n.trace_id, "type": n.node_type} for header, n in ctx.related
         ],
         "adjacent": dict(ctx.adjacent or {}),
+        "knowledge": list(ctx.knowledge or []),
+        "facts": list(ctx.facts or []),
     }
 
 

@@ -15,6 +15,7 @@ from tracelayer.evidence.freshness import proof_level
 from tracelayer.git.repo import GitRepo
 from tracelayer.graph.models import Edge, Node
 from tracelayer.graph.store import GraphStore
+from tracelayer.knowledge import knowledge_for
 from tracelayer.work import normalize_question_state, normalize_task_state
 
 # Upstream intent predicates in render order (spec 28.3).
@@ -71,6 +72,8 @@ class ContextResult:
     provenance: dict  # first_seen/last_modified/commits; may be absent
     related: list[tuple[str, Node]] = field(default_factory=list)
     adjacent: dict = field(default_factory=dict)
+    knowledge: list[dict] = field(default_factory=list)
+    facts: list[dict] = field(default_factory=list)
 
 
 def _framework_id_of(test_node: Node) -> str:
@@ -197,7 +200,6 @@ def build_context(
         if source is not None:
             related.append(("Blocked by", source))
     related.sort(key=lambda p: (p[0], p[1].trace_id))
-
     return ContextResult(
         node=node,
         upstream=upstream,
@@ -207,7 +209,34 @@ def build_context(
         provenance=provenance,
         related=[(header, target) for header, target in related],
         adjacent=extract_adjacent(root, node),
+        knowledge=knowledge_for(store, trace_id),
+        facts=_context_facts(store, root, node),
     )
+
+
+# trace:exempt reason=internal-helper
+def _context_facts(store: GraphStore, root, node: Node) -> list[dict]:
+    """Verify results for this node's facts: itself plus depended-on facts."""
+    from tracelayer.facts import DEPENDENT_PREDICATES, FACT_TYPES, verify_facts
+
+    if root is None:
+        return []
+    wanted: set[str] = set()
+    if node.node_type in FACT_TYPES:
+        wanted.add(node.trace_id)
+    for edge in store.edges_from(node.entity_uid):
+        if edge.status != "active" or edge.predicate not in DEPENDENT_PREDICATES:
+            continue
+        target = store.get_node(uid=edge.to_uid)
+        if target is not None and target.node_type in FACT_TYPES:
+            wanted.add(target.trace_id)
+    if not wanted:
+        return []
+    try:
+        results = verify_facts(store, root)
+    except Exception:
+        return []
+    return [r for r in results if r["id"] in wanted]
 
 
 def _section_header(predicate: str, node_type: str) -> str:
@@ -267,6 +296,25 @@ def render_context_text(ctx: ContextResult) -> str:
         lines.append("")
         lines.append(f"{header}:")
         lines.extend(f"  {item}" for item in items)
+
+    if ctx.knowledge:
+        lines.append("")
+        lines.append("Relevant knowledge:")
+        for item in ctx.knowledge:
+            lines.append(f"  {item['id']} [{item['type']}, {item['state']}] — {item['title']}")
+    for fact in ctx.facts:
+        lines.append("")
+        lines.append(f"Canonical fact {fact['id']} [{fact['status']}]:")
+        if fact.get("canonical") is not None:
+            lines.append(f"  canonical: {fact['canonical']}")
+        for dep in fact.get("dependents", []):
+            if dep["id"] == ctx.node.trace_id or dep["status"] != "CURRENT":
+                detail = f"  {dep['id']} {dep['predicate']}: {dep['status']}"
+                if dep.get("observed") != dep.get("expected"):
+                    detail += (
+                        f" (observed {dep.get('observed')!r}, expected {dep.get('expected')!r})"
+                    )
+                lines.append(detail)
 
     adjacent = ctx.adjacent or {}
     comments = adjacent.get("leading_comments") or []
