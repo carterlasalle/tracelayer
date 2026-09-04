@@ -46,6 +46,7 @@
 <div id="topbar">
   <h1>TraceLayer <small>markers only</small></h1>
   <input id="search" placeholder="Filter by id or title…" />
+  <select id="workview"><option value="">Work view…</option></select>
   <span id="counts"></span>
 </div>
 <div id="empty">No trace nodes yet — run <code>trace index --all</code>, then refresh.</div>
@@ -86,6 +87,13 @@ async function loadGraph() {
   const r = await fetch("/api/graph");
   const data = await r.json();
   GRAPH = data;
+  const workSel = document.getElementById("workview");
+  data.nodes.filter((n) => n.type === "work").sort((a, b) => a.id < b.id ? -1 : 1).forEach((n) => {
+    const opt = document.createElement("option");
+    opt.value = n.id; opt.textContent = n.title ? `${n.id} — ${n.title}` : n.id;
+    workSel.appendChild(opt);
+  });
+  workSel.addEventListener("change", () => showWork(workSel.value));
   document.getElementById("counts").textContent =
     `${data.counts.nodes} nodes · ${data.counts.edges} declared edges`;
   if (!data.nodes.length) {
@@ -157,11 +165,62 @@ async function showNode(id) {
     d.verification.forEach((v) => html.push(`<li>${escapeHtml(v.test)} — ${escapeHtml(v.outcome)} L${v.proof_level}${v.current ? "" : " (STALE)"}</li>`));
     html.push(`</ul>`);
   }
+  const relGroups = {};
+  (d.related || []).forEach((r) => { (relGroups[r.section] = relGroups[r.section] || []).push(r); });
+  Object.keys(relGroups).forEach((section) => {
+    html.push(`<h3>${escapeHtml(section)}</h3><ul>`);
+    relGroups[section].forEach((r) => html.push(`<li data-id="${escapeHtml(r.id)}">${escapeHtml(r.id)} <span style="color:#7d8b9c">${escapeHtml(r.type)}</span></li>`));
+    html.push(`</ul>`);
+  });
+  const comments = (d.adjacent && d.adjacent.leading_comments) || [];
+  const excerpt = (d.adjacent && d.adjacent.excerpt) || "";
+  if (comments.length || excerpt) {
+    html.push(`<h3>Nearby context</h3>`);
+    comments.forEach((c) => html.push(`<div class="meta">${escapeHtml(c)}</div>`));
+    if (excerpt) html.push(`<pre style="white-space:pre-wrap;font-size:11px">${escapeHtml(excerpt)}</pre>`);
+  }
   panel.innerHTML = html.join("");
   panel.style.display = "block";
   panel.querySelectorAll("[data-id]").forEach((el) =>
     el.addEventListener("click", () => showNode(el.dataset.id)));
   panel.querySelector(".close").addEventListener("click", () => (panel.style.display = "none"));
+}
+
+async function showWork(id) {
+  const panel = document.getElementById("panel");
+  if (!id) { panel.style.display = "none"; return; }
+  const r = await fetch(`/api/work/${encodeURIComponent(id)}/ready`);
+  if (!r.ok) return;
+  const d = await r.json();
+  const titles = d.titles || {};
+  const label = (tid) => titles[tid] && titles[tid] !== tid ? `${tid} — ${titles[tid]}` : tid;
+  const html = [`<button class="close">×</button>`, `<h2>${escapeHtml(id)}</h2>`,
+    `<div class="meta">work view · ready/blocked state</div>`];
+  const section = (name, items) => {
+    if (!items || !items.length) return;
+    html.push(`<h3>${name} (${items.length})</h3><ul>`);
+    items.forEach((tid) => html.push(`<li data-id="${escapeHtml(tid)}">${escapeHtml(label(tid))}</li>`));
+    html.push(`</ul>`);
+  };
+  section("Ready", d.ready);
+  section("In progress", d.in_progress);
+  section("Partial", d.partial);
+  const blocked = Object.keys(d.blocked || {});
+  if (blocked.length) {
+    html.push(`<h3>Blocked (${blocked.length})</h3><ul>`);
+    blocked.forEach((tid) => html.push(`<li data-id="${escapeHtml(tid)}">${escapeHtml(label(tid))}<br/><span style="color:#7d8b9c">${escapeHtml((d.blocked[tid] || []).join("; "))}</span></li>`));
+    html.push(`</ul>`);
+  }
+  section("Open questions", d.open_questions);
+  section("Done", d.done);
+  panel.innerHTML = html.join("");
+  panel.style.display = "block";
+  panel.querySelectorAll("[data-id]").forEach((el) =>
+    el.addEventListener("click", () => showNode(el.dataset.id)));
+  panel.querySelector(".close").addEventListener("click", () => {
+    panel.style.display = "none";
+    document.getElementById("workview").value = "";
+  });
 }
 
 function escapeHtml(s) {

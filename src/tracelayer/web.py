@@ -63,6 +63,7 @@ def graph_payload(engine: Engine) -> dict:
     return {"nodes": nodes, "edges": edges, "counts": {"nodes": len(nodes), "edges": len(edges)}}
 
 
+# trace:v1 id=impl.web.node-detail work=WORK-html-work-and-question-browser-panel satisfies=REQ-richer-node-detail
 def node_detail(engine: Engine, trace_id: str) -> dict | None:
     """Context detail for one trace node (mirrors ``trace context``)."""
     from tracelayer.query.context import ContextResult
@@ -94,8 +95,12 @@ def node_detail(engine: Engine, trace_id: str) -> dict | None:
             }
             for v in ctx.verification
         ],
+        "related": [
+            {"section": header, "id": n.trace_id, "type": n.node_type}
+            for header, n in ctx.related
+        ],
+        "adjacent": dict(ctx.adjacent or {}),
     }
-
 
 # trace:v1 id=impl.web.work-ready work=WORK-global-setup-filesystem-hygiene-web-work-view-and-skill-refresh satisfies=REQ-web-work-view-data
 def work_payload(engine: Engine, work_id: str) -> dict | None:

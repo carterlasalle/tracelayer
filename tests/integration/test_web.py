@@ -122,3 +122,59 @@ def test_web_unknown_node_404(tmp_path):
             assert exc.code == 404
     finally:
         proc.terminate()
+
+
+# trace:v1 id=test.web.work-ready type=test
+def _indexed_repo_with_tasks(tmp_path) -> Path:
+    repo = make_git_repo(
+        tmp_path,
+        {
+            "req.md": "## REQ-AUTH-017 - Rotation\n\n<!-- \x74race:v1 id=REQ-AUTH-017 type=requirement work=WORK-AUTH-237 -->\n",
+            "plan.md": (
+                "## TASK-1 - First task\n\n"
+                "<!-- \x74race:v1 id=TASK-1 type=task state=TODO work=WORK-AUTH-237 -->\n\n"
+                "## TASK-2 - Second task\n\n"
+                "<!-- \x74race:v1 id=TASK-2 type=task state=TODO work=WORK-AUTH-237 blocked_by=TASK-1 -->\n"
+            ),
+        },
+    )
+    (repo / ".trace").mkdir(parents=True)
+    (repo / ".trace" / "work.toml").write_text(
+        '[work."WORK-AUTH-237"]\ntitle = "Refresh token rotation"\n',
+        encoding="utf-8",
+    )
+    assert run_trace(repo, "index", "--all").returncode == 0
+    return repo
+
+
+# trace:v1 id=test.web.work-endpoint type=test
+def test_web_work_ready_endpoint(tmp_path):
+    root = _indexed_repo_with_tasks(tmp_path)
+    proc, port = _spawn_web(root)
+    try:
+        ready = _fetch(f"http://127.0.0.1:{port}/api/work/WORK-AUTH-237/ready")
+        assert ready["work"] == "WORK-AUTH-237"
+        assert "TASK-1" in ready["ready"]
+        assert "TASK-2" in ready["blocked"]
+        html = _fetch(f"http://127.0.0.1:{port}/")
+        assert 'id="workview"' in html and "showWork" in html
+        try:
+            _fetch(f"http://127.0.0.1:{port}/api/work/WORK-NOPE/ready")
+            raise AssertionError("expected 404")
+        except urllib.error.HTTPError as exc:
+            assert exc.code == 404
+    finally:
+        proc.terminate()
+
+
+# trace:v1 id=test.web.node-related type=test
+def test_web_node_detail_has_related_and_adjacent(tmp_path):
+    root = _indexed_repo_with_tasks(tmp_path)
+    proc, port = _spawn_web(root)
+    try:
+        detail = _fetch(f"http://127.0.0.1:{port}/api/node/TASK-2")
+        sections = {(r["section"], r["id"]) for r in detail["related"]}
+        assert ("Blocked by", "TASK-1") in sections
+        assert "adjacent" in detail
+    finally:
+        proc.terminate()
