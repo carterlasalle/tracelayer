@@ -505,6 +505,36 @@ def _resolve_obligations(ctx: HookContext, path: str, text: str) -> int:
 
 
 # trace:exempt reason=internal-helper
+def _unchanged_since_base(project, path: str, boundary) -> bool:
+    """True when the boundary is fingerprint-identical to the change base.
+
+    Mirrors TL013 (same qualified-name key, same semantic fingerprint): a
+    boundary the work did not touch needs no marker. Fail-closed — any
+    uncertainty keeps the obligation pending.
+    """
+    try:
+        from tracelayer.discovery.boundaries import extract_boundaries
+        from tracelayer.git.repo import GitRepo
+        from tracelayer.graph.fingerprints import normalize_block, semantic_fingerprint
+
+        repo = GitRepo(project.root)
+        base = repo.default_base()
+        if base is None:
+            return False
+        proc = repo.run("show", f"{base}:{path}")
+        if proc.returncode != 0:
+            return False
+        key = str(getattr(boundary, "qualified_name", "") or boundary.name)
+        current = semantic_fingerprint(normalize_block(boundary.source))
+        for old in extract_boundaries(path, proc.stdout):
+            if str(getattr(old, "qualified_name", "") or old.name) == key:
+                return semantic_fingerprint(normalize_block(old.source)) == current
+        return False
+    except Exception:
+        return False
+
+
+# trace:v1 id=impl.hooks.reconcile-base-fp work=WORK-reconcile-unchanged-boundary-obligations-against-the-change-base satisfies=REQ-base-fingerprint-reconciliation
 def _resolve_obligations_in(state, session_id: str, project, path: str, text: str) -> int:
     """Mark pending trace obligations satisfied when the expected boundary
     is actually traced (adversarial review P0).
@@ -570,6 +600,13 @@ def _resolve_obligations_in(state, session_id: str, project, path: str, text: st
             continue
         # Use boundary_is_traced which handles both v1 and exempt markers
         if boundary_is_traced(text, symbols, expected, project.root, None):
+            state.resolve_obligation(session_id, path, symbol_name)
+            resolved += 1
+            continue
+        # Unchanged since the change base: the boundary predates the work, so
+        # TL013 needs nothing from it and the file-granular obligation is
+        # stale. Absent from (or changed vs) the base, it stays pending.
+        if _unchanged_since_base(project, path, expected):
             state.resolve_obligation(session_id, path, symbol_name)
             resolved += 1
             continue
