@@ -81,3 +81,39 @@ def test_work_payload_ready_and_unknown(tmp_path) -> None:
         assert work_payload(engine, "WORK-MISSING") is None  # type: ignore[arg-type]
     finally:
         store.close()
+
+
+# trace:v1 id=test.web.proof-kinds type=test verifies=REQ-web-work-view-data
+def test_graph_payload_labels_proof_kinds(tmp_path) -> None:
+    from tracelayer.web import graph_payload
+
+    nodes = [
+        make_node("impl.a", "implementation"),
+        make_node("impl.b", "implementation"),
+        make_node("REQ-1", "requirement"),
+    ]
+    edges = [
+        Edge(
+            edge_uid="",
+            from_uid=entity_uid("impl.a"),
+            predicate="satisfies",
+            to_uid=entity_uid("REQ-1"),
+            source_kind="declared",
+        ),
+        Edge(
+            edge_uid="",
+            from_uid=entity_uid("impl.a"),
+            predicate="calls",
+            to_uid=entity_uid("impl.b"),
+            source_kind="structural",
+        ),
+    ]
+    store = GraphStore.open(tmp_path / "g.sqlite3", fts=False)
+    try:
+        store.replace_all(nodes, edges)
+        payload = graph_payload(SimpleNamespace(store=store))  # type: ignore[arg-type]
+    finally:
+        store.close()
+    kinds = {(e["predicate"], e["kind"]) for e in payload["edges"]}
+    assert ("satisfies", "declared") in kinds
+    assert ("calls", "structural") in kinds

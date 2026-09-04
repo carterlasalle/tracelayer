@@ -74,7 +74,8 @@ def _spawn_web(root: Path) -> tuple[subprocess.Popen, int]:
     raise RuntimeError("web server did not come up")
 
 
-def test_web_graph_markers_only(tmp_path):
+# trace:v1 id=test.web.graph-proof-kinds type=test verifies=REQ-web-work-view-data
+def test_web_graph_proof_kinds(tmp_path):
     root = _indexed_repo(tmp_path)
     proc, port = _spawn_web(root)
     try:
@@ -86,8 +87,12 @@ def test_web_graph_markers_only(tmp_path):
         assert ("impl.auth.rotate", "WORK-AUTH-237", "work") in preds
         assert ("test.auth.rotate", "REQ-AUTH-017", "verifies") in preds
         assert ("test.auth.rotate", "impl.auth.rotate", "exercises") in preds
-        # markers only: no structural predicates ever leak into the payload
-        assert all(e["predicate"] not in ("calls", "imports") for e in data["edges"])
+        # proof layers: every edge carries its source kind for width-by-proof rendering
+        assert all("kind" in e for e in data["edges"])
+        assert {(e["predicate"], e["kind"]) for e in data["edges"]} >= {
+            ("satisfies", "declared"),
+            ("verifies", "declared"),
+        }
     finally:
         proc.terminate()
 

@@ -68,18 +68,27 @@ const LEGEND = [
   ["work", "#f472b6"], ["implementation", "#4ade80"], ["test", "#60a5fa"],
   ["doc/ops", "#9ca3af"], ["satisfies", "#4ade80"], ["verifies", "#60a5fa"],
   ["implements", "#22d3ee"], ["exercises", "#a3e635"],
+  ["observed ×4.0", "#ffffff"], ["declared ×2.5", "#9ca3af"], ["structural ×1.5", "#64748b"],
 ];
 
 const PREDICATE_STYLE = {
-  satisfies:    { color: "#4ade80", width: 2.6 },
-  verifies:     { color: "#60a5fa", width: 2.2 },
-  implements:   { color: "#22d3ee", width: 1.8 },
-  exercises:    { color: "#a3e635", width: 1.8 },
-  work:         { color: "#f472b6", width: 1.4 },
-  contains:     { color: "#64748b", width: 0.9 },
-  default:      { color: "#3a4a5c", width: 0.7 },
+  satisfies:    { color: "#4ade80" },
+  verifies:     { color: "#60a5fa" },
+  implements:   { color: "#22d3ee" },
+  exercises:    { color: "#a3e635" },
+  work:         { color: "#f472b6" },
+  contains:     { color: "#64748b" },
+  default:      { color: "#3a4a5c" },
+};
+const PROOF_WIDTH = {
+  observed: 4.0,
+  declared: 2.5,
+  structural: 1.5,
+  imported: 1.2,
+  suggested: 0.8,
 };
 const styleOf = (p) => PREDICATE_STYLE[p] || PREDICATE_STYLE.default;
+const widthOf = (k) => PROOF_WIDTH[k] || PROOF_WIDTH.suggested;
 
 let GRAPH = { nodes: [], edges: [] };
 
@@ -97,7 +106,7 @@ async function loadGraph() {
   });
   workSel.addEventListener("change", () => showWork(workSel.value));
   document.getElementById("counts").textContent =
-    `${data.counts.nodes} nodes · ${data.counts.edges} declared edges`;
+    `${data.counts.nodes} nodes · ${data.counts.edges} edges (width = proof strength)`;
   if (!data.nodes.length) {
     document.getElementById("empty").style.display = "flex";
     return;
@@ -114,7 +123,7 @@ async function loadGraph() {
     .filter((e) => byId.has(e.source) && byId.has(e.target))
     .map((e) => {
       const st = styleOf(e.predicate);
-      return { source: e.source, target: e.target, predicate: e.predicate, color: st.color, width: st.width };
+      return { source: e.source, target: e.target, predicate: e.predicate, kind: e.kind || "declared", color: st.color, width: widthOf(e.kind) };
     });
   window.Graph = ForceGraph3D()(document.getElementById("graph"))
     .graphData({ nodes, links })

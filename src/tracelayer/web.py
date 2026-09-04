@@ -4,7 +4,8 @@
 self-contained 3D force-directed visualization of the marker graph.
 **Markers only**: the API exposes declared semantic edges
 (``source_kind='declared'``, predicates from the marker ontology) — never
-structural derivations like calls or imports.
+structural derivations like calls or imports. Each edge carries its
+``source_kind`` as ``kind`` so the UI renders width by proof strength.
 
 Endpoints:
 - ``GET /``              single-file HTML UI (bundled asset)
@@ -40,7 +41,7 @@ def _node_entry(node) -> dict:
 
 # trace:v1 id=impl.web.ui work=WORK-TL-001
 def graph_payload(engine: Engine) -> dict:
-    """Markers-only graph: active nodes + declared semantic edges."""
+    """Active nodes + declared semantic and structural edges, kind-labeled."""
     nodes: list[dict] = []
     edges: list[dict] = []
     by_uid: dict[str, object] = {}
@@ -53,13 +54,20 @@ def graph_payload(engine: Engine) -> dict:
         engine.store.all_edges(status="active"),
         key=lambda e: (e.from_uid, e.predicate, e.to_uid),
     ):
-        if edge.source_kind != "declared" or edge.predicate not in SEMANTIC_EDGES:
+        if edge.predicate not in SEMANTIC_EDGES and edge.source_kind != "structural":
             continue
         src = by_uid.get(edge.from_uid)
         dst = by_uid.get(edge.to_uid)
         if src is None or dst is None:
             continue  # unresolved targets are diagnostics, not visuals
-        edges.append({"source": src.trace_id, "target": dst.trace_id, "predicate": edge.predicate})
+        edges.append(
+            {
+                "source": src.trace_id,
+                "target": dst.trace_id,
+                "predicate": edge.predicate,
+                "kind": edge.source_kind,
+            }
+        )
     return {"nodes": nodes, "edges": edges, "counts": {"nodes": len(nodes), "edges": len(edges)}}
 
 

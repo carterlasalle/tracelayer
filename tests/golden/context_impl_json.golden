@@ -11,6 +11,8 @@
       "trace_id": "test.auth.refresh-reuse"
     }
   ],
+  "facts": [],
+  "knowledge": [],
   "node_type": "implementation",
   "path": "src/auth/tokens.py",
   "provenance": {

@@ -89,6 +89,10 @@ testpaths = ["tests"]
 target-version = "py312"
 line-length = 100
 
+[tool.ruff.format]
+# Golden files must stay byte-exact CLI output; the formatter must not touch them.
+exclude = ["tests/golden/"]
+
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]
 ignore = ["E501"]
