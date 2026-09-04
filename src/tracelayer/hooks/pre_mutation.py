@@ -48,7 +48,10 @@ def handle(ctx: HookContext, payload: dict) -> HookOutput:
     if node is None or not is_protected(ctx.store, node):
         return render_allowed("", {**allow, "path": path})
     if not (cfg.pre_edit_require_context and cfg.pre_edit_block_once):
-        return render_allowed("", {**allow, "path": path})
+        text = _reminder_text(ctx, node)
+        return render_allowed(
+            text, {**allow, "path": path, "trace_id": node.trace_id, "output": text}
+        )
     if ctx.state.context_loaded(ctx.session_id, node.trace_id):
         return render_allowed("", {**allow, "path": path})
     if ctx.state.blocked_without_context(ctx.session_id, node.trace_id):
@@ -650,24 +653,14 @@ def _relevant_knowledge(store, trace_id: str) -> list[str]:
     return [f"  {i['id']} — {sanitize_text(i['title'], 80)}" for i in items]
 
 
-# trace:v1 id=impl.hooks.coaching-text work=WORK-coaching-first-hook-briefings-with-token-budget satisfies=REQ-coaching-first-block-text
-def _block_text(ctx: HookContext, node) -> str:
-    """Coaching-first denial: usable context first, enforcement last (spec 51).
-
-    The enforcement tail is budget-reserved: coaching content is fitted to
-    ``max_context_chars`` minus the action block, so truncation can never
-    remove the required retry steps.
-    """
-    store = ctx.store
-    max_chars = ctx.project.config.hooks.max_context_chars
+# trace:v1 id=impl.hooks.coaching-sections work=WORK-remind-mode-pre-edit-coaching-when-blocking-is-off satisfies=REQ-reminder-mode-briefing
+def _coaching_lines(store, node) -> list[str]:
+    """Middle briefing sections shared by block and reminder text."""
     satisfied = edge_target_ids(store, node.entity_uid, ("satisfies",))
     work = edge_target_ids(store, node.entity_uid, ("work",))
     decisions = edge_target_ids(store, node.entity_uid, ("implements", "addresses"))
     tests = linked_test_ids(store, node, satisfied)
-    lines = ["TRACE CONTEXT REQUIRED", "", "You are modifying:", f"  {node.trace_id}"]
-    label = node.symbol_qualified_name or node.title or None
-    if label:
-        lines.append(f"  {sanitize_text(label, 160)}")
+    lines: list[str] = []
     if satisfied:
         lines += ["", "Purpose:"] + _titled(store, satisfied, 3)
         lines += ["", "Satisfies:"] + [f"  {i}" for i in satisfied[:6]]
@@ -691,6 +684,25 @@ def _block_text(ctx: HookContext, node) -> str:
     if tests:
         lines += ["", "Linked verification:"] + [f"  {t}" for t in tests[:8]]
     lines += ["", "Preserve:", f"  {node.trace_id}"]
+    return lines
+
+
+# trace:v1 id=impl.hooks.coaching-text work=WORK-coaching-first-hook-briefings-with-token-budget satisfies=REQ-coaching-first-block-text
+def _block_text(ctx: HookContext, node) -> str:
+    """Coaching-first denial: usable context first, enforcement last (spec 51).
+
+    The enforcement tail is budget-reserved: coaching content is fitted to
+    ``max_context_chars`` minus the action block, so truncation can never
+    remove the required retry steps.
+    """
+    store = ctx.store
+    max_chars = ctx.project.config.hooks.max_context_chars
+    satisfied = edge_target_ids(store, node.entity_uid, ("satisfies",))
+    lines = ["TRACE CONTEXT REQUIRED", "", "You are modifying:", f"  {node.trace_id}"]
+    label = node.symbol_qualified_name or node.title or None
+    if label:
+        lines.append(f"  {sanitize_text(label, 160)}")
+    lines += _coaching_lines(store, node)
     target = satisfied[0] if satisfied else "the requirement"
     action = [
         "Before editing:",
@@ -707,3 +719,17 @@ def _block_text(ctx: HookContext, node) -> str:
     if not head:
         return fit(action_text, max_chars)
     return f"{head}\n{action_text}"
+
+
+# trace:v1 id=impl.hooks.reminder-text work=WORK-remind-mode-pre-edit-coaching-when-blocking-is-off satisfies=REQ-reminder-mode-briefing
+def _reminder_text(ctx: HookContext, node) -> str:
+    """Coaching reminder for non-blocking mode: same briefing, no denial."""
+    store = ctx.store
+    max_chars = ctx.project.config.hooks.max_context_chars
+    lines = ["TRACE REMINDER (edit allowed)", "", "You are modifying:", f"  {node.trace_id}"]
+    label = node.symbol_qualified_name or node.title or None
+    if label:
+        lines.append(f"  {sanitize_text(label, 160)}")
+    lines += _coaching_lines(store, node)
+    lines += ["", "No pre-edit action required; post-edit checks will verify this change."]
+    return fit("\n".join(lines), max_chars)

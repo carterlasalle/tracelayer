@@ -235,3 +235,14 @@ def test_truncation_keeps_enforcement_tail(ctx):
     assert len(out.output) <= 300
     assert "Then retry the edit." in out.output
     assert "Before editing:" in out.output
+
+
+# trace:v1 id=test.hooks.reminder-mode type=test verifies=REQ-reminder-mode-briefing
+def test_disabled_gate_reminds_instead_of_silence(ctx):
+    ctx.project.config.hooks.pre_edit_require_context = False
+    _seed(ctx.store)
+    out = handle(ctx, {"path": "src/auth.py"})
+    assert out.decision == "allow"
+    assert "TRACE REMINDER (edit allowed)" in out.output
+    assert "Purpose:" in out.output and "Satisfies:" in out.output
+    assert "Then retry the edit." not in out.output
