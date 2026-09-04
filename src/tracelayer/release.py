@@ -83,8 +83,12 @@ def inspect_artifact(path: Path | str) -> dict:
     required = WHEEL_MUST_INCLUDE if is_wheel else SDIST_MUST_INCLUDE
     missing = [r for r in required if not any(n == r or n.startswith(r) for n in stripped)]
     forbidden = sorted({f for f in FORBIDDEN_FRAGMENTS for n in names if f in n})
-    return {"file": path.name, "ok": not missing and not forbidden,
-            "missing": missing, "forbidden": forbidden}
+    return {
+        "file": path.name,
+        "ok": not missing and not forbidden,
+        "missing": missing,
+        "forbidden": forbidden,
+    }
 
 
 # trace:v1 id=impl.release.check-dist work=WORK-centralized-release-artifact-checks satisfies=REQ-release-check-command
@@ -92,8 +96,11 @@ def check_dists(dist_dir: Path | str) -> dict:
     """Inspect every wheel/sdist in a directory; ok only when all pass."""
     dist_dir = Path(dist_dir)
     try:
-        artifacts = sorted(p for p in dist_dir.iterdir()
-                           if p.suffix in (".whl", ".gz") or p.suffixes[-2:] == [".tar", ".gz"])
+        artifacts = sorted(
+            p
+            for p in dist_dir.iterdir()
+            if p.suffix in (".whl", ".gz") or p.suffixes[-2:] == [".tar", ".gz"]
+        )
     except OSError as exc:
         return {"ok": False, "error": str(exc)[:200], "artifacts": []}
     results = [inspect_artifact(p) for p in artifacts]

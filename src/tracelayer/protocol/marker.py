@@ -12,7 +12,9 @@ from dataclasses import dataclass, field
 from tracelayer.diagnostics import Diagnostic, make
 from tracelayer.protocol import grammar, ids, ontology
 
-BUILTIN_PROPERTIES = frozenset({"id", "type", "title", "policy", "state", "canonical_source", "value"})
+BUILTIN_PROPERTIES = frozenset(
+    {"id", "type", "title", "policy", "state", "canonical_source", "value"}
+)
 
 # Convenience relation-like keys (spec 11.3, 33.1): `work` and `plan` are
 # graph edges; `plan` is an alias for `implements`.

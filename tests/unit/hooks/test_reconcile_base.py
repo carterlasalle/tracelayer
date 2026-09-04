@@ -34,8 +34,8 @@ def _commit(root, text: str) -> None:
 def test_unchanged_boundary_resolves_changed_stays(project, state) -> None:
     _git(project.root, "init", "-q")
     _git(project.root, "config", "commit.gpgsign", "false")
-    _commit(project.root, 'def helper():\n    return 1\n\n\ndef target():\n    return 1\n')
-    _commit(project.root, 'def helper():\n    return 1\n\n\ndef target():\n    return 2\n')
+    _commit(project.root, "def helper():\n    return 1\n\n\ndef target():\n    return 1\n")
+    _commit(project.root, "def helper():\n    return 1\n\n\ndef target():\n    return 2\n")
     text = (project.root / "mod.py").read_text(encoding="utf-8")
     for symbol in ("mod.helper", "mod.target"):
         state.add_obligation(
@@ -58,11 +58,7 @@ def test_unchanged_boundary_resolves_changed_stays(project, state) -> None:
 
 # trace:v1 id=test.hooks.reconcile-markdown type=test
 def test_markdown_heading_with_marker_resolves(project, state) -> None:
-    text = (
-        "# Canonical facts\n"
-        "\n"
-        "<!-- trace:v1 id=doc.canonical-facts work=WORK-X -->\n"
-    )
+    text = "# Canonical facts\n\n<!-- trace:v1 id=doc.canonical-facts work=WORK-X -->\n"
     (project.root / "notes.md").write_text(text, encoding="utf-8")
     state.add_obligation(
         "s1",

@@ -112,8 +112,11 @@ def test_open_question_blocks_and_answer_unblocks(tmp_path) -> None:
         assert blocked["ready"] == []
         assert blocked["blocked"]["TASK-6"] == ["waiting on open question Q-1 (asks)"]
         assert blocked["open_questions"] == ["Q-1"]
-        answered = [make_node("WORK-W", "work"), make_node("TASK-6", "task", "TODO"),
-                    make_node("Q-1", "question", "ANSWERED")]
+        answered = [
+            make_node("WORK-W", "work"),
+            make_node("TASK-6", "task", "TODO"),
+            make_node("Q-1", "question", "ANSWERED"),
+        ]
         store.replace_all(answered, list(edges))
         ready = compute_readiness(store, "WORK-W")
     finally:

@@ -65,8 +65,15 @@ SPEC_NODE_CATEGORIES = {
     "realization": ["implementation", "config", "operation", "data", "prompt"],
     "verification/documentation": ["test", "document", "runbook", "evidence"],
     "provenance": ["commit", "pull_request", "ci_run", "external"],
-    "knowledge": ["finding", "learning", "anti_pattern", "convention", "constraint",
-                  "fact", "value"],
+    "knowledge": [
+        "finding",
+        "learning",
+        "anti_pattern",
+        "convention",
+        "constraint",
+        "fact",
+        "value",
+    ],
 }
 
 # Spec 12.2 (13 edges) plus the `work` convenience edge (spec 11.3/33.1),

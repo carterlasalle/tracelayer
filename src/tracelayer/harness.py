@@ -86,7 +86,6 @@ def render_task_blocks(store: GraphStore, work_id: str, tasks: list[dict]) -> st
             f"## {tid} — {task['title']}\n"
             f"\n"
             f"<!-- trace:v1 id={tid} type=task state={task['state']} work={work_id} -->\n"
-            f"\n"
-            + (f"Origin: {origin}\n" if origin else "")
+            f"\n" + (f"Origin: {origin}\n" if origin else "")
         )
     return "\n".join(chunks)

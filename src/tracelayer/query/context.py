@@ -118,6 +118,7 @@ def extract_adjacent(root, node: Node) -> dict:
         adjacent["excerpt"] = excerpt[:1200]
     return adjacent
 
+
 # trace:v1 id=impl.context.briefing work=WORK-documentation-artifact-system-and-useful-context-engine satisfies=REQ-engineering-briefing-context
 def build_context(
     store: GraphStore,

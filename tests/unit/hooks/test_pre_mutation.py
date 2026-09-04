@@ -181,10 +181,10 @@ def test_block_coaches_with_titles_knowledge_and_questions(ctx):
         [
             _titled_node("REQ-1", "requirement", "Rotation rule"),
             _titled_node("WORK-1", "work", "Rotation hardening"),
-            _titled_node("impl.one", "implementation", "Rotate", path="src/auth.py",
-                         start=1, end=10),
-            _titled_node("Q-9", "question", "Revoke sessions too?",
-                         metadata={"state": "OPEN"}),
+            _titled_node(
+                "impl.one", "implementation", "Rotate", path="src/auth.py", start=1, end=10
+            ),
+            _titled_node("Q-9", "question", "Revoke sessions too?", metadata={"state": "OPEN"}),
             _titled_node("ANTI-1", "anti_pattern", "Never retry after accepted"),
             _titled_node("CONV-1", "convention", "Use the canonical matcher"),
             _titled_node("LEARN-9", "learning", "Old lesson"),
@@ -204,9 +204,11 @@ def test_block_coaches_with_titles_knowledge_and_questions(ctx):
     assert "Preserve:" in out.output
     assert "Open questions blocking this edit:" in out.output
     assert "Q-9" in out.output
-    knowledge = out.output.split("Relevant knowledge:")[1].split("Linked verification:")[0] \
-        if "Linked verification:" in out.output \
+    knowledge = (
+        out.output.split("Relevant knowledge:")[1].split("Linked verification:")[0]
+        if "Linked verification:" in out.output
         else out.output.split("Relevant knowledge:")[1]
+    )
     assert "ANTI-1" in knowledge and "CONV-1" in knowledge
     assert "LEARN-9" not in knowledge  # capped at two
     assert "Then retry the edit." in out.output
@@ -218,8 +220,9 @@ def test_truncation_keeps_enforcement_tail(ctx):
     ctx.store.replace_all(
         [
             _titled_node("REQ-1", "requirement", "Rotation rule"),
-            _titled_node("impl.one", "implementation", "Rotate", path="src/auth.py",
-                         start=1, end=10),
+            _titled_node(
+                "impl.one", "implementation", "Rotate", path="src/auth.py", start=1, end=10
+            ),
             _titled_node("ANTI-1", "anti_pattern", "Never retry after accepted"),
         ],
         [

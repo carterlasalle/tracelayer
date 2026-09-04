@@ -17,8 +17,14 @@ from tracelayer.graph.store import GraphStore
 FACT_TYPES = ("fact", "value")
 
 # Dependent predicates from the dependent's perspective (spec Sections 98, 121).
-_DEPENDENT_PREDICATES = ("depends_on_value", "documents_value", "mirrors_value",
-                         "derives_value", "generated_from", "historical_reference")
+_DEPENDENT_PREDICATES = (
+    "depends_on_value",
+    "documents_value",
+    "mirrors_value",
+    "derives_value",
+    "generated_from",
+    "historical_reference",
+)
 
 
 # trace:exempt reason=internal-helper
@@ -79,9 +85,7 @@ def verify_facts(store: GraphStore, root: Path | str) -> list[dict]:
             else:
                 expected = consumer.metadata.get("value")
                 dep_status = (
-                    "CURRENT"
-                    if expected is None or str(expected) == current
-                    else "REVIEW_REQUIRED"
+                    "CURRENT" if expected is None or str(expected) == current else "REVIEW_REQUIRED"
                 )
             dependents.append(
                 {"id": consumer.trace_id, "predicate": edge.predicate, "status": dep_status}

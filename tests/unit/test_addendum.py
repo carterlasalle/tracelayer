@@ -81,10 +81,16 @@ def test_read_canonical_toml_and_json(tmp_path) -> None:
 def test_verify_facts_detects_drift(tmp_path) -> None:
     (tmp_path / "py.toml").write_text('[project]\nversion = "0.2.40"\n', encoding="utf-8")
     nodes = [
-        make_node("VALUE-1", "value",
-                  metadata={"canonical_source": "py.toml::project.version", "value": "0.2.40"}),
-        make_node("VALUE-2", "value",
-                  metadata={"canonical_source": "py.toml::project.version", "value": "0.2.39"}),
+        make_node(
+            "VALUE-1",
+            "value",
+            metadata={"canonical_source": "py.toml::project.version", "value": "0.2.40"},
+        ),
+        make_node(
+            "VALUE-2",
+            "value",
+            metadata={"canonical_source": "py.toml::project.version", "value": "0.2.39"},
+        ),
         make_node("doc.a", "document", metadata={"value": "0.2.40"}),
         make_node("doc.b", "document", metadata={"value": "0.2.39"}),
     ]

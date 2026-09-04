@@ -393,8 +393,15 @@ def test_render_parse_round_trip_fields(line: str) -> None:
 
 
 def test_node_defining_keys() -> None:
-    assert BUILTIN_PROPERTIES == {"id", "type", "title", "policy", "state", "canonical_source",
-                                  "value"}
+    assert BUILTIN_PROPERTIES == {
+        "id",
+        "type",
+        "title",
+        "policy",
+        "state",
+        "canonical_source",
+        "value",
+    }
     assert CONVENIENCE_EDGES == {"work": "work", "plan": "implements"}
     # Every built-in property and semantic edge key is accepted by the parser;
     # derived (structural/observed) keys are rejected (see test_derived_keys_rejected).

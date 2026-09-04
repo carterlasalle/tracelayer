@@ -33,6 +33,7 @@ def detect_beads(root: Path | str, enabled: str = "auto") -> dict:
         }
     }
 
+
 MIRROR_FILE = ".trace/beads-mirror.toml"
 MIRROR_REF_PREFIX = "TRACE:"
 
@@ -114,9 +115,14 @@ def mirror_tasks(store, root: Path | str, work_id: str, *, apply: bool = False) 
         raise ValueError("beads not active for this repository")
     readiness = compute_readiness(store, work_id)
     order = (
-        readiness["ready"] + readiness["in_progress"] + readiness["partial"]
-        + list(readiness["blocked"]) + readiness["done"] + readiness["cancelled"]
-        + readiness["deferred"] + readiness["not_implemented"]
+        readiness["ready"]
+        + readiness["in_progress"]
+        + readiness["partial"]
+        + list(readiness["blocked"])
+        + readiness["done"]
+        + readiness["cancelled"]
+        + readiness["deferred"]
+        + readiness["not_implemented"]
     )
     states = {}
     for tid in order:
@@ -179,11 +185,22 @@ def mirror_tasks(store, root: Path | str, work_id: str, *, apply: bool = False) 
                     args += ["--type", dep_type]
                 rc, _, _ = run_bd(root, *args)
                 if rc == 0 and via:
-                    linked.append({"task": tid, "bead": by_bead[tid],
-                                   "blocks": blocker_bead, "type": dep_type})
+                    linked.append(
+                        {
+                            "task": tid,
+                            "bead": by_bead[tid],
+                            "blocks": blocker_bead,
+                            "type": dep_type,
+                        }
+                    )
         write_mirror(root, mapping)
-    return {"work": work_id, "created": created, "linked": linked, "skipped": skipped,
-            "mapping": dict(mapping)}
+    return {
+        "work": work_id,
+        "created": created,
+        "linked": linked,
+        "skipped": skipped,
+        "mapping": dict(mapping),
+    }
 
 
 # trace:v1 id=impl.beads.reconcile work=WORK-beads-task-mirror-with-completion-reconciliation satisfies=REQ-completion-reconciliation
@@ -207,14 +224,29 @@ def reconcile(store, root: Path | str, work_id: str) -> dict:
         node = store.get_node(trace_id=tid)
         state = normalize_task_state(node.metadata.get("state") if node else None)
         if str(bead.get("status", "")).lower() == "closed" and state not in TERMINAL_TASK_STATES:
-            mismatches.append({"task": tid, "bead": bead_id,
-                               "issue": "closed in Beads but TraceLayer state is " + state})
+            mismatches.append(
+                {
+                    "task": tid,
+                    "bead": bead_id,
+                    "issue": "closed in Beads but TraceLayer state is " + state,
+                }
+            )
     for tid, reasons in readiness["blocked"].items():
         if any("open question" in r for r in reasons):
             bead_id = mapping.get(tid)
-            question_blocked.append({"task": tid, "bead": bead_id, "reasons": reasons,
-                                     "note": "answer in TraceLayer; reflect blockage in Beads"})
+            question_blocked.append(
+                {
+                    "task": tid,
+                    "bead": bead_id,
+                    "reasons": reasons,
+                    "note": "answer in TraceLayer; reflect blockage in Beads",
+                }
+            )
     open_questions = readiness.get("open_questions", [])
-    return {"work": work_id, "mismatches": mismatches, "question_blocked": question_blocked,
-            "open_questions": open_questions,
-            "complete": not mismatches and not question_blocked}
+    return {
+        "work": work_id,
+        "mismatches": mismatches,
+        "question_blocked": question_blocked,
+        "open_questions": open_questions,
+        "complete": not mismatches and not question_blocked,
+    }

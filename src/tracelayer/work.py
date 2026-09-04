@@ -189,6 +189,7 @@ def compute_readiness(store: GraphStore, work_id: str) -> dict:
     result["open_questions"].sort()
     return result
 
+
 IMPL_STATES = ("PLANNED", "PARTIAL", "IMPLEMENTED", "DEPRECATED", "REMOVED")
 
 FULFILLMENT_STATES = (
@@ -221,8 +222,12 @@ def fulfillment(store: GraphStore, requirement_id: str) -> dict:
     if node is None or not node.active:
         raise ValueError(f"no active requirement node: {requirement_id}")
     if node.status() == "retired":
-        return {"requirement": requirement_id, "status": "DEPRECATED",
-                "implementations": [], "tests": []}
+        return {
+            "requirement": requirement_id,
+            "status": "DEPRECATED",
+            "implementations": [],
+            "tests": [],
+        }
     impls = sorted(
         {
             src.trace_id
@@ -233,8 +238,12 @@ def fulfillment(store: GraphStore, requirement_id: str) -> dict:
         }
     )
     if not impls:
-        return {"requirement": requirement_id, "status": "UNIMPLEMENTED",
-                "implementations": [], "tests": []}
+        return {
+            "requirement": requirement_id,
+            "status": "UNIMPLEMENTED",
+            "implementations": [],
+            "tests": [],
+        }
     tests = sorted(
         {
             src.trace_id
@@ -246,21 +255,22 @@ def fulfillment(store: GraphStore, requirement_id: str) -> dict:
     )
     impl_nodes = [n for n in (store.get_node(trace_id=i) for i in impls) if n is not None]
     partial = any(
-        normalize_impl_state(n.metadata.get("state")) in ("PLANNED", "PARTIAL")
-        for n in impl_nodes
+        normalize_impl_state(n.metadata.get("state")) in ("PLANNED", "PARTIAL") for n in impl_nodes
     )
     if node.status() != "current":
         status = "STALE"
     elif partial:
         status = "PARTIALLY_IMPLEMENTED"
-    elif tests and all(
-        _test_passes(store, store.get_node(trace_id=t)) for t in tests
-    ):
+    elif tests and all(_test_passes(store, store.get_node(trace_id=t)) for t in tests):
         status = "VERIFIED"
     else:
         status = "IMPLEMENTED"
-    return {"requirement": requirement_id, "status": status,
-            "implementations": impls, "tests": tests}
+    return {
+        "requirement": requirement_id,
+        "status": status,
+        "implementations": impls,
+        "tests": tests,
+    }
 
 
 # trace:exempt reason=internal-helper

@@ -9,8 +9,20 @@ from tracelayer.templates import get_template, template_types, validate_structur
 def test_registry_covers_spec_types() -> None:
     types = template_types()
     for expected in (
-        "work", "task", "question", "decision", "requirement", "spec", "rfc",
-        "adr", "plan", "runbook", "guide", "reference", "migration", "incident",
+        "work",
+        "task",
+        "question",
+        "decision",
+        "requirement",
+        "spec",
+        "rfc",
+        "adr",
+        "plan",
+        "runbook",
+        "guide",
+        "reference",
+        "migration",
+        "incident",
     ):
         assert expected in types
         template = get_template(expected)

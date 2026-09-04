@@ -9,20 +9,28 @@ from tracelayer.release import FORBIDDEN_FRAGMENTS, check_dists, inspect_artifac
 
 
 def make_wheel(path, extra=()) -> None:
-    names = ["tracelayer/__init__.py", "tracelayer/cli.py",
-             "tracelayer/_skills/traceability/SKILL.md",
-             "tracelayer/_adapters/omp/hook.py", *extra]
+    names = [
+        "tracelayer/__init__.py",
+        "tracelayer/cli.py",
+        "tracelayer/_skills/traceability/SKILL.md",
+        "tracelayer/_adapters/omp/hook.py",
+        *extra,
+    ]
     with zipfile.ZipFile(path, "w") as archive:
         for name in names:
             archive.writestr(name, "# artifact\n")
 
 
 def make_sdist(path, extra=()) -> None:
-    names = ["tracelayer-0.2.40/pyproject.toml", "tracelayer-0.2.40/README.md",
-             "tracelayer-0.2.40/src/tracelayer/__init__.py",
-             "tracelayer-0.2.40/skills/traceability/SKILL.md",
-             "tracelayer-0.2.40/adapters/oh-my-pi/package.json",
-             "tracelayer-0.2.40/docs/marker-protocol.md", *extra]
+    names = [
+        "tracelayer-0.2.40/pyproject.toml",
+        "tracelayer-0.2.40/README.md",
+        "tracelayer-0.2.40/src/tracelayer/__init__.py",
+        "tracelayer-0.2.40/skills/traceability/SKILL.md",
+        "tracelayer-0.2.40/adapters/oh-my-pi/package.json",
+        "tracelayer-0.2.40/docs/marker-protocol.md",
+        *extra,
+    ]
     with tarfile.open(path, "w:gz") as archive:
         for name in names:
             import io
@@ -65,6 +73,13 @@ def test_inspect_sdist_and_empty_dir(tmp_path) -> None:
 
 # trace:v1 id=test.release.fragments type=test
 def test_forbidden_covers_runtime_junk() -> None:
-    for fragment in (".trace/var", ".venv", "node_modules", ".coverage",
-                     "coverage.xml", ".pytest_cache", "junit.xml"):
+    for fragment in (
+        ".trace/var",
+        ".venv",
+        "node_modules",
+        ".coverage",
+        "coverage.xml",
+        ".pytest_cache",
+        "junit.xml",
+    ):
         assert fragment in FORBIDDEN_FRAGMENTS

@@ -87,9 +87,7 @@ def plan_steps_for(requirement_titles: list[str], scope: str) -> list[str]:
 
 
 # trace:v1 id=impl.planning.artifact-engine work=WORK-knowledge-first-ambient-bootstrap-with-artifact-planning satisfies=REQ-artifact-planning-engine
-def plan_artifacts(
-    prompt: str, *, kind: str = "new_feature", num_requirements: int = 1
-) -> dict:
+def plan_artifacts(prompt: str, *, kind: str = "new_feature", num_requirements: int = 1) -> dict:
     """Artifact plan for an intent (spec Section 19 output shape)."""
     text = str(prompt or "")
     scope_info = classify_scope(text, kind, num_requirements)

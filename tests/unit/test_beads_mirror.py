@@ -95,8 +95,12 @@ def test_mirror_links_blockers(beads_repo, tmp_path) -> None:
     try:
         applied = mirror_tasks(store, beads_repo, "WORK-W", apply=True)
         by_task = {c["task"]: c["bead"] for c in applied["created"]}
-        assert {"task": "TASK-2", "bead": by_task["TASK-2"],
-                "blocks": by_task["TASK-1"], "type": "blocks"} in applied["linked"]
+        assert {
+            "task": "TASK-2",
+            "bead": by_task["TASK-2"],
+            "blocks": by_task["TASK-1"],
+            "type": "blocks",
+        } in applied["linked"]
         beads = {b["id"]: b for b in bd_beads(beads_repo)}
         assert beads[by_task["TASK-3"]]["status"] == "closed"
     finally:
@@ -114,8 +118,11 @@ def test_reconcile_flags_mismatch(beads_repo, tmp_path) -> None:
         assert rc == 0, err
         result = reconcile(store, beads_repo, "WORK-W")
         assert result["complete"] is False
-        assert {"task": "TASK-1", "bead": by_task["TASK-1"],
-                "issue": "closed in Beads but TraceLayer state is TODO"} in result["mismatches"]
+        assert {
+            "task": "TASK-1",
+            "bead": by_task["TASK-1"],
+            "issue": "closed in Beads but TraceLayer state is TODO",
+        } in result["mismatches"]
         assert [q["task"] for q in result["question_blocked"]] == ["TASK-2"]
     finally:
         store.close()

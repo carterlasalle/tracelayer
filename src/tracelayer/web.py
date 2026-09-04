@@ -96,11 +96,11 @@ def node_detail(engine: Engine, trace_id: str) -> dict | None:
             for v in ctx.verification
         ],
         "related": [
-            {"section": header, "id": n.trace_id, "type": n.node_type}
-            for header, n in ctx.related
+            {"section": header, "id": n.trace_id, "type": n.node_type} for header, n in ctx.related
         ],
         "adjacent": dict(ctx.adjacent or {}),
     }
+
 
 # trace:v1 id=impl.web.work-ready work=WORK-global-setup-filesystem-hygiene-web-work-view-and-skill-refresh satisfies=REQ-web-work-view-data
 def work_payload(engine: Engine, work_id: str) -> dict | None:

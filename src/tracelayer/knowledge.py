@@ -48,12 +48,16 @@ def knowledge_for(store: GraphStore, artifact_id: str, limit: int = 3) -> list[d
         if state in ("SUPERSEDED", "INVALIDATED", "ARCHIVED"):
             continue
         rank = _INJECTION_PREDICATES.index(edge.predicate)
-        hits.append((rank if state == "ACTIVE" else rank + len(_INJECTION_PREDICATES),
-                     node.trace_id, node))
+        hits.append(
+            (rank if state == "ACTIVE" else rank + len(_INJECTION_PREDICATES), node.trace_id, node)
+        )
     hits.sort(key=lambda h: (h[0], h[1]))
     return [
-        {"id": node.trace_id, "type": node.node_type,
-         "state": normalize_knowledge_state(node.metadata.get("state")),
-         "title": node.title or node.trace_id}
+        {
+            "id": node.trace_id,
+            "type": node.node_type,
+            "state": normalize_knowledge_state(node.metadata.get("state")),
+            "title": node.title or node.trace_id,
+        }
         for _, _, node in hits[:limit]
     ]

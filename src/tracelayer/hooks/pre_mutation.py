@@ -678,7 +678,9 @@ def _block_text(ctx: HookContext, node) -> str:
     if node.node_type in ("task", "question"):
         from tracelayer.work import normalize_question_state, normalize_task_state
 
-        normalize = normalize_question_state if node.node_type == "question" else normalize_task_state
+        normalize = (
+            normalize_question_state if node.node_type == "question" else normalize_task_state
+        )
         lines += ["", f"Status: {normalize(node.metadata.get('state'))}"]
     questions = _open_blocking_questions(store, node)
     if questions:

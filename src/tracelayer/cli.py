@@ -768,13 +768,19 @@ def work_ready(
         return
     titles = result.get("titles", {})
     ids: set[str] = {wid}
-    for _section in ("ready", "in_progress", "partial", "open_questions", "done", "deferred",
-                     "cancelled", "not_implemented"):
+    for _section in (
+        "ready",
+        "in_progress",
+        "partial",
+        "open_questions",
+        "done",
+        "deferred",
+        "cancelled",
+        "not_implemented",
+    ):
         ids.update(result.get(_section, []))
     ids.update(result.get("blocked", {}))
-    labels = {
-        tid: tid if titles.get(tid, tid) == tid else f"{tid} — {titles[tid]}" for tid in ids
-    }
+    labels = {tid: tid if titles.get(tid, tid) == tid else f"{tid} — {titles[tid]}" for tid in ids}
 
     work_title = titles.get(wid, wid)
     typer.echo(f"{wid} — {work_title}")
@@ -850,8 +856,9 @@ def work_sync_todos(
             typer.echo(f"no active plan document: {plan_id}", err=True)
             raise typer.Exit(2)
         doc = root / node.canonical_path
-        doc.write_text(doc.read_text(encoding="utf-8").rstrip("\n") + "\n\n" + blocks + "\n",
-                       encoding="utf-8")
+        doc.write_text(
+            doc.read_text(encoding="utf-8").rstrip("\n") + "\n\n" + blocks + "\n", encoding="utf-8"
+        )
         engine.index_changed()
         typer.echo(f"synced {len(tasks)} task(s) into {node.canonical_path}")
     finally:
@@ -975,7 +982,9 @@ def work_reconcile(
         typer.echo("beads and TraceLayer agree")
         return
     for mismatch in result["mismatches"]:
-        typer.echo(f"WORK STATE MISMATCH: {mismatch['task']} ({mismatch['bead']}): {mismatch['issue']}")
+        typer.echo(
+            f"WORK STATE MISMATCH: {mismatch['task']} ({mismatch['bead']}): {mismatch['issue']}"
+        )
     for blocked in result["question_blocked"]:
         typer.echo(f"QUESTION BLOCKED: {blocked['task']}: {'; '.join(blocked['reasons'])}")
     raise typer.Exit(1)
@@ -1450,7 +1459,9 @@ def plan_sync(
 @plan_app.command("suggest")
 def plan_suggest(
     prompt: str = typer.Argument(..., help="Natural-language intent to plan artifacts for"),
-    kind: str = typer.Option("new_feature", "--kind", help="Task kind (refactor, new_feature, ...)"),
+    kind: str = typer.Option(
+        "new_feature", "--kind", help="Task kind (refactor, new_feature, ...)"
+    ),
     requirements: int = typer.Option(1, "--requirements", help="Expected requirement count"),
 ) -> None:
     """Proportional artifact plan for an intent (spec Sections 19-20)."""
@@ -2565,9 +2576,17 @@ def release_check(
                 typer.echo(f"uv venv failed:\n{proc.stderr[-1000:]}", err=True)
                 raise typer.Exit(1)
             proc = subprocess.run(
-                ["uv", "pip", "install", "--python", str(venv / "bin" / "python"),
-                 "--no-deps", str(wheels[-1])],
-                capture_output=True, text=True,
+                [
+                    "uv",
+                    "pip",
+                    "install",
+                    "--python",
+                    str(venv / "bin" / "python"),
+                    "--no-deps",
+                    str(wheels[-1]),
+                ],
+                capture_output=True,
+                text=True,
             )
             if proc.returncode != 0:
                 typer.echo(f"wheel install failed:\n{proc.stderr[-1000:]}", err=True)
@@ -2616,4 +2635,3 @@ def hook(
 
 if __name__ == "__main__":
     main()
-
