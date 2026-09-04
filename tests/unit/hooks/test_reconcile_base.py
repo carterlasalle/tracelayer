@@ -30,7 +30,7 @@ def _commit(root, text: str) -> None:
     _git(root, "commit", "-qm", "x")
 
 
-# trace:v1 id=test.hooks.reconcile-base type=test
+# trace:v1 id=test.hooks.reconcile-base type=test verifies=REQ-base-fingerprint-reconciliation
 def test_unchanged_boundary_resolves_changed_stays(project, state) -> None:
     _git(project.root, "init", "-q")
     _git(project.root, "config", "commit.gpgsign", "false")
@@ -56,7 +56,7 @@ def test_unchanged_boundary_resolves_changed_stays(project, state) -> None:
     assert remaining == {("mod.py", "mod.target")}
 
 
-# trace:v1 id=test.hooks.reconcile-markdown type=test
+# trace:v1 id=test.hooks.reconcile-markdown type=test verifies=REQ-base-fingerprint-reconciliation
 def test_markdown_heading_with_marker_resolves(project, state) -> None:
     text = "# Canonical facts\n\n<!-- trace:v1 id=doc.canonical-facts work=WORK-X -->\n"
     (project.root / "notes.md").write_text(text, encoding="utf-8")

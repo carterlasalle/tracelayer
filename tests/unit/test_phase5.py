@@ -24,7 +24,7 @@ def make_node(trace_id: str, node_type: str, **kw) -> Node:
     )
 
 
-# trace:v1 id=test.paths.registry type=test
+# trace:v1 id=test.paths.registry type=test verifies=REQ-filesystem-classification-registry
 def test_registry_covers_hygiene_classes() -> None:
     assert set(path_classes()) == {
         "CANONICAL_SOURCE",
@@ -41,14 +41,14 @@ def test_registry_covers_hygiene_classes() -> None:
     assert class_info("bogus") is None
 
 
-# trace:v1 id=test.paths.dogfood type=test
+# trace:v1 id=test.paths.dogfood type=test verifies=REQ-filesystem-classification-registry
 def test_own_repo_has_no_gaps() -> None:
     from pathlib import Path
 
     assert gitignore_gaps(Path(__file__).resolve().parent.parent.parent) == []
 
 
-# trace:v1 id=test.paths.gaps type=test
+# trace:v1 id=test.paths.gaps type=test verifies=REQ-filesystem-classification-registry
 def test_gaps_reported_for_bare_repo(tmp_path) -> None:
     (tmp_path / ".gitignore").write_text("node_modules/\n", encoding="utf-8")
     gaps = gitignore_gaps(tmp_path)
@@ -56,7 +56,7 @@ def test_gaps_reported_for_bare_repo(tmp_path) -> None:
     assert "node_modules/" not in gaps
 
 
-# trace:v1 id=test.web.work-ready type=test
+# trace:v1 id=test.web.work-ready type=test verifies=REQ-web-work-view-data
 def test_work_payload_ready_and_unknown(tmp_path) -> None:
     nodes = [
         make_node("WORK-W", "work"),

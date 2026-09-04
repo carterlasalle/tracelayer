@@ -124,7 +124,7 @@ def test_web_unknown_node_404(tmp_path):
         proc.terminate()
 
 
-# trace:v1 id=test.web.work-fixture type=test
+# trace:v1 id=test.web.work-fixture type=test verifies=REQ-work-view-panel
 def _indexed_repo_with_tasks(tmp_path) -> Path:
     repo = make_git_repo(
         tmp_path,
@@ -147,7 +147,7 @@ def _indexed_repo_with_tasks(tmp_path) -> Path:
     return repo
 
 
-# trace:v1 id=test.web.work-endpoint type=test
+# trace:v1 id=test.web.work-endpoint type=test verifies=REQ-work-view-panel
 def test_web_work_ready_endpoint(tmp_path):
     root = _indexed_repo_with_tasks(tmp_path)
     proc, port = _spawn_web(root)
@@ -167,7 +167,7 @@ def test_web_work_ready_endpoint(tmp_path):
         proc.terminate()
 
 
-# trace:v1 id=test.web.node-related type=test
+# trace:v1 id=test.web.node-related type=test verifies=REQ-richer-node-detail
 def test_web_node_detail_has_related_and_adjacent(tmp_path):
     root = _indexed_repo_with_tasks(tmp_path)
     proc, port = _spawn_web(root)

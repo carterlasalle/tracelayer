@@ -41,7 +41,7 @@ def open_store(tmp_path, nodes, edges=()) -> GraphStore:
     return store
 
 
-# trace:v1 id=test.harness.normalize type=test
+# trace:v1 id=test.harness.normalize type=test verifies=REQ-harness-todo-adapters
 def test_normalize_todos() -> None:
     todos = [
         {"content": "Fix glob matching", "status": "pending", "id": "1"},
@@ -63,7 +63,7 @@ def test_normalize_todos() -> None:
         normalize_todos("jira", [])
 
 
-# trace:v1 id=test.harness.render type=test
+# trace:v1 id=test.harness.render type=test verifies=REQ-harness-todo-adapters
 def test_render_task_blocks_mints_unique_ids(tmp_path) -> None:
     store = open_store(tmp_path, [make_node("WORK-W", "work")])
     try:
@@ -76,7 +76,7 @@ def test_render_task_blocks_mints_unique_ids(tmp_path) -> None:
     assert "harness=claude" in blocks
 
 
-# trace:v1 id=test.beads.detect type=test
+# trace:v1 id=test.beads.detect type=test verifies=REQ-beads-optional-detection
 def test_detect_beads_never_initializes(tmp_path) -> None:
     result = detect_beads(tmp_path)
     assert set(result["beads"]) == {"available", "repository_initialized", "active"}
@@ -88,7 +88,7 @@ def test_detect_beads_never_initializes(tmp_path) -> None:
     assert detect_beads(tmp_path, enabled="false")["beads"]["active"] is False
 
 
-# trace:v1 id=test.work.fulfillment type=test
+# trace:v1 id=test.work.fulfillment type=test verifies=REQ-fulfillment-status
 def test_fulfillment_derives_from_graph(tmp_path) -> None:
     nodes = [
         make_node("REQ-1", "requirement"),

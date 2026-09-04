@@ -32,7 +32,7 @@ def make_edge(from_id: str, predicate: str, to_id: str) -> Edge:
     )
 
 
-# trace:v1 id=test.context.briefing type=test
+# trace:v1 id=test.context.briefing type=test verifies=REQ-engineering-briefing-context
 def test_briefing_shows_workflow_and_state(tmp_path) -> None:
     nodes = [
         make_node("WORK-W", "work"),
@@ -57,7 +57,7 @@ def test_briefing_shows_workflow_and_state(tmp_path) -> None:
     assert "Q-1 [OPEN]" in text
 
 
-# trace:v1 id=test.context.adjacent type=test
+# trace:v1 id=test.context.adjacent type=test verifies=REQ-engineering-briefing-context
 def test_adjacent_captures_comments_and_excerpt(tmp_path) -> None:
     src = tmp_path / "svc.py"
     src.write_text(

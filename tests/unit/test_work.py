@@ -44,7 +44,7 @@ def open_store(tmp_path, nodes, edges=()) -> GraphStore:
     return store
 
 
-# trace:v1 id=test.work.state-normalization type=test
+# trace:v1 id=test.work.state-normalization type=test verifies=REQ-task-and-question-lifecycle-states
 def test_normalize_task_states() -> None:
     assert normalize_task_state("TODO") == "TODO"
     assert normalize_task_state("in_progress") == "IN_PROGRESS"
@@ -63,7 +63,7 @@ def test_normalize_task_states() -> None:
     assert normalize_work_state("partially_complete") == "PARTIALLY_COMPLETE"
 
 
-# trace:v1 id=test.work.readiness type=test
+# trace:v1 id=test.work.readiness type=test verifies=REQ-native-ready-state-computation
 def test_readiness_ready_blocked_done(tmp_path) -> None:
     nodes = [
         make_node("WORK-W", "work"),
@@ -94,7 +94,7 @@ def test_readiness_ready_blocked_done(tmp_path) -> None:
     assert result["blocked"]["TASK-2"] == ["blocked by TASK-3 (TODO)"]
 
 
-# trace:v1 id=test.work.question-blocking type=test
+# trace:v1 id=test.work.question-blocking type=test verifies=REQ-native-ready-state-computation
 def test_open_question_blocks_and_answer_unblocks(tmp_path) -> None:
     nodes = [
         make_node("WORK-W", "work"),
@@ -126,7 +126,7 @@ def test_open_question_blocks_and_answer_unblocks(tmp_path) -> None:
     assert ready["open_questions"] == []
 
 
-# trace:v1 id=test.work.unknown-work type=test
+# trace:v1 id=test.work.unknown-work type=test verifies=REQ-native-ready-state-computation
 def test_readiness_unknown_work_raises(tmp_path) -> None:
     store = open_store(tmp_path, [make_node("WORK-W", "work")])
     try:
@@ -136,7 +136,7 @@ def test_readiness_unknown_work_raises(tmp_path) -> None:
         store.close()
 
 
-# trace:v1 id=test.work.marker-state type=test
+# trace:v1 id=test.work.marker-state type=test verifies=REQ-native-work-task-question-decision-ontology
 def test_marker_state_round_trip() -> None:
     line = "# trace:v1 id=TASK-101 type=task state=PARTIALLY_COMPLETE work=WORK-W"
     parsed = parse_marker_line(line, path="plan.md", line_no=1)

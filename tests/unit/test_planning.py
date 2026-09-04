@@ -11,7 +11,7 @@ from tracelayer.planning import (
 from tracelayer.tasks import bundle_from_prompt
 
 
-# trace:v1 id=test.planning.scope-tiers type=test
+# trace:v1 id=test.planning.scope-tiers type=test verifies=REQ-artifact-planning-engine
 def test_scope_tiers() -> None:
     assert classify_scope("Rename internal variable", "refactor")["scope"] == "tiny"
     assert classify_scope("Add --json output flag", "new_feature")["scope"] == "small"
@@ -24,7 +24,7 @@ def test_scope_tiers() -> None:
     assert classify_scope("Migrate the schema", "maintenance")["scope"] == "large"
 
 
-# trace:v1 id=test.planning.artifact-shape type=test
+# trace:v1 id=test.planning.artifact-shape type=test verifies=REQ-artifact-planning-engine
 def test_artifact_plan_shape_and_depth() -> None:
     tiny = plan_artifacts("Rename x to y", kind="refactor")
     assert tiny["scope"] == "tiny"
@@ -60,7 +60,7 @@ def test_artifact_plan_shape_and_depth() -> None:
     }
 
 
-# trace:v1 id=test.planning.questions type=test
+# trace:v1 id=test.planning.questions type=test verifies=REQ-question-detection
 def test_suggest_questions_only_interrogatives() -> None:
     assert suggest_questions("Should symlinked dirs count once? Do it.") == [
         "Should symlinked dirs count once?"
@@ -69,7 +69,7 @@ def test_suggest_questions_only_interrogatives() -> None:
     assert len(suggest_questions("A? B? C? D? E? F?")) == 5
 
 
-# trace:v1 id=test.planning.bundle-steps type=test
+# trace:v1 id=test.planning.bundle-steps type=test verifies=REQ-real-bootstrap-plan-generation
 def test_bundle_plan_has_verification_tail() -> None:
     bundle = bundle_from_prompt("Add --json output flag")
     steps = bundle["plan"]["steps"]

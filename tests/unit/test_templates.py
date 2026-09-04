@@ -5,7 +5,7 @@ from __future__ import annotations
 from tracelayer.templates import get_template, template_types, validate_structure
 
 
-# trace:v1 id=test.templates.registry type=test
+# trace:v1 id=test.templates.registry type=test verifies=REQ-artifact-template-registry
 def test_registry_covers_spec_types() -> None:
     types = template_types()
     for expected in (
@@ -36,7 +36,7 @@ def test_registry_covers_spec_types() -> None:
     assert get_template("ADR") is not None
 
 
-# trace:v1 id=test.templates.validation type=test
+# trace:v1 id=test.templates.validation type=test verifies=REQ-artifact-template-registry
 def test_validate_structure_reports_missing_required() -> None:
     assert validate_structure("adr", ["Status", "Context", "Decision"]) == []
     assert validate_structure("adr", ["Context"]) == ["status", "decision"]

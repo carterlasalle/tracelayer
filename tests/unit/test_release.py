@@ -41,7 +41,7 @@ def make_sdist(path, extra=()) -> None:
             archive.addfile(info, io.BytesIO(data))
 
 
-# trace:v1 id=test.release.inspect type=test
+# trace:v1 id=test.release.inspect type=test verifies=REQ-release-check-command
 def test_inspect_good_and_bad_wheels(tmp_path) -> None:
     good = tmp_path / "tracelayer-0.2.40-py3-none-any.whl"
     make_wheel(good)
@@ -60,7 +60,7 @@ def test_inspect_good_and_bad_wheels(tmp_path) -> None:
     assert inspect_artifact(thin)["missing"] != []
 
 
-# trace:v1 id=test.release.sdist type=test
+# trace:v1 id=test.release.sdist type=test verifies=REQ-release-check-command
 def test_inspect_sdist_and_empty_dir(tmp_path) -> None:
     sdist = tmp_path / "tracelayer-0.2.40.tar.gz"
     make_sdist(sdist)
@@ -71,7 +71,7 @@ def test_inspect_sdist_and_empty_dir(tmp_path) -> None:
     assert check_dists(tmp_path)["ok"] is True
 
 
-# trace:v1 id=test.release.fragments type=test
+# trace:v1 id=test.release.fragments type=test verifies=REQ-distribution-inspector
 def test_forbidden_covers_runtime_junk() -> None:
     for fragment in (
         ".trace/var",

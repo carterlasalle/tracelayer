@@ -68,7 +68,7 @@ def make_store(tmp_path, name="s.sqlite3") -> GraphStore:
     return store
 
 
-# trace:v1 id=test.beads.mirror-preview type=test
+# trace:v1 id=test.beads.mirror-preview type=test verifies=REQ-task-mirror-with-mapping
 @needs_bd
 def test_mirror_preview_then_apply(beads_repo, tmp_path) -> None:
     store = make_store(tmp_path, "preview.sqlite3")
@@ -88,7 +88,7 @@ def test_mirror_preview_then_apply(beads_repo, tmp_path) -> None:
         store.close()
 
 
-# trace:v1 id=test.beads.links type=test
+# trace:v1 id=test.beads.links type=test verifies=REQ-task-mirror-with-mapping
 @needs_bd
 def test_mirror_links_blockers(beads_repo, tmp_path) -> None:
     store = make_store(tmp_path, "links.sqlite3")
@@ -107,7 +107,7 @@ def test_mirror_links_blockers(beads_repo, tmp_path) -> None:
         store.close()
 
 
-# trace:v1 id=test.beads.reconcile type=test
+# trace:v1 id=test.beads.reconcile type=test verifies=REQ-completion-reconciliation
 @needs_bd
 def test_reconcile_flags_mismatch(beads_repo, tmp_path) -> None:
     store = make_store(tmp_path, "rec.sqlite3")

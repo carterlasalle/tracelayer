@@ -39,7 +39,7 @@ def open_store(tmp_path, nodes, edges=()) -> GraphStore:
     return store
 
 
-# trace:v1 id=test.knowledge.query type=test
+# trace:v1 id=test.knowledge.query type=test verifies=REQ-knowledge-node-ontology
 def test_knowledge_for_ranks_and_filters(tmp_path) -> None:
     nodes = [
         make_node("impl.a", "implementation"),
@@ -66,7 +66,7 @@ def test_knowledge_for_ranks_and_filters(tmp_path) -> None:
     assert normalize_knowledge_state("bogus") == "ACTIVE"
 
 
-# trace:v1 id=test.facts.canonical type=test
+# trace:v1 id=test.facts.canonical type=test verifies=REQ-canonical-fact-tracking
 def test_read_canonical_toml_and_json(tmp_path) -> None:
     (tmp_path / "py.toml").write_text('[project]\nversion = "0.2.40"\n', encoding="utf-8")
     (tmp_path / "p.json").write_text('{"a": {"b": 3}}', encoding="utf-8")
@@ -77,7 +77,7 @@ def test_read_canonical_toml_and_json(tmp_path) -> None:
     assert read_canonical(tmp_path, "novalue") == (False, "")
 
 
-# trace:v1 id=test.facts.verify type=test
+# trace:v1 id=test.facts.verify type=test verifies=REQ-canonical-fact-tracking
 def test_verify_facts_detects_drift(tmp_path) -> None:
     (tmp_path / "py.toml").write_text('[project]\nversion = "0.2.40"\n', encoding="utf-8")
     nodes = [
@@ -112,7 +112,7 @@ def test_verify_facts_detects_drift(tmp_path) -> None:
     assert by_id["VALUE-2"]["dependents"][0]["status"] == "REVIEW_REQUIRED"
 
 
-# trace:v1 id=test.facts.marker type=test
+# trace:v1 id=test.facts.marker type=test verifies=REQ-canonical-fact-tracking
 def test_fact_marker_round_trip() -> None:
     line = "# trace:v1 id=VALUE-1 type=value canonical_source=pyproject.toml::project.version value=0.2.40"
     parsed = parse_marker_line(line, path="spec.md", line_no=1)
