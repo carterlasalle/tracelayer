@@ -54,3 +54,28 @@ def test_unchanged_boundary_resolves_changed_stays(project, state) -> None:
     remaining = {(o["path"], o["symbol"]) for o in state.pending_obligations("s1")}
     assert resolved == 1
     assert remaining == {("mod.py", "mod.target")}
+
+
+# trace:v1 id=test.hooks.reconcile-markdown type=test
+def test_markdown_heading_with_marker_resolves(project, state) -> None:
+    text = (
+        "# Canonical facts\n"
+        "\n"
+        "<!-- trace:v1 id=doc.canonical-facts work=WORK-X -->\n"
+    )
+    (project.root / "notes.md").write_text(text, encoding="utf-8")
+    state.add_obligation(
+        "s1",
+        {
+            "path": "notes.md",
+            "symbol": "Canonical facts",
+            "kind": "new_behavior",
+            "work": "",
+            "requirement": "",
+            "suggested_marker": "<!-- trace:v1 id=doc.canonical-facts -->",
+            "state": "pending",
+        },
+    )
+    resolved = _resolve_obligations_in(state, "s1", project, "notes.md", text)
+    assert resolved == 1
+    assert state.pending_obligations("s1") == []

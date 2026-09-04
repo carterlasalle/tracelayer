@@ -554,10 +554,21 @@ def _resolve_obligations_in(state, session_id: str, project, path: str, text: st
     rename via ``trace task resolve-obligation <path> <symbol>``.
     """
     parser = _parser_for(path)
+    symbols: list = []
     try:
         symbols = parser.parse(text, path) if parser else []
     except Exception:
         symbols = []
+    if not symbols:
+        # No language parser (markdown, config, plain text): use the same
+        # boundary extraction the TL013 gate uses, or headings/config keys
+        # could never resolve their obligations.
+        try:
+            from tracelayer.discovery.boundaries import extract_boundaries
+
+            symbols = extract_boundaries(path, text)
+        except Exception:
+            symbols = []
     marker_ids: set[str] = set()
     for hit in iter_marker_hits(text, path):
         res = parse_marker_hit(hit, unknown_keys=project.config.markers.unknown_keys)
